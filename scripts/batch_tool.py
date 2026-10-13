@@ -93,7 +93,10 @@ def validate_policy(p, *, legacy_snapshot=False):
         # draft null. init never enables this compatibility path.
         if legacy_snapshot and stage == 'draft' and actual == {'model': model, 'reasoning_effort': None}: continue
         if actual != {'model': model, 'reasoning_effort': effort}: raise BatchError('Invalid model policy')
-    if p.get('delivery') != {'folder_prefix': '专利撰写完成', 'accepted_subdir': '已完成', 'pending_subdir': '待处理'}: raise BatchError('Invalid delivery policy')
+    delivery = p.get('delivery')
+    expected_delivery = {'folder_prefix': '专利撰写完成', 'accepted_subdir': '已完成', 'pending_subdir': '待处理'}
+    if not isinstance(delivery, dict) or delivery not in (expected_delivery, dict(expected_delivery, timing='after_each_acceptance')):
+        raise BatchError('Invalid delivery policy')
 def init(root, work, selection, desktop=None):
     root, work = root_path(root, required=True), root_path(work)
     desk = root_path(desktop if desktop else desktop_folder())
@@ -332,6 +335,19 @@ def retry(path, case_id, reason, work=None, desktop=None):
     return batch/'manifest.json'
 
 def deliver(path):
+    import incremental_delivery as incremental
+    m = load_manifest(path)
+    if m.get('delivery_mode') != incremental.MODE and all(c['status'] in TERMINAL for c in m['projects']):
+        return _deliver_legacy(path)
+    def verify(c):
+        verify_inputs(m, [c])
+        if c.get('retry_origin'): verify_retry_origin(m, c)
+        artifact = clean_path(c['artifact'], m['batch_dir']); verify_docx(artifact)
+        if sha(artifact) != c.get('passed_review_sha256') or sha(artifact) != c.get('artifact_sha256'):
+            raise BatchError('Artifact changed after review')
+    return incremental.deliver(path, m, verify)
+
+def _deliver_legacy(path):
     m = load_manifest(path)
     if any(c['status'] not in TERMINAL for c in m['projects']): raise BatchError('All projects must finish before delivery')
     verify_inputs(m, [c for c in m['projects'] if c['status'] in {'accepted', 'delivered'}])

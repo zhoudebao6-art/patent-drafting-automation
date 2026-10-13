@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 4,
-  "updated_at": "2026-10-13T07:50:53Z",
+  "version": 5,
+  "updated_at": "2026-10-13T08:37:15Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -628,12 +628,12 @@
       "scope": "global",
       "section": "delivery",
       "level": "must",
-      "instruction": "每批次完成后把经复查的各案DOCX集中到用户实际桌面下的新交付文件夹，同名项目及往期批次不覆盖。",
-      "check": "通过桌面目录接口定位，复制后核对最终文稿哈希及全部项目清单。",
+      "instruction": "每案完成并经GPT-6-astra/high最终复查通过后立即交付DOCX到用户实际桌面的同一批次文件夹，不等待其他项目完成；同名项目以ID区分且不覆盖往期批次。",
+      "check": "每次最终通过回执后即执行增量交付，核对源资料及最终文稿哈希；部分交付不关闭批次，未验收稿不交付，重试不覆盖已交付文件，实时同步交付清单。",
       "evidence": [
         {
-          "source": "references/batch-user-requirement.txt",
-          "locator": "第3行"
+          "source": "references/delivery-user-requirement.txt",
+          "locator": "第2-3行"
         }
       ],
       "exceptions": []
@@ -1144,6 +1144,34 @@
               {
                 "source": "references/parallel-user-requirement.txt",
                 "locator": "第2行"
+              }
+            ],
+            "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "previous_version": 4,
+      "updated_at": "2026-10-13T08:37:15Z",
+      "summary": "按用户明确要求写完一件交付一件：保留最终Astra验收，每案通过后立即追加到桌面同一批次目录，其他项目持续推进。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "delivery",
+            "level": "must",
+            "instruction": "每案完成并经GPT-6-astra/high最终复查通过后立即交付DOCX到用户实际桌面的同一批次文件夹，不等待其他项目完成；同名项目以ID区分且不覆盖往期批次。",
+            "check": "每次最终通过回执后即执行增量交付，核对源资料及最终文稿哈希；部分交付不关闭批次，未验收稿不交付，重试不覆盖已交付文件，实时同步交付清单。",
+            "evidence": [
+              {
+                "source": "references/delivery-user-requirement.txt",
+                "locator": "第2-3行"
               }
             ],
             "exceptions": []

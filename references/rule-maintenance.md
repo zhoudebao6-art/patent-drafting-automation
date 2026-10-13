@@ -32,4 +32,4 @@ python scripts/rules_tool.py validate --skill 当前技能目录
 
 不自动写用户长期记忆，不创建定时任务。后续增补通过再次调用此技能执行。
 
-批处理配置变更同时同步batch-policy.json及batch-workflow.md；用户明确修改模型或交付配置时，还须同步parallel_batch.py中的对应校验及其测试，并保持batch_tool.py对旧批次的兼容，不能只改JSON导致执行被旧校验拒绝。修改普通话术不能顺带取消用户指定的Sol/high撰写、Astra/high复查及修正、每案阶段有序、跨案滚动并行及桌面集中交付。已运行批次保留自己的策略快照；需要改变时先按用户明确要求迁移并记录，不能将新版本静默套用到半成品。
+批处理配置变更同时同步batch-policy.json及batch-workflow.md；用户明确修改模型或交付配置时，还须同步parallel_batch.py中的对应校验及其测试，并保持batch_tool.py对旧批次的兼容，不能只改JSON导致执行被旧校验拒绝。修改普通话术不能顺带取消用户指定的Sol/high撰写、Astra/high复查及修正、每案阶段有序、跨案滚动并行及逐案验收后立即交付到桌面同一批次目录。已运行批次保留自己的策略快照；需要改变时先按用户明确要求迁移并记录，不能将新版本静默套用到半成品。

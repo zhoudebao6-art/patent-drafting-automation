@@ -254,7 +254,8 @@ def mutate(path, controller, operation):
     with locked(path):
         m = load_manifest(path)
         if controller != m['controller']: raise BatchError('Only the batch controller may write the manifest')
-        if m.get('delivery_path'): raise BatchError('Delivered batch is closed')
+        if m.get('delivery_closed') or (m.get('delivery_path') and m.get('delivery_mode') != 'incremental_v1'):
+            raise BatchError('Delivered batch is closed')
         result = operation(m)
         m['sequence'] += 1; b.atomic(path, m)
         return result
@@ -416,6 +417,41 @@ def defer(path, case_id, status, reason, controller='controller'):
     return mutate(path, controller, apply)
 
 def deliver(path, controller='controller'):
+    import incremental_delivery as incremental
+    with locked(path):
+        m = load_manifest(path)
+        if controller != m['controller']: raise BatchError('Only batch controller may deliver')
+        legacy = m.get('delivery_mode') != incremental.MODE and all(c['status'] in TERMINAL and not c['active_attempt'] for c in m['projects'])
+        if not legacy:
+            def verify(c):
+                original = case_by_id(m, c['id'])
+                if c['status'] == 'accepted' and quarantine_changed_input(m, original):
+                    b.atomic(path, m)
+                    raise BatchError('Input changed during delivery; case quarantined; retry delivers remaining cases')
+                verify_case(m, c)
+                if c.get('active_attempt'): raise BatchError('Accepted case has active attempt')
+                if b.sha(file_path(c['artifact'], case_root(m, c))) != c.get('passed_review_sha256'):
+                    raise BatchError('Artifact changed after acceptance')
+                r = c['receipts'][-1]
+                a = next(x for x in c['attempts'] if x['id'] == r['context']['attempt'])
+                verify_render(m, c, a, r.get('render'))
+            recovered = incremental.recover_published_cases(m, verify)
+            for c in recovered:
+                event = {'event': 'controller_delivery_recovery', 'case_id': c['id'],
+                         'artifact_sha256': c['passed_review_sha256'], 'original_inputs_changed': False}
+                try: verify_original(m, c)
+                except (BatchError, OSError) as exc:
+                    event.update(original_inputs_changed=True, reason=str(exc))
+                m.setdefault('delivery_recovery_events', []).append(event)
+            quarantined = False
+            for c in m['projects']:
+                if c['status'] == 'accepted': quarantined = quarantine_changed_input(m, c) or quarantined
+            if quarantined or recovered: b.atomic(path, m)
+            return incremental.deliver(path, m, verify)
+    # The legacy implementation owns its lock and preserves old completed batches.
+    return _deliver_legacy(path, controller)
+
+def _deliver_legacy(path, controller='controller'):
     with locked(path):
         m = load_manifest(path)
         if controller != m['controller']: raise BatchError('Only batch controller may deliver')
@@ -476,6 +512,7 @@ def summary(path):
     with locked(path):
         m = load_manifest(path)
         return {'batch_id': m['batch_id'], 'controller': m['controller'], 'delivery_path': m.get('delivery_path'),
+                'delivery_mode': m.get('delivery_mode'), 'delivery_closed': m.get('delivery_closed', bool(m.get('delivery_path'))),
                 'counts': {s: sum(c['status'] == s for c in m['projects']) for s in sorted(set(c['status'] for c in m['projects']))},
                 'active_workers': sum(bool(c['active_attempt']) for c in m['projects']),
                 'peak_reserved_slots': m.get('peak_reserved_slots', 0), 'peak_bound_workers': m.get('peak_bound_workers', 0),
