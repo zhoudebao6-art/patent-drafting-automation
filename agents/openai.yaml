@@ -1,0 +1,4 @@
+interface:
+  display_name: "专利撰写自动化"
+  short_description: "文件夹逐案撰写，Sol高强度起草、Astra高强度复查修正，成稿集中交付到桌面"
+  default_prompt: "请使用 $patent-drafting-automation 逐个处理我指定文件夹中的技术项目优化书，使用GPT-6.1-sol高强度撰写，GPT-6-astra高强度复查及修正，完成后将成稿集中放到桌面文件夹。"

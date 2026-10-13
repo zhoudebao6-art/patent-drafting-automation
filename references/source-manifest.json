@@ -1,0 +1,90 @@
+{
+  "inspection_date": "2026-10-13",
+  "files": [
+    {
+      "id": "bolt-final",
+      "file": "references/corpus/bolt-final.docx",
+      "sha256": "87c3a8e5574451a3d21b639aecd10f4cdad221ddcc584cbf234dca394be9dc19",
+      "stats": {
+        "paragraphs": 174,
+        "omml": 54,
+        "images": 5,
+        "insertions": 0,
+        "deletions": 0,
+        "embeddings": []
+      },
+      "original_filename": "地脚螺栓定位板位移与倾角关联预警方法.docx"
+    },
+    {
+      "id": "bolt-source",
+      "file": "references/corpus/bolt-source.docx",
+      "sha256": "f010f0036578d60f6088583f0df2c344b9df8d08f47c2d91d636f8ba9f42632d",
+      "stats": {
+        "paragraphs": 107,
+        "omml": 80,
+        "images": 5,
+        "insertions": 0,
+        "deletions": 0,
+        "embeddings": []
+      },
+      "original_filename": "技术项目优化说明书地脚螺栓定位板位移与倾角关联预警方法.docx"
+    },
+    {
+      "id": "wearable-source",
+      "file": "references/corpus/wearable-source.docx",
+      "sha256": "a6cba6f5a20d89943074e58e704b87d7238adbd1a79d9e0bd63e9f3c5b012f51",
+      "stats": {
+        "paragraphs": 102,
+        "omml": 52,
+        "images": 5,
+        "insertions": 0,
+        "deletions": 0,
+        "embeddings": []
+      },
+      "original_filename": "技术项目优化说明书+穿戴式智能传感器的运动补偿心率测量方法.docx"
+    },
+    {
+      "id": "wearable-final",
+      "file": "references/corpus/wearable-final.docx",
+      "sha256": "086bbaf1cd0692892d4d452689aa9fa50bafd674c6adef2274b0d2ef1d578443",
+      "stats": {
+        "paragraphs": 152,
+        "omml": 33,
+        "images": 5,
+        "insertions": 0,
+        "deletions": 0,
+        "embeddings": []
+      },
+      "original_filename": "穿戴式智能传感器的运动补偿心率测量方法.docx"
+    },
+    {
+      "id": "alloy-source",
+      "file": "references/corpus/alloy-source.docx",
+      "sha256": "7c3275471476a7dfa8ad9d4b6db8a70d673e4e44ab4ebd8f6f1043c69c40a9c5",
+      "stats": {
+        "paragraphs": 109,
+        "omml": 48,
+        "images": 4,
+        "insertions": 0,
+        "deletions": 0,
+        "embeddings": []
+      },
+      "original_filename": "技术项目优化说明书高合金痕量元素弱谱信号的特征匹配识别方法.docx"
+    },
+    {
+      "id": "alloy-final",
+      "file": "references/corpus/alloy-final.docx",
+      "sha256": "df1601f7d85112134dd0654025e658cd97041fe7e56c8357eac3985d08154dfe",
+      "stats": {
+        "paragraphs": 159,
+        "omml": 42,
+        "images": 4,
+        "insertions": 0,
+        "deletions": 0,
+        "embeddings": []
+      },
+      "original_filename": "高合金痕量元素弱谱信号的特征匹配识别方法.docx"
+    }
+  ],
+  "verification_scope": "OOXML and content review; no full-page DOCX render acceptance of historical examples"
+}

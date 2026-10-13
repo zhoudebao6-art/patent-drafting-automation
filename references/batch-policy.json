@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "execution": "serial_per_project",
+  "models": {
+    "draft": {"model": "gpt-6.1-sol", "reasoning_effort": "high"},
+    "review": {"model": "gpt-6-astra", "reasoning_effort": "high"},
+    "revise": {"model": "gpt-6-astra", "reasoning_effort": "high"}
+  },
+  "delivery": {
+    "folder_prefix": "专利撰写完成",
+    "accepted_subdir": "已完成",
+    "pending_subdir": "待处理"
+  },
+  "fallback_model_allowed": false,
+  "notes": [
+    "Drafting explicitly uses gpt-6.1-sol with high reasoning effort; review, revisions and re-review explicitly use gpt-6-astra with high reasoning effort.",
+    "The controller uses actual model-selectable child-agent calls. This JSON is a policy, not a model invocation.",
+    "Freeze this policy and the rule version/hash in each batch. Do not silently apply later global changes to an active batch.",
+    "Dispatch logs are controller-captured records; field validation cannot independently attest that a model executed.",
+    "Controller defer events may record failures or missing input, but must never claim a successful model dispatch or review."
+  ]
+}

@@ -1,0 +1,958 @@
+{
+  "schema_version": 1,
+  "version": 2,
+  "updated_at": "2026-10-13T04:01:23Z",
+  "rules": [
+    {
+      "id": "TXT-01",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "abstract",
+      "level": "must",
+      "instruction": "说明书摘要由当前技术项目优化书的技术概括优化而来。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第1行"
+        }
+      ],
+      "check": "逐句核对技术概括与摘要的特征、条件和效果来源。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-02",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "abstract_figure",
+      "level": "must",
+      "instruction": "摘要附图采用当前项目整体流程图，核对与说明书相同图的一致性。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第2行"
+        }
+      ],
+      "check": "确认图意、来源、图像身份和状态。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-03",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "claims",
+      "level": "must",
+      "instruction": "权利要求由当前优化方案得到，沿用定稿话术形式而不用旧案例技术内容。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第3行"
+        }
+      ],
+      "check": "权项与优化方案逐特征映射。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-04",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "claims",
+      "level": "must",
+      "instruction": "正确使用所述，确保对象身份明确并具有本项前文或合法父项链的前置基础。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第3行"
+        }
+      ],
+      "check": "术语与引用链语义审核，不以关键词出现次数替代。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-05",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "field",
+      "level": "must",
+      "instruction": "技术领域使用摘要的第一句话，摘要更新时同步。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第4行"
+        }
+      ],
+      "check": "对照完整首句及技术名称。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-06",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "background",
+      "level": "must",
+      "instruction": "背景技术由当前优化书现有技术情况与问题分析优化而来。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第5行"
+        }
+      ],
+      "check": "对照来源，避免将本发明独有方案提前写成现有技术。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-07",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "invention",
+      "level": "must",
+      "instruction": "发明内容取自本案权利要求，沿用定稿格式与衔接话术，技术内容不移植旧案。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第6行"
+        }
+      ],
+      "check": "逐权项对照正文限定，检查去掉引用头后的指代。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-08",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "figure",
+      "level": "must",
+      "instruction": "附图说明按最终具体实施方式的图序填充。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第7行"
+        }
+      ],
+      "check": "首引顺序、说明列表、图号映射一致。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-09",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "embodiment",
+      "level": "must",
+      "instruction": "具体实施方式由当前优化书技术实现原理优化而来，沿用案例的写作方式。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第8行"
+        }
+      ],
+      "check": "逐段追溯输入、操作、条件和输出。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-10",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "检查公式逻辑、参数与格式，解释每一参数，保持公式与解释一致。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第8行"
+        }
+      ],
+      "check": "原始结构、规范表达、全部符号和语义逐项核验。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-11",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "figure",
+      "level": "must",
+      "instruction": "正文下方的图片按附图说明顺序排列。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第9行"
+        }
+      ],
+      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。",
+      "exceptions": []
+    },
+    {
+      "id": "TXT-12",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "figure",
+      "level": "must",
+      "instruction": "已确认错误的附图删除，具体实施方式中对应该图的内容全部删除并同步重排。",
+      "evidence": [
+        {
+          "source": "references/base-rules.txt",
+          "locator": "第9行"
+        }
+      ],
+      "check": "检查专属图文依赖的全部删除位置与剩余方案支持。",
+      "exceptions": [
+        "用户当前明确要求修图优先时，以本次要求为项目覆盖；无法验证不能直接判错。"
+      ]
+    },
+    {
+      "id": "STYLE-01",
+      "status": "active",
+      "origin": "example",
+      "scope": "global",
+      "section": "claims",
+      "level": "preferred",
+      "instruction": "独立项使用方法名称、其特征在于和必要步骤，从属项使用根据权利要求N所述的完整名称并展开限定。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0003-P0029"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0003-P0029"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0003-P0037"
+        }
+      ],
+      "check": "句式和技术依赖同时审核。",
+      "exceptions": []
+    },
+    {
+      "id": "STYLE-02",
+      "status": "active",
+      "origin": "example",
+      "scope": "global",
+      "section": "invention",
+      "level": "preferred",
+      "instruction": "采用目的句、为实现上述目的技术方案衔接、优选的从属方案、与现有技术相比的有益效果骨架。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0039-P0070"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0039-P0070"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0047-P0086"
+        }
+      ],
+      "check": "检查骨架与本案权项映射，避免遗漏仅、否则、不参与等限制。",
+      "exceptions": []
+    },
+    {
+      "id": "STYLE-03",
+      "status": "active",
+      "origin": "example",
+      "scope": "global",
+      "section": "background",
+      "level": "preferred",
+      "instruction": "按常见处理、接近路线、具体问题递进组织背景。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0035-P0037"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0035-P0037"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0043-P0045"
+        }
+      ],
+      "check": "判断论述逻辑与源材料支持，不强制三段。",
+      "exceptions": []
+    },
+    {
+      "id": "STYLE-04",
+      "status": "active",
+      "origin": "example",
+      "scope": "global",
+      "section": "embodiment",
+      "level": "preferred",
+      "instruction": "按总方案、对象和输入、具体操作、公式解释、边界与已有算例展开，按逻辑使用案例过渡句。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0078-P0103"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0077-P0093"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0094-P0106"
+        }
+      ],
+      "check": "读具体实施方式是否形成可跟随的实现过程。",
+      "exceptions": []
+    },
+    {
+      "id": "STYLE-05",
+      "status": "active",
+      "origin": "example",
+      "scope": "global",
+      "section": "formula",
+      "level": "preferred",
+      "instruction": "独立公式后以其中逐项解释符号、索引、算子和相关条件。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0084-P0085"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0090-P0091"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0103-P0104"
+        }
+      ],
+      "check": "公式每一实体与解释逐一匹配。",
+      "exceptions": []
+    },
+    {
+      "id": "STYLE-06",
+      "status": "active",
+      "origin": "example",
+      "scope": "global",
+      "section": "figure",
+      "level": "preferred",
+      "instruction": "按最终正文首次引入顺序分配图号，图说明用图N为本发明的，文末图下使用图N。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0072-P0076; P0105; P0114; P0122; P0138; P0144-P0152"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0072-P0075; P0153-P0159"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0088-P0092; P0166-P0174"
+        }
+      ],
+      "check": "核对旧号新号映射与三个位置。",
+      "exceptions": []
+    },
+    {
+      "id": "STYLE-07",
+      "status": "active",
+      "origin": "example",
+      "scope": "global",
+      "section": "effects",
+      "level": "preferred",
+      "instruction": "有益效果说明技术手段通过何种机制产生何种有条件效果。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0068-P0070"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0068-P0070"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0084-P0086"
+        }
+      ],
+      "check": "对照本案方案与证据，不制造数值改善率。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-01",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "历史案例只控制话术和结构，数量、领域实体、算法和数据不得直接填入新项目。",
+      "evidence": [
+        {
+          "source": "workflow:本技能执行机制",
+          "locator": "来源边界"
+        }
+      ],
+      "check": "搜索跨案例特有实体并逐项检查当前项目来源。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-02",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "同时读取OMML、普通文本、对象和图片公式；纯文本展平不作为公式正确性的依据。",
+      "evidence": [
+        {
+          "source": "workflow:本技能执行机制",
+          "locator": "数学结构保全"
+        }
+      ],
+      "check": "保存原始数学结构并核对显示；提取数不等于公式条数。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-03",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "参数解释必须正确而不只是存在，检查物理量、维度、索引和同名符号。",
+      "evidence": [
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0122-P0123"
+        }
+      ],
+      "check": "以地脚成稿P0123的yT疑点作负面回归。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-04",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "重算普通正文和公式中的数值算例，对确定的笔误记录证据后修正。",
+      "evidence": [
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0123"
+        }
+      ],
+      "check": "复算并记录容差，不能只检查OMML。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-05",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "claims",
+      "level": "must",
+      "instruction": "同级权项定义不自动继承，删除引用头后也要重新审核对象基础。",
+      "evidence": [
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0014-P0016; P0021-P0029"
+        }
+      ],
+      "check": "以高合金权9、权10依赖缺口作为语义复核样本，不自动认定全部定稿正确。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-06",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "figure",
+      "level": "must",
+      "instruction": "摘要复用图、格式变体与独立图分开登记，不能以媒体文件数推断图数。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml P0002; P0143"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml P0002; P0152"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml P0002; P0165"
+        }
+      ],
+      "check": "按关系ID、内容和哈希核对。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-07",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "材料中的演算、预测、仿真、实测证据类型原样保留，无法核实不升级为已证实事实。",
+      "evidence": [
+        {
+          "source": "workflow:本技能执行机制",
+          "locator": "证据强度"
+        }
+      ],
+      "check": "检查新增数据、效果数字和证据状态。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-08",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "不能确定的技术逻辑不自行编造修正；完成独立部分并列出具体缺口。",
+      "evidence": [
+        {
+          "source": "workflow:本技能执行机制",
+          "locator": "不确定性处理"
+        }
+      ],
+      "check": "区分可唯一修正笔误和需要澄清的技术变化。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-09",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "DOCX最后一次编辑后渲染并逐页视觉复核，结构检查不能替代视觉验收。",
+      "evidence": [
+        {
+          "source": "workflow:本技能执行机制",
+          "locator": "最终显示检查"
+        }
+      ],
+      "check": "记录最终文件哈希与页面审阅，未执行标记待验收。",
+      "exceptions": []
+    },
+    {
+      "id": "QA-10",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "完整读取页眉和分节，不因正文缺少摘要等标题就判定分区缺失。",
+      "evidence": [
+        {
+          "source": "references/corpus/wearable-final.docx",
+          "locator": "word/document.xml header1.xml-header5.xml"
+        },
+        {
+          "source": "references/corpus/alloy-final.docx",
+          "locator": "word/document.xml header1.xml-header5.xml"
+        },
+        {
+          "source": "references/corpus/bolt-final.docx",
+          "locator": "word/document.xml header1.xml-header5.xml"
+        }
+      ],
+      "check": "核查document和header XML及可视分区。",
+      "exceptions": []
+    },
+    {
+      "id": "UPDATE-01",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "update",
+      "level": "must",
+      "instruction": "用户明确长期反馈才更新全局规则，项目例外保留project范围，单案例归纳差异先candidate。",
+      "evidence": [
+        {
+          "source": "workflow:本技能执行机制",
+          "locator": "维护授权与范围"
+        }
+      ],
+      "check": "对照用户原话与适用范围。",
+      "exceptions": []
+    },
+    {
+      "id": "UPDATE-02",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "update",
+      "level": "must",
+      "instruction": "每次更新检查预期版本，保留证据、备份、变更记录，并同步受影响说明及回归。",
+      "evidence": [
+        {
+          "source": "workflow:本技能执行机制",
+          "locator": "可追溯版本维护"
+        }
+      ],
+      "check": "规则验证、命中与不命中示例、旧规则回归。",
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-01",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "batch",
+      "level": "must",
+      "instruction": "默认按用户指定文件夹识别本次项目并逐案串行处理，每案完成撰写、复查、必要修正与重验后再处理下一个，不只完成第一案。",
+      "check": "队列总数、顺序、逐案阶段记录与终态交付清单一致。",
+      "evidence": [
+        {
+          "source": "references/batch-user-requirement.txt",
+          "locator": "第3行"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-02",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "delivery",
+      "level": "must",
+      "instruction": "每批次完成后把经复查的各案DOCX集中到用户实际桌面下的新交付文件夹，同名项目及往期批次不覆盖。",
+      "check": "通过桌面目录接口定位，复制后核对最终文稿哈希及全部项目清单。",
+      "evidence": [
+        {
+          "source": "references/batch-user-requirement.txt",
+          "locator": "第3行"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-03",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "draft",
+      "level": "must",
+      "instruction": "专利文稿撰写由真实派发的gpt-6.1-sol执行；草稿推理强度用户未指定，保留支持的运行时默认并记录调用参数。",
+      "check": "检查真实子代理派发参数及成功结果，不以文本身份声明代替模型选择。",
+      "evidence": [
+        {
+          "source": "references/batch-user-requirement.txt",
+          "locator": "第3行"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-04",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "review",
+      "level": "must",
+      "instruction": "文稿复查由gpt-6-astra执行，reasoning_effort固定为high，逐项核对来源、所述、公式、附图及最终页面。",
+      "check": "确认review阶段工具派发模型与high强度，检查实际文件哈希及复查证据。",
+      "evidence": [
+        {
+          "source": "references/batch-user-requirement.txt",
+          "locator": "第3行"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-05",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "revise",
+      "level": "must",
+      "instruction": "复查发现错误时，由gpt-6-astra/high直接修正文稿并同步关联内容，不把修改交回Sol或主控模型。",
+      "check": "确认revise阶段模型及实际修订稿，记录每项问题的处理位置。",
+      "evidence": [
+        {
+          "source": "references/batch-user-requirement.txt",
+          "locator": "第3行"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-06",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "review",
+      "level": "must",
+      "instruction": "修订后再次由Astra/high复查最终版本，未解决问题、未完成页面复核或复查哈希不一致不得进入已完成。",
+      "check": "以最终内容哈希绑定审阅结果；需要源材料补充的项目单列待处理并继续其他项目。",
+      "evidence": [
+        {
+          "source": "workflow:批量撰写执行保障",
+          "locator": "BATCH-06"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-07",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "batch",
+      "level": "must",
+      "instruction": "指定模型不可用时记录阶段失败并保留工作，不静默降级；主控只编排，不用提示词冒充模型切换。",
+      "check": "派发记录与阶段回执核对，失败事件不伪造agent_id或通过结论。",
+      "evidence": [
+        {
+          "source": "workflow:批量撰写执行保障",
+          "locator": "BATCH-07"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BATCH-08",
+      "status": "active",
+      "origin": "workflow",
+      "scope": "global",
+      "section": "batch",
+      "level": "must",
+      "instruction": "批次冻结来源、规则版本及模型策略，保持项目隔离和断点状态；后续规则更新不静默改变已运行批次。",
+      "check": "输入哈希、策略快照、状态迁移、修改及桌面交付均留痕。",
+      "evidence": [
+        {
+          "source": "workflow:批量撰写执行保障",
+          "locator": "BATCH-08"
+        }
+      ],
+      "exceptions": []
+    }
+  ],
+  "history": [
+    {
+      "version": 1,
+      "previous_version": null,
+      "updated_at": "2026-10-13",
+      "summary": "依据用户基础TXT与三组优化书及定稿建立初始规则库，区分用户要求、案例偏好和校核机制。",
+      "changes": [
+        {
+          "action": "initial_import",
+          "rule_ids": [
+            "TXT-01",
+            "TXT-02",
+            "TXT-03",
+            "TXT-04",
+            "TXT-05",
+            "TXT-06",
+            "TXT-07",
+            "TXT-08",
+            "TXT-09",
+            "TXT-10",
+            "TXT-11",
+            "TXT-12",
+            "STYLE-01",
+            "STYLE-02",
+            "STYLE-03",
+            "STYLE-04",
+            "STYLE-05",
+            "STYLE-06",
+            "STYLE-07",
+            "QA-01",
+            "QA-02",
+            "QA-03",
+            "QA-04",
+            "QA-05",
+            "QA-06",
+            "QA-07",
+            "QA-08",
+            "QA-09",
+            "QA-10",
+            "UPDATE-01",
+            "UPDATE-02"
+          ]
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "previous_version": 1,
+      "updated_at": "2026-10-13T04:01:23Z",
+      "summary": "按用户明确要求升级为文件夹逐案串行批处理：Sol撰写，Astra/high复查与修正，最终桌面集中交付；同步批次流程、模型配置和执行台账。",
+      "changes": [
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "默认按用户指定文件夹识别本次项目并逐案串行处理，每案完成撰写、复查、必要修正与重验后再处理下一个，不只完成第一案。",
+            "check": "队列总数、顺序、逐案阶段记录与终态交付清单一致。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "delivery",
+            "level": "must",
+            "instruction": "每批次完成后把经复查的各案DOCX集中到用户实际桌面下的新交付文件夹，同名项目及往期批次不覆盖。",
+            "check": "通过桌面目录接口定位，复制后核对最终文稿哈希及全部项目清单。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "draft",
+            "level": "must",
+            "instruction": "专利文稿撰写由真实派发的gpt-6.1-sol执行；草稿推理强度用户未指定，保留支持的运行时默认并记录调用参数。",
+            "check": "检查真实子代理派发参数及成功结果，不以文本身份声明代替模型选择。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "review",
+            "level": "must",
+            "instruction": "文稿复查由gpt-6-astra执行，reasoning_effort固定为high，逐项核对来源、所述、公式、附图及最终页面。",
+            "check": "确认review阶段工具派发模型与high强度，检查实际文件哈希及复查证据。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-05",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "revise",
+            "level": "must",
+            "instruction": "复查发现错误时，由gpt-6-astra/high直接修正文稿并同步关联内容，不把修改交回Sol或主控模型。",
+            "check": "确认revise阶段模型及实际修订稿，记录每项问题的处理位置。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-06",
+            "status": "active",
+            "origin": "workflow",
+            "scope": "global",
+            "section": "review",
+            "level": "must",
+            "instruction": "修订后再次由Astra/high复查最终版本，未解决问题、未完成页面复核或复查哈希不一致不得进入已完成。",
+            "check": "以最终内容哈希绑定审阅结果；需要源材料补充的项目单列待处理并继续其他项目。",
+            "evidence": [
+              {
+                "source": "workflow:批量撰写执行保障",
+                "locator": "BATCH-06"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-07",
+            "status": "active",
+            "origin": "workflow",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "指定模型不可用时记录阶段失败并保留工作，不静默降级；主控只编排，不用提示词冒充模型切换。",
+            "check": "派发记录与阶段回执核对，失败事件不伪造agent_id或通过结论。",
+            "evidence": [
+              {
+                "source": "workflow:批量撰写执行保障",
+                "locator": "BATCH-07"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-08",
+            "status": "active",
+            "origin": "workflow",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "批次冻结来源、规则版本及模型策略，保持项目隔离和断点状态；后续规则更新不静默改变已运行批次。",
+            "check": "输入哈希、策略快照、状态迁移、修改及桌面交付均留痕。",
+            "evidence": [
+              {
+                "source": "workflow:批量撰写执行保障",
+                "locator": "BATCH-08"
+              }
+            ],
+            "exceptions": []
+          }
+        }
+      ]
+    }
+  ]
+}
