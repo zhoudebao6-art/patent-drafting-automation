@@ -25,3 +25,5 @@ python scripts/render_docx_checked.py 当前稿.docx --output-dir 本案/render-
 ## 不可用时
 
 日志保存到本次输出目录的`renderer.log`和`render.json`，报告缺失路径、文件更新或真实转换错误。保留稿件，不自动降低模型强度，不把重绘HTML、截图拼接或单独流程图当作最终Word页面，不宣称视觉验收完成。环境修复后的恢复流程见[批处理流程](batch-workflow.md)。
+
+v4运行配置已随当前文档插件升级到26.1011.11113。每批检查依赖一次；依赖更新后重新实测。Word字节未改变时，审查worker先验证render.json及全部产物后复用已有页面；修改后必须新目录重新渲染。各项目及attempt的渲染目录分开，禁止多个任务共用输出文件名或目录。

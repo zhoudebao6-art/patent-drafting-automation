@@ -98,7 +98,10 @@ def init(root, work, selection, desktop=None):
     root, work = root_path(root, required=True), root_path(work)
     desk = root_path(desktop if desktop else desktop_folder())
     if inside(work, root) or inside(desk, root): raise BatchError('Working and delivery roots must be outside input')
-    policy = read(POLICY); validate_policy(policy)
+    policy = read(POLICY)
+    if isinstance(policy, dict) and policy.get('execution') == 'rolling_parallel':
+        raise BatchError('New rolling_parallel batches must use parallel_batch.py init; existing serial manifests remain supported here')
+    validate_policy(policy)
     rules_bytes = RULES.read_bytes(); rules = json.loads(rules_bytes.decode('utf-8-sig'))
     if not isinstance(rules.get('version'), int) or not isinstance(rules.get('rules'), list): raise BatchError('Invalid rule snapshot')
     projects = selection.get('projects')

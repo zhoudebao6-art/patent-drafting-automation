@@ -1,148 +1,86 @@
-# 文件夹批量撰写
+# 多项目滚动并行
 
-## 用户的一次操作
+新批次使用scripts/parallel_batch.py和schema_version=2的[策略](batch-policy.json)，execution=rolling_parallel。旧批次execution=serial_per_project仍使用scripts/batch_tool.py和[历史流程](batch-workflow-serial.md)；不改写旧清单、派发或快照，正在测试的旧项目不自动迁移。
 
-用户把要撰写的技术优化项目书放在一个文件夹，告知路径并要求执行。主控扫描、识别、按队列逐案完成，无需逐案再问许可。明确这是技能配置修改时只维护技能；不能把历史三组学习案例重新写一遍当作本批次。
+## 入库及隔离
 
-允许一个项目一个 DOCX，也允许一项目一个子文件夹。先查看目录并按内容识别优化书；同案补充资料关联到本案，不当成独立案件。已有定稿、参考案例、~$锁文件、往期交付、重复副本不自动纳入。按用户给定顺序；未给顺序时按相对路径自然顺序冻结，每案保存稳定 ID 与顺序号。
+扫描用户文件夹，按内容识别优化书及同案补充文件。历史定稿、参考案例、临时锁文件、往期交付和重复副本不自动入队。按用户顺序或相对路径自然顺序安排启动，允许乱序完成。DOCX直接入库，PDF/旧DOC/压缩包先在独立intake目录准备，保留来源映射，检查解压路径，不执行附件。身份有歧义的案单列，其余继续。
 
-PDF/旧DOC或压缩包先记录为需准备材料，转换或安全解压至批次外的专用 intake 目录并保存原文件及来源映射；再用其中的DOCX及附件生成选择清单。不覆盖输入。归档不以“一个压缩包”直接视为一个已经识别的优化书。关键身份歧义不能猜；明确材料继续处理，歧义项单列待确认。
-
-## 队列与工作目录
-
-使用 `scripts/batch_tool.py` 管理队列与验收记录；**脚本不调用模型，也不撰写或修改专利正文**，实际模型阶段由主控调用子代理完成。先 scan 读取清单，主控依据正文识别项目并生成 selection JSON，不要求用户手写 JSON：
-
-新批次开始前按[运行环境](runtime.md)运行`render_docx_checked.py --preflight`；环境首次配置或改变时实际渲染小样。当前Windows修复配置使用已校验的原生LibreOffice，仍由官方`render_docx.py`生成真实Word页面，不把不存在的打包soffice路径作为唯一入口。
-
+selection由总控生成，source_files和primary_source相对于input，例如：
 ```json
-{
-  "projects": [
-    {"title": "项目名称", "source_files": ["项目甲/技术项目优化书.docx"], "primary_source": "项目甲/技术项目优化书.docx"}
-  ]
-}
+{"projects":[{"title":"当前项目名称","source_files":["项目甲/优化书.docx"],"primary_source":"项目甲/优化书.docx"}]}
 ```
 
-路径相对于 input 目录。选择清单中的项目名称取自当前资料，不借历史案例填充。source_files 含主文件和所有实际用于写作的支持文件。
+工作目录和交付目录在input外。init冻结来源、规则、模型策略，每案独立cases/001/sources快照和cases/001/stages/<attempt_id>目录。稿件、图片、PDF、渲染、台账、dispatch和receipt均归本案；不使用公共draft.docx或review.json。--desktop仅供明确覆盖和测试，正常解析系统实际桌面。
 
 ```text
-python scripts/batch_tool.py scan --input 输入目录 --out 扫描.json
-python scripts/batch_tool.py init --input 输入目录 --work-root 当前工作区/batches --selection 选择.json
-python scripts/batch_tool.py next --manifest 批次清单路径
+python scripts/parallel_batch.py scan --input 输入目录 --out 扫描.json
+python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目录 --selection 选择.json --controller 本批控制器标识
+python scripts/parallel_batch.py plan --manifest 批次清单 --capacity 实际worker总额度
 ```
 
-init 冻结输入哈希、模型策略和 rules.json 版本，在唯一批次工作目录保存 policy.snapshot.json 与逐字节 rules.snapshot.json，manifest 记录 rule_version、rules_sha256。worker 使用该批次规则快照；后续全局规则更新不会改变运行中的批次。脚本检查快照完整性，但不会自动把规则全文或所有参考资料塞给worker。
+## 滚动补位
 
-工作目录、scan输出与输入分开，实际桌面由Windows桌面目录接口解析，不硬编码“C盘Desktop”。根目录与来源/产物路径拒绝符号链接、junction等重解析点；scan跳过子目录链接。每案中间稿、原始数据定位、公式图台账、审阅报告及派发证据均放在该批次内。`--desktop` 仅供有明确需要的路径覆盖和临时目录测试；正常交付省略该参数。
+默认目标4个worker，最多8个在制项目，保留1个草稿推进机会。--capacity填写本批可使用的worker总额度，包含本批已占槽，不计总控和无关任务；不是当前空闲数。容量受真实工具额度约束，不能根据配置臆造名额。只有1个worker时如实顺序执行，不能声称真实多模型并行，也不能通过未授权的新聊天、全局设置或递归agent绕过额度。
 
-对每个项目完整执行后再进入下一个，不同时撰写多案，也不先批量起草全部项目再统一审查。当前案若确实无法继续则记录原因后进入后续案；不能因一案卡住就跳过其余确定可做的案。断点恢复读取清单和哈希，已完成的案不重复，已完成草稿从复查继续。
+总控维护事件循环：启动时连续reserve并派发多个不同项目；每个worker完成即登记回执、推进本案复查/修正、重新plan并补位，不等待整批完成。有草稿与审查同时待办时兼顾两个方向，修正和重验及时推进，达到在制上限后先消化积压。满槽时等待完成事件，避免紧密轮询及固定长时间睡眠。单案缺资料或输入变化要具体记录，其他案继续。
 
-## 真实模型派发
+每案内部仍是draft→review→revise(需要时)→review，最多一个活跃attempt。不同案可以同时处于不同阶段。最后交付按原队列顺序排列。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
 
-当当前环境提供 `collaboration.spawn_agent` 时使用该工具；这些是工具参数示意，不是 shell 命令：
-
-```json
-{"task_name":"draft_case_001","fork_turns":"none","model":"gpt-6.1-sol","reasoning_effort":"high","message":"本项目draft阶段的完整任务与绝对资料路径"}
-```
-
-```json
-{"task_name":"review_case_001_r1","fork_turns":"none","model":"gpt-6-astra","reasoning_effort":"high","message":"本项目review阶段的完整任务与绝对资料路径"}
-```
-
-```json
-{"task_name":"revise_case_001_r1","fork_turns":"none","model":"gpt-6-astra","reasoning_effort":"high","message":"本项目revise阶段的完整任务与绝对资料路径"}
-```
-
-本批次每个需要模型工作的阶段都创建指定模型的 worker，避免继承不明确的当前模型。全历史fork可能不允许模型覆盖，所以使用 none 并显式提供该案所需内容。一个worker完成后释放并发槽再派下一个；主控不要占用所有槽后再等不存在的空位。
-
-仅有技能文字或 JSON 配置不能切换模型。若本环境没有可指定模型的子代理工具，或派发失败、模型不可用、配额不足，保留队列与已生成文件，报告具体阶段和原因；不能改用当前模型完成内容后标记为指定模型。未经用户另行要求不新建侧栏聊天、不更改全局配置、不建立定时任务。
-
-主控把**真实工具调用**的参数和成功结果原样整理到该阶段 `dispatch.json`：
-
-```json
-{
-  "tool": "collaboration.spawn_agent",
-  "context": {"batch_id": "当前manifest中的batch_id", "case_id": "001", "stage": "review"},
-  "arguments": {"task_name": "review_case_001_r1", "fork_turns": "none", "model": "gpt-6-astra", "reasoning_effort": "high"},
-  "result": {"task_name": "/root/review_case_001_r1"}
-}
-```
-
-不复制示例伪造成功结果。arguments与result来自真实调用，context由主控绑定当前批次、项目和阶段。该文件是主控保存的可追溯日志；脚本只能验证字段、模型参数、成功返回、上下文和哈希的一致性，不能独立鉴定一份手写JSON是否来自真实工具，也不是服务端模型鉴证。若环境返回有效模型信息则另存原返回。模型在正文自称身份不作为证据。阶段回执的 agent_id 必须匹配真实返回的task_name，且末段名称与arguments.task_name一致；带错误结果、缺失绑定信息或重复使用同一agent_id的回执会被拒绝。dispatch.json须在本批次目录内。
-
-## 给worker的任务
-
-每次消息包括：角色 draft/review/revise、当前技能绝对路径、冻结规则版本、项目唯一 ID、全部来源路径及哈希、工作目录、指定输出路径、当前版本稿（如有）、必要的上一阶段检查项。提供文档技能、打包Python及本技能runtime.json中已核实的渲染路径。Windows按用户此次验证修复要求，通过render_docx_checked.py使用已验证的原生LibreOffice与隔离临时配置；仅修改子进程PATH，不接管用户应用。worker可用工具排版和计算，不再下派本阶段或启动其他项目。
-
-**draft / Sol high**：根据优化书及既有技能规则完整撰写一案，生成DOCX和来源/术语/公式/附图台账，完成初步结构和页面检查，保存为本案draft版本。没有来源的关键公式、图或数据标缺口，不套用旧案例补齐。提交实际输出路径。
-
-**review / Astra high**：独立读取源材料和稿件，不依赖Sol的“已通过”结论。检查完整章节与来源、所述引用链、权项与发明内容、公式及参数与算例、附图身份/顺序/真实性及删除联动、最终渲染页面。对实际稿件哈希出具 pass / fix_required / needs_input；有错明确位置、理由、修正依据及关联影响。本阶段只复查，修正文稿由随后同模型的revise阶段执行。
-
-**revise / Astra high**：逐项直接修改，不能只出建议，也不能把修改退回Sol。另存修订版，记录发现与处理，保留原稿。关联章节和图号一起修正；最后修改后重新渲染。新版本再次交Astra/high复查，审阅哈希必须等于最终修订版哈希。
-
-有明确可修问题就继续修正；连续两轮同一问题且没有新证据或修正进展，或必须新增关键技术事实才能“修好”时，标needs_input并写具体缺口，继续其他项目，不无限空转或强行pass。该停止条件不意味着只允许两轮修改；有进展时继续。
-
-## 阶段回执与验收
-
-主控保存worker产物和真实派发记录后调用：
+## 占槽和真实派发
 
 ```text
-python scripts/batch_tool.py record --manifest 批次清单路径 --case 项目ID --receipt 阶段回执.json
+python scripts/parallel_batch.py reserve --manifest 批次清单 --capacity 实际worker总额度 --controller 本批控制器标识
 ```
 
-draft/revise回执包含 `stage, agent_id, model, reasoning_effort, dispatch_evidence, artifact`；成功时verdict省略或为complete。artifact是批次目录内的实际DOCX绝对路径；每次另存新文件，不能复用原稿、其他阶段产物或输入的硬链接。脚本拒绝不可读ZIP、缺少word/document.xml等伪DOCX，但这不替代页面渲染验收。draft、review、revise及重验均必须在真实调用和回执中显式设置reasoning_effort为high；缺失、null或运行时默认值不符合本次用户要求，也不能只在回执中虚写high。review回执包含前述身份/派发字段，加 `reviewed_sha256, verdict, findings, checks`，不通过复查不接受。
+reserve持久保存占槽并返回case_id、attempt、directory、task_name、context、spawn_arguments及source_snapshots。严格使用返回的上下文及路径。使用真实collaboration.spawn_agent，参数取spawn_arguments再补message：draft=gpt-6.1-sol/high；review/revise=gpt-6-astra/high；fork_turns=none。成功后保存真实tool/context/arguments/result为本attempt的dispatch.json；reserve本身不代表模型已经运行。
 
-review checks必须逐项记录 `source_support, antecedents, claims_alignment, formulas, figures, rendered_pages`。全部实际检查passed、没有未解决问题、当前文件和所审文件哈希一致才pass。未涉及公式或图时也要说明“已检查：源材料无该项”，不伪造一次计算或图片审核。每项结果的详细证据在本案review.json中保存；回执是摘要，不是专业正确性自动证明。
-
-页面检查前用render_docx_checked.py的`--verify`核对当前稿件与PDF/PNG哈希，然后打开每一页并记录页数和发现。任一后续改动使旧渲染证据失效；仅生成render.json或记录`rendered_pending_visual_review`不能填rendered_pages=passed。
-
-实际已成功派发的worker因缺资料或工具失败而返回needs_input/failed时，回执仍保留真实派发证据，并须有非空reason；不能被当成accepted。若派发本身失败、当前环境没有指定模型工具、输入已变化或尚未派发便确定缺关键材料，使用控制器事件：
+message包含本案来源快照及哈希、rules.snapshot.json、当前稿和哈希、attempt目录、阶段输出及上一轮问题。不得传入别案正文。worker不下派、不改共享规则或manifest，不写其他案目录。主控只编排，不能冒充指定模型写稿。
 
 ```text
-python scripts/batch_tool.py defer --manifest 批次清单路径 --case 当前项目ID --status needs_input --reason 具体缺口
-python scripts/batch_tool.py defer --manifest 批次清单路径 --case 当前项目ID --status failed --reason 指定模型派发失败及真实原因
+python scripts/parallel_batch.py bind --manifest 批次清单 --case 项目ID --attempt attempt_id --dispatch 本attempt/dispatch.json --controller 本批控制器标识
 ```
 
-defer仅将最早未完成项目标为待处理，记录controller_defer事件，不伪造模型、agent_id或验收结论。next按当前项目核查来源；某案来源变化时可defer该案，继续其他确定可做的案。deliver只对已验收项目核查输入哈希，待处理案来源变化不会阻挡其他合格件。已验收项目的来源变化仍阻止交付；必须重新确认并建立新项目/批次，不能把旧审阅套到新输入。回执须使用脚本实际支持格式；不猜字段，先查看 `--help` 及脚本的校验报错。
+context必须逐字段等于reserve返回值，包括batch/case/stage/attempt及来源、规则、输入稿件哈希。真实派发失败则cancel预留并写原因；不能虚构成功记录。记录是总控日志，不是独立服务端模型鉴证。
+
+## 阶段回执
+
+draft写成本案DOCX及必要证据，结构预检后渲染最后版本。review独立读取来源和稿件，核对来源支持、所述、权项与发明内容、公式、附图、全部最终页面。revise由Astra/high直接另存修订版，联动章节和图号，重新渲染后再交新的Astra/high worker重验。连续两轮同问题无进展或缺关键技术事实时记录缺口，不无限空转。
+
+receipt含reserve完整context和stage/model/reasoning_effort/agent_id。写稿含artifact/artifact_sha256，输出在当前attempt内且不得使用原稿硬链接。审阅含reviewed_sha256/verdict/findings/checks。check键为source_support、antecedents、claims_alignment、formulas、figures、rendered_pages。pass要求全部passed且无未关闭发现。
+
+pass另含render={artifact_sha256, evidence, evidence_sha256}，evidence指本次review或被审稿写稿attempt内的官方render.json。该文件绑定PDF与全部连续PNG哈希；脚本验证页数/图像完整性，Astra还须实际打开全部页面。旧稿pass、跨案路径、错模型/强度、旧attempt、重复回执均应拒绝。
+
+```text
+python scripts/parallel_batch.py record --manifest 批次清单 --case 项目ID --attempt attempt_id --receipt 本attempt/receipt.json --controller 本批控制器标识
+```
+
+总控是唯一状态写入者，串行提交回执，文件锁额外防止并发更新丢失。脚本完整性校验不替代技术语义审查。乱序回执只推进对应项目。
+
+## 取消、恢复与待处理
+
+未bind的预留可因派发失败cancel；已bind先停止对应worker并确认实际停止，再保存停止证据并cancel。仅发出中断请求不等于停止确认。不得因超时直接启动同案第二个worker，活动worker不能直接defer。
+
+```text
+python scripts/parallel_batch.py cancel --manifest 批次清单 --case 项目ID --attempt attempt_id --reason 原因 --stop-evidence 停止证据.json --controller 本批控制器标识
+python scripts/parallel_batch.py defer --manifest 批次清单 --case 项目ID --status needs_input --reason 缺口 --controller 本批控制器标识
+python scripts/parallel_batch.py summary --manifest 批次清单
+```
+
+stop-evidence含tool=collaboration.interrupt_agent、原context、arguments.target=agent_id、实际result及confirmed_stopped=true；只有真实确认停止才填写。reserved取消不需要停止模型证据。取消后的迟到回执拒绝，新attempt独立创建。恢复前先读取summary及真实worker状态，避免重复派发。不静默清除可能仍活跃的锁。对已终结待处理案，保留旧批次另建新批次，不能修改旧回执冒充通过。
+
+## 减少重复工作
+
+环境预检每批一次，依赖改变后重新检查和实测。来源快照按源SHA和提取器哈希复用提取结果，同名异内容不能命中；复查复用数据结构但独立核对原材料及OMML。一个evidence.json可以汇总来源/术语/公式/附图，避免重复台账。独立只读检查批量执行。
+
+Word字节未变且render_docx_checked.py --verify通过时，直接复用同案已生成PDF/全部PNG，不重复转换。任何修订改变DOCX后重新渲染。最终Astra仍查看全部页、完成六项检查；可聚焦变更及依赖，不以省略验收换效率。
 
 ## 桌面交付
 
-所有案进入accepted、needs_input或failed等终态后：
-
 ```text
-python scripts/batch_tool.py deliver --manifest 批次清单路径
+python scripts/parallel_batch.py deliver --manifest 批次清单 --controller 本批控制器标识
 ```
 
-实际桌面下新建唯一“专利撰写完成_批次标识”文件夹，示意：
+所有案终态明确且无活跃worker后，事务式准备唯一桌面目录。通过稿进入已完成，同名案以ID区分；待处理只有具体说明。复制后验证最终文件与已通过审阅哈希，重复deliver不能覆盖其他批次。总控给出总数、已完成、待处理和占槽和绑定峰值（账面计数，不独立证明模型同时运行）；调度回归测试与真实多模型运行分别说明。
 
-```text
-专利撰写完成_批次标识/
-  已完成/
-    001_项目名称/项目名称.docx
-    002_项目名称/项目名称.docx
-  待处理/各未完成案的具体说明
-  交付清单（包含全部项目和状态）
-  批次清单（可追溯记录）
-```
-
-同名项目由序号区分，不覆盖旧批次。只将经过最终复查的DOCX放进已完成；不把中间稿、历史案例、输入资料或未验收稿混入。待处理目录只写中文原因说明。复制到桌面临时暂存目录后核对哈希，完整准备后才重命名为最终交付文件夹；失败保留工作区文稿与验收状态，可重试deliver。若最终目录已提交而工作清单更新中断，重试核对本批事务清单及产物哈希后恢复；正常重复执行返回同一目录，遇到不匹配的现有目录则拒绝覆盖。若进程被强制终止留下隐藏暂存目录，它不视为成稿，最终目录以成功事务为准。
-
-主控若在pass后改正文，哈希校验将拒绝交付；不得靠重写哈希或回执绕过。当前CLI不提供重开accepted的命令，此批次只能交付与原通过哈希一致的文件。如有新的修改需求，保留原通过文件另开后续校核/修改任务，仍由Astra/high修改与复查，不能将改后文件混入此批交付。最终向用户给桌面目录链接、总数/完成数/待处理数和具体剩余问题。全部可确认问题处理完毕才说本批次全部完成。
-
-## 策略更新
-
-### 故障修复后继续待处理案
-
-旧批次已交付待处理说明且该案为needs_input/failed时，使用`retry`建立后续批次，保留旧manifest、回执及桌面交付不变：
-
-```text
-python scripts/batch_tool.py retry --manifest 旧批次清单 --case 原项目ID --reason 本次恢复依据 --work-root 当前工作区/batches
-python scripts/batch_tool.py next --manifest 返回的新批次清单
-```
-
-工具先核对旧状态流转、派发证据、原始来源及历次稿件哈希；只继承可证实的稿件和失败前阶段，不继承通过标记。旧Sol草稿恢复到review时，新批次从Astra/high复查继续，不重新伪造Sol派发。新的review/revise仍需真实模型调用。`retry_origin`保存历史来源，新receipts用controller_retry事件标明继承。草稿和本案材料已改变时拒绝沿用旧结果；尚未终结/交付或已经通过的案件不使用此入口。恢复批次保持原冻结规则和模型策略，要求更换规则或技术材料时新建普通批次。
-
-用户以后调整模型或输出习惯时，同步rules.json、batch-policy.json及本流程和测试；当前在运行的批次保持冻结策略，除非用户明确要求迁移该批次。一般话术更新不改变模型分工和桌面交付规则。
-
-本次更新起，新建批次和规则v3批次的draft必须为Sol/high，review、revise及重验必须为Astra/high。为恢复历史进度，仅对已冻结规则v2、且规则哈希与策略快照校验一致的旧批次，保留其原有draft未指定推理强度的记录；旧策略不宣称满足新的high要求，也不能用于新建批次。旧派发原始参数若未传reasoning_effort，应如实保留遗漏状态，旧回执按原规则记null；新批次的调用及回执都必须显式为high。若用户明确要求把在途旧批次提升到新规则，应另建v3后续批次并按新模型分工重新执行需要更新的阶段，保留历史，不改写旧派发证据。
-
-能力依据：当前工具的模型覆盖参数，以及[官方子代理说明](https://learn.chatgpt.com/docs/agent-configuration/subagents)、[GPT-6.1 Sol模型说明](https://developers.openai.com/api/docs/models/gpt-6.1-sol)、[GPT-6 Astra模型说明](https://developers.openai.com/api/docs/models/gpt-6-astra)。实际可用性以当前派发结果为准。
+原始资料在阶段运行中发生变化时，record保留真实worker回执和冻结快照，追加controller_input_change事件并将该案转needs_input，释放已完成的attempt；不能将返回needs_input当作阶段验收通过。交付前再次逐案核对原始资料，变化案单列而其他合格案继续。若复制过程中才发生变化，本次不提交桌面目录，隔离后重试deliver；不悄悄替换来源或重写旧通过记录。

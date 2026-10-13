@@ -1,10 +1,19 @@
 {
-  "schema_version": 1,
-  "execution": "serial_per_project",
+  "schema_version": 2,
+  "execution": "rolling_parallel",
   "models": {
-    "draft": {"model": "gpt-6.1-sol", "reasoning_effort": "high"},
-    "review": {"model": "gpt-6-astra", "reasoning_effort": "high"},
-    "revise": {"model": "gpt-6-astra", "reasoning_effort": "high"}
+    "draft": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high"
+    },
+    "review": {
+      "model": "gpt-6-astra",
+      "reasoning_effort": "high"
+    },
+    "revise": {
+      "model": "gpt-6-astra",
+      "reasoning_effort": "high"
+    }
   },
   "delivery": {
     "folder_prefix": "专利撰写完成",
@@ -17,6 +26,14 @@
     "The controller uses actual model-selectable child-agent calls. This JSON is a policy, not a model invocation.",
     "Freeze this policy and the rule version/hash in each batch. Do not silently apply later global changes to an active batch.",
     "Dispatch logs are controller-captured records; field validation cannot independently attest that a model executed.",
-    "Controller defer events may record failures or missing input, but must never claim a successful model dispatch or review."
-  ]
+    "Controller defer events may record failures or missing input, but must never claim a successful model dispatch or review.",
+    "New batches use parallel_batch.py. Existing serial batches retain their frozen policy and batch_tool.py.",
+    "Capacity is the actual available child-worker count, excluding the controller and unrelated running workers; never infer it from target_workers.",
+    "Separate project and attempt directories; one active stage per project. Refill free slots and keep review/revision progressing."
+  ],
+  "concurrency": {
+    "target_workers": 4,
+    "max_in_flight_cases": 8,
+    "min_draft_slots": 1
+  }
 }

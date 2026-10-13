@@ -1,42 +1,32 @@
 # 专利撰写自动化
 
-把指定文件夹中的技术项目优化书逐案写成 Word 专利稿，完成复查、修正和页面验收后，集中交付到桌面。支持继续增加规则、对照新定稿改进话术，以及从故障中恢复未完成项目。
-
-当前技能维护版本 **v3.2**，业务规则版本 **v3**，含 **39 条结构化规则**。此私有仓库保存完整技能及三组参考项目资料。
+v4.0采用多项目滚动并行、持续补位和独立分区。业务规则版本v4，42条结构化规则。原模型分工保持：GPT-6.1-sol/high撰写；GPT-6-astra/high复查、修正及再次复查。
 
 ## 使用
 
-技能安装在 Codex 的 `skills/patent-drafting-automation` 目录后，在支持指定模型子代理的 Codex 环境中调用：
-
 ```text
-请使用 $patent-drafting-automation，批量处理“D:\待撰写项目”里的技术优化项目书，逐个完成撰写、复查及修改，全部成稿放到桌面。
+请使用 $patent-drafting-automation，并行处理“D:\待撰写项目”中的技术项目优化书，按可用名额持续补位，每案独立复查和修改，通过验收的Word集中交付桌面。
 ```
 
-每个项目完整执行以下流程后，才进入下一个项目：
+不同项目可以同时处于撰写、复查、修正阶段，不再等待前一项目全部验收。每案内部保持有序且只允许一个活跃阶段；独立case/attempt目录和哈希绑定防止错案、错稿、旧回执混用。
 
-1. GPT-6.1-sol / high 撰写。
-2. GPT-6-astra / high 独立复查。
-3. 有错由 GPT-6-astra / high 修改，再由 GPT-6-astra / high 复查。
-4. 最终 Word 逐页验收通过后交付桌面；缺少关键材料的项目另列具体说明。
+默认目标4个worker、最多8个在制项目，实际容量以运行环境允许的子代理名额为准。只有1个worker时顺序执行并如实报告。脚本管理队列和证据，模型由总控真实调用；不是双击即运行的后台程序。指定模型或容量不可用时不虚构结果、不静默更换模型。
 
-这是调用后执行的技能工作流，不是后台监控程序。Python 脚本管理队列和证据；实际撰写与复查由 Codex 通过真实子代理调用完成。模型不可调用时保存进度并报告，不自动替换模型。
-
-## 文件
+## 文件与维护
 
 - [SKILL.md](SKILL.md)：技能入口。
-- [规则库](references/rules.json)、[规则维护](references/rule-maintenance.md)：规则、适用范围、版本和更新方式。
-- [撰写规范](references/writing-standard.md)、[技术校核](references/technical-review.md)：章节、话术、公式与附图检查。
-- [批处理流程](references/batch-workflow.md)、[模型策略](references/batch-policy.json)：逐案串行、指定模型、复查及桌面交付。
-- [运行环境](references/runtime.md)：本机文档转换配置及页面验收。
-- [案例资料](references/corpus)、[来源清单](references/source-manifest.json)：三组优化书与定稿，仅用作规则和风格参考。
-- [scripts](scripts)：文档提取、批次管理、渲染验证、规则更新及测试。
+- [并行流程](references/batch-workflow.md)、[策略](references/batch-policy.json)：占槽、派发、补位、取消、验收及交付。
+- [规则库](references/rules.json)、[规则维护](references/rule-maintenance.md)：话术、范围、来源和版本记录。
+- [写作标准](references/writing-standard.md)、[技术校核](references/technical-review.md)：原有来源、所述、公式、图文要求。
+- [运行环境](references/runtime.md)：Windows Word页面转换及哈希验证。
+- [案例资料](references/corpus)、[来源清单](references/source-manifest.json)：三组历史参考项目。
 
-长期更新可以直接提出：`请使用 $patent-drafting-automation，把以下要求加入长期规则：……`。一次性项目修改不会自动写入长期规则。
+已有serial_per_project批次使用旧batch_tool.py及其冻结规则恢复，不被升级自动迁移。新批次使用parallel_batch.py。长期改规则可说“把下面要求加入技能长期规则：……”。
 
-## 运行环境与验证范围
+效率优化包括事件完成即补位、复用未改变的来源提取和Word渲染、按等待时间推进复查、限制草稿积压。最终六项Astra审查及全部页面验收保留，不承诺绝对零错误或未经测量的加速比例。
 
-`references/runtime.json` 保存当前 Windows 机器上已验证的 Python、官方文档渲染脚本、LibreOffice 和 Poppler 路径。换电脑或软件升级后，应按运行环境说明重新探测、配置和实际渲染。仓库及发行 ZIP 不附带这些运行程序。
+## 验证与环境
 
-2026-10-13 的 v3.2 验证结果：66 项自动测试通过；一份明确标注的虚拟样稿实际完成 Sol/high 撰写、Astra/high 复查和修正、重新渲染、独立最终复查及桌面交付，全部 6 页通过验收。三组历史案例没有被宣称为已完成全页视觉验收；新的真实项目仍需逐案核对技术来源和最终页面。
+v3.2历史验证：66项测试通过，一份虚拟样稿实际完成指定模型撰写、复查、修订、6页验收和桌面交付。v4.0新增多项目调度、隔离、并发写入、补位和故障恢复测试；测试中的模拟dispatch仅用于状态机验证，不代表实际多模型并发已经完成。每批summary报告占槽与绑定峰值；该计数本身不独立证明模型实际同时运行。
 
-完整 v3.2 备份 ZIP 可在本仓库的 Releases 中下载。日后更新以实际安装目录为准，同步经过验证的改动到仓库，保留历史版本。
+runtime.json为本机已验证工具路径；当前文档插件26.1011.11113。换电脑或升级后需重新探测和实际渲染，ZIP不包含Python、LibreOffice或Poppler程序。三组历史参考文件未被宣称为全页视觉验收通过。

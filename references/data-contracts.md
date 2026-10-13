@@ -31,3 +31,19 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 已交付的失败/待处理单案可通过retry建立新批次。新批次使用retry_origin保存源批次、源案件、原始回执与继承稿件证据，当前receipts从controller_retry事件起；这不是一次新的模型调用。状态从原失败前阶段恢复，旧文稿必须哈希一致，后续仍须新派发的Astra复查/修改。旧通过标记不可继承。
 
 每次最终Word渲染在独立目录保存render.json，绑定input_sha256、官方渲染脚本与配置的程序哈希、PDF和连续编号PNG的哈希。其成功状态rendered_pending_visual_review只证明转换和完整性，review.json另记实际逐页审阅结论。
+
+## 并行批次（schema_version=2）
+
+以上旧批次回执格式只用于冻结的serial_per_project。新rolling_parallel批次使用parallel_batch.py，以CLI返回为精确契约。
+
+manifest包含控制器标识、策略/规则哈希、项目来源快照、每案状态、attempt历史和活动占槽。每案cases/<id>/sources保存独立来源快照，cases/<id>/stages/<attempt_id>保存阶段产物。项目名可以相同，ID及目录不可混用。
+
+reserve返回完整context、spawn_arguments、worker_context及receipt_template。context绑定batch_id/case_id/stage/attempt、source_digest、rules_sha256及input_artifact_sha256，dispatch和receipt逐字段保持一致。不要从另案或上轮拷贝后只改显示名称。
+
+worker_context给出该案来源、当前稿件、规则快照、上一轮审查、可写目录和期望输出路径。未变化的来源提取、当前稿渲染可按哈希复用。独立审查不能用前一worker的自我评价替代。
+
+pass回执render={artifact_sha256,evidence,evidence_sha256}指向本案官方render.json；其PDF、连续PNG及输入哈希由render_docx_checked.verify_render校验，实际逐页查看结果仍写入checks及详细证据。写稿artifact和dispatch/receipt应位于当前attempt目录；引用已存在的本案当前稿仅用于review输入。
+
+总控为唯一状态写入者，锁保护事务读改写。reserved不等于已成功调用模型，bound不等于已完成；取消仅释放已确认不会继续写入的worker，保留attempt历史，拒绝迟到记录。单案一个活跃阶段，跨案可以乱序完成，最终交付仍按队列ID顺序。
+
+并行批次另记录controller_input_change事件：保持冻结快照和worker原回执，移除该案当前通过标志，转needs_input。summary中的peak_reserved_slots/peak_bound_workers是账面占槽/已绑定派发峰值，不是独立的模型同时执行证明。

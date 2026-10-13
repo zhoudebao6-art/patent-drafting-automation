@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "python": "C:\\Users\\HS\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
-  "renderer": "C:\\Users\\HS\\.codex\\plugins\\cache\\openai-primary-runtime\\documents\\26.1007.11041\\skills\\documents\\render_docx.py",
+  "renderer": "C:\\Users\\HS\\.codex\\plugins\\cache\\openai-primary-runtime\\documents\\26.1011.11113\\skills\\documents\\render_docx.py",
   "libreoffice": "D:\\Apps\\LibreOffice\\program\\soffice.exe",
   "libreoffice_sha256": "3c24436274cb9b5ccd363a517b377d07991eae82072690227e41c62ca9ca718b",
   "poppler_dir": "C:\\Users\\HS\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin",
