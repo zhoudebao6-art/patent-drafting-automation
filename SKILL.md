@@ -9,9 +9,9 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 ## 批处理与指定模型
 
-主控先读 [批处理流程](references/batch-workflow.md) 和 [模型及交付策略](references/batch-policy.json)，识别文件夹中本次要撰写的项目并冻结队列。新批次使用`scripts/parallel_batch.py`；已经冻结为serial_per_project的旧批次使用`scripts/batch_tool.py`和[历史串行流程](references/batch-workflow-serial.md)，不迁移正在运行的案件。每项目按 **GPT-6.1-sol/high 撰写 → GPT-6-astra/high 复查 → 有错误则 GPT-6-astra/high 修改 → GPT-6-astra/high 重验** 执行；不同项目可同时处于撰写、复查或修正，空闲名额及时补位下一项目。每案内部阶段不可重叠。默认目标4个worker、最多8个在制项目；实际并发按工具提供的可用子代理名额收缩，主控占用的名额不计worker。一个文件夹只有一案时也是单项批次。
+主控先读 [批处理流程](references/batch-workflow.md) 和 [模型及交付策略](references/batch-policy.json)，识别文件夹中本次要撰写的项目并冻结队列。新批次使用`scripts/parallel_batch.py`；已经冻结为serial_per_project的旧批次使用`scripts/batch_tool.py`和[历史串行流程](references/batch-workflow-serial.md)，不迁移正在运行的案件。每项目按 **GPT-6.1-sol/high 撰写 → GPT-6-astra/high 复查 → 有错误则 GPT-6-astra/high 修改 → 新的GPT-6-astra/high独立重验** 执行。新批次允许Astra在本次review内完成有明确依据的一次修正，记录revised后必须再派发新的独立review，减少另起修改代理的一次交接；不同项目可同时处于撰写、复查或修正，空闲名额及时补位下一项目。每案内部阶段不可重叠。默认目标4个worker、最多8个在制项目；实际并发按工具提供的可用子代理名额收缩，主控占用的名额不计worker。一个文件夹只有一案时也是单项批次。
 
-先按[运行环境与页面验收](references/runtime.md)检查实际渲染路径。Windows使用本技能已验证并配置的原生LibreOffice与打包文档Python/Poppler，调用官方渲染脚本；用小样验证环境，不能只读配置就宣称可运行。
+先按[运行环境与页面验收](references/runtime.md)检查实际渲染路径。Windows使用本技能已验证并配置的原生LibreOffice与打包文档Python/Poppler，调用官方渲染脚本；每批预检一次；仅首次配置、依赖改变或转换失败时用小样实测，不在每案重复环境小样。
 
 使用具有模型参数的实际子代理调用实现切换，不以提示词“你现在是某模型”冒充。不要改用户全局模型配置。指定模型不可调用时记录失败及原因，不擅自换模型。用户已授权这个模型分工，不逐案重复确认。
 
@@ -39,7 +39,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 保留原文件与 SHA-256，区分优化书、当前稿、定稿范例和规则文本。压缩包先查看条目，排除绝对路径、上级路径跳转和链接跳转，解压到专用目录；只读所需资料，不执行附件。
 
-运行 `scripts/inspect_docx.py 输入.docx --out 工作目录 --kind proposal|draft` 提取段落、原始 OMML、媒体关系、修订与检查线索。Python 使用环境提供的文档运行时；脚本仅依赖标准库。P 编号是 `word/document.xml` 全部 `w:p` 的 1-based 顺序，含空段与表格段，不是页码。
+运行 `scripts/inspect_docx.py 输入.docx --out 本案缓存目录 --kind proposal|draft --reuse` 提取段落、原始 OMML、媒体关系、修订与检查线索；使用返回的inspection/content实际路径，不猜缓存子目录。Python 使用环境提供的文档运行时；脚本仅依赖标准库。P 编号是 `word/document.xml` 全部 `w:p` 的 1-based 顺序，含空段与表格段，不是页码。
 
 纯文本拼接会丢失分式、上下标和矩阵层次。核对 `omml_xml` 与可视显示，也查普通文本公式、对象公式和图片公式。材料缺失先完成能确定部分，集中列出阻碍定稿的关键缺口，不编造补齐。
 
@@ -71,13 +71,15 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 ## 效率与隔离
 
+默认执行[提效流程](references/efficiency.md)，有依据的小范围修正由当前Astra复查代理直接做并交新代理独立重验：来源提取使用--reuse，render使用--reuse --compact，阶段回执使用--compact；先审技术内容、通过后再渲染最终页面，省略对已知还需修改稿件的提前转换。普通批次不运行技能回归测试、不反复读历史案例全文；技能维护只测试本次影响范围。
+
 每案只提供本案来源、规则快照和本案上一阶段文件；历史案例仅作规则/风格参考。所有产物写入本案的唯一attempt目录，总控独占批次状态写入，worker不修改其他项目或manifest。每次收到完成事件即登记结果，已验收稿立即交付，调度复查/修正并补位；不等待最慢的一案才启动后续任务。
 
 同案按来源哈希和提取工具版本复用提取结果，复查读取既有证据但独立核对原材料。Word字节未变且render.json验证通过时复用页面，避免重复转换；任何修改后重新渲染。保留最终来源、所述、权项联动、公式、附图及逐页审查，不能用省步骤代替验收。详细调度和取消规则见批处理流程。
 
 ## 工具与证据
 
-- `scripts/inspect_docx.py`：只读提取与结构预检。
+- `scripts/inspect_docx.py`：只读提取与结构预检；--reuse校验后复用同案来源证据。
 - `scripts/render_docx_checked.py`：真实运行环境预检、官方DOCX渲染、输入与逐页产物哈希校验；不自动签发视觉通过。
 - `scripts/parallel_batch.py`：新批次的并行计划、占槽、真实派发绑定、乱序回执、取消恢复、项目隔离及桌面交付。
 - `scripts/flat_delivery.py`：将新批次验收稿直接发布到同一交付文件夹根目录，处理重名、不可覆盖及中断恢复；旧批次保留旧布局。

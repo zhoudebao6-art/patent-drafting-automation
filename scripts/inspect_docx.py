@@ -4,6 +4,8 @@ import hashlib
 import json
 import posixpath
 import re
+import stat
+import uuid
 import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -319,41 +321,158 @@ def precheck(result, kind):
             add('FIELD_ABSTRACT','Technical field does not exactly match the detected abstract first sentence.')
 
 
+def file_sha(path):
+    h = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def local_path(path):
+    """Reject links/reparse points, including ancestors, before resolving paths."""
+    path = Path(path).absolute()
+    for node in (path, *path.parents):
+        try:
+            info = node.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
+            raise ValueError('Linked/reparse inspection path is not allowed: ' + str(node))
+        if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+            raise ValueError('Hard-linked inspection file is not allowed: ' + str(node))
+    return path.resolve()
+
+
+def inspection_summary(result, output, cache_status, cache_reason):
+    return {'input': result['input'], 'parts': len(result['parts']),
+        'formulas': len(result['formulas']), 'math_objects': len(result['formulas']),
+        'formula_count_status': result['formula_count_status'],
+        'formulas_field_note': 'Compatibility alias for math_objects, not the semantic source formula count.',
+        'media_files': len(result['media']), 'issues': len(result['issues']),
+        'status': result['review_status'], 'cache_status': cache_status, 'cache_reason': cache_reason,
+        'output_directory': str(output), 'inspection': str(output/'inspection.json'),
+        'content': str(output/'content.txt')}
+
+
+def verified_cache(directory, identity):
+    """Verify derived evidence bytes without reopening/parsing the source ZIP."""
+    directory = local_path(directory)
+    metadata = json.loads(local_path(directory/'cache.json').read_text(encoding='utf-8'))
+    if not isinstance(metadata, dict):
+        raise ValueError('Cache metadata object required')
+    if metadata.get('schema_version') != 1 or metadata.get('identity') != identity:
+        raise ValueError('Cache identity mismatch')
+    records = metadata['outputs']
+    if not isinstance(records, list):
+        raise ValueError('Cache output list required')
+    files = {}
+    for row in records:
+        relative = Path(row['file'])
+        if relative.is_absolute() or '..' in relative.parts:
+            raise ValueError('Cache artifact escaped generation')
+        target = local_path(directory/relative)
+        if not target.is_relative_to(directory) or target in files:
+            raise ValueError('Duplicate or foreign cache artifact')
+        if file_sha(target) != row['sha256']:
+            raise ValueError('Cache artifact changed: ' + row['file'])
+        files[target] = row['sha256']
+    report = directory/'inspection.json'
+    if report not in files or directory/'content.txt' not in files:
+        raise ValueError('Cache report/content missing')
+    result = json.loads(report.read_text(encoding='utf-8'))
+    if not isinstance(result, dict):
+        raise ValueError('Cache report object required')
+    if (result.get('input') != identity['input'] or result.get('sha256') != identity['source_sha256']
+            or result.get('review_status') != 'structural_precheck_only'):
+        raise ValueError('Cache report source/status mismatch')
+    expected = {report, directory/'content.txt'}
+    if identity['extract_media']:
+        for index, entry in enumerate(result['media'], 1):
+            target = directory/'media'/f'{index:03}_{Path(entry["part"]).name}'
+            if entry.get('extracted_path') != str(target) or files.get(target) != entry['sha256']:
+                raise ValueError('Cache extracted media mismatch')
+            expected.add(target)
+    if set(files) != expected:
+        raise ValueError('Cache artifact inventory mismatch')
+    return result
+
+
+def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=False):
+    """An explicit case-local cache stores structural evidence, never review approval."""
+    source = local_path(input_path)
+    output = local_path(output)
+    if source.suffix.lower() != '.docx' or kind not in {'proposal', 'draft'}:
+        raise ValueError('A DOCX and proposal/draft kind are required')
+    extractor = Path(__file__).resolve()
+    identity = {'input': str(source), 'source_sha256': file_sha(source),
+                'extractor_sha256': file_sha(extractor), 'kind': kind, 'extract_media': bool(extract_media)}
+    cache_reason = 'reuse_not_requested'
+    if reuse:
+        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        bucket = local_path(output/key)
+        bucket.mkdir(parents=True, exist_ok=True)
+        candidates = sorted(bucket.glob('generation-*'))
+        cache_reason = 'new_identity' if not candidates else 'no_valid_generation'
+        for candidate in candidates:
+            try:
+                result = verified_cache(candidate, identity)
+                summary = inspection_summary(result, candidate, 'hit', 'verified_all_artifacts')
+            except (OSError, ValueError, KeyError, TypeError):
+                continue  # Preserve incomplete or damaged evidence; never overwrite it.
+            if file_sha(source) != identity['source_sha256'] or file_sha(extractor) != identity['extractor_sha256']:
+                raise ValueError('Source or extractor changed during cache verification')
+            return summary
+        output = bucket/('generation-' + uuid.uuid4().hex)
+        output.mkdir(exist_ok=False)
+    else:
+        output.mkdir(parents=True, exist_ok=True)
+    result = inspect(source)
+    precheck(result, kind)
+    result['review_status']='structural_precheck_only'
+    result['required_semantic_reviews']=['claim antecedents and scope','claims to invention consistency',
+        'formula logic, symbols, dimensions, numerical examples','figure truth and deletion dependencies',
+        'source support and data provenance','final rendered pages']
+    artifacts = []
+    if extract_media:
+        media_dir=local_path(output/'media'); media_dir.mkdir(exist_ok=True)
+        with zipfile.ZipFile(source) as z:
+            for i,entry in enumerate(result['media'],1):
+                # Generated basename prevents paths from the archive escaping the output directory.
+                target=local_path(media_dir/f'{i:03}_{Path(entry["part"]).name}')
+                target.write_bytes(z.read(entry['part']))
+                entry['extracted_path']=str(target.resolve())
+                artifacts.append(target)
+    if result['sha256'] != identity['source_sha256'] or file_sha(source) != identity['source_sha256']:
+        raise ValueError('Source changed during inspection; no reusable cache committed')
+    report = local_path(output/'inspection.json')
+    report.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+    lines=[]
+    for part in result['parts']:
+        lines.append('\n## '+part['part'])
+        lines.extend(f'P{p["p"]:04}: {p["text"]}' for p in part['paragraphs'])
+    content = local_path(output/'content.txt')
+    content.write_text('\n'.join(lines),encoding='utf-8')
+    if file_sha(source) != identity['source_sha256'] or file_sha(extractor) != identity['extractor_sha256']:
+        raise ValueError('Source or extractor changed during inspection; no reusable cache committed')
+    if reuse:
+        artifacts.extend([report, content])
+        metadata = {'schema_version': 1, 'identity': identity,
+                    'outputs': [{'file': str(p.relative_to(output)), 'sha256': file_sha(p)} for p in artifacts]}
+        (output/'cache.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8')
+        verified_cache(output, identity)
+    return inspection_summary(result, output, 'miss' if reuse else 'disabled', cache_reason)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input',type=Path)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--kind',choices=['proposal','draft'],default='draft')
     parser.add_argument('--extract-media',action='store_true')
+    parser.add_argument('--reuse', action='store_true', help='Use --out as a case-local, hash-keyed evidence cache')
     args=parser.parse_args()
-    if args.input.suffix.lower()!='.docx':
-        parser.error('Input must be DOCX; convert older formats without overwriting originals.')
-    result=inspect(args.input)
-    precheck(result,args.kind)
-    result['review_status']='structural_precheck_only'
-    result['required_semantic_reviews']=['claim antecedents and scope','claims to invention consistency',
-        'formula logic, symbols, dimensions, numerical examples','figure truth and deletion dependencies',
-        'source support and data provenance','final rendered pages']
-    args.out.mkdir(parents=True,exist_ok=True)
-    if args.extract_media:
-        media_dir=args.out/'media'; media_dir.mkdir(exist_ok=True)
-        with zipfile.ZipFile(args.input) as z:
-            for i,entry in enumerate(result['media'],1):
-                # Generated basename prevents paths from the archive escaping the output directory.
-                target=media_dir/f'{i:03}_{Path(entry["part"]).name}'
-                target.write_bytes(z.read(entry['part']))
-                entry['extracted_path']=str(target.resolve())
-    (args.out/'inspection.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
-    lines=[]
-    for part in result['parts']:
-        lines.append('\n## '+part['part'])
-        lines.extend(f'P{p["p"]:04}: {p["text"]}' for p in part['paragraphs'])
-    (args.out/'content.txt').write_text('\n'.join(lines),encoding='utf-8')
-    summary={'input':str(args.input),'parts':len(result['parts']),'formulas':len(result['formulas']),
-        'math_objects':len(result['formulas']),'formula_count_status':result['formula_count_status'],
-        'formulas_field_note':'Compatibility alias for math_objects, not the semantic source formula count.',
-        'media_files':len(result['media']),'issues':len(result['issues']),'status':result['review_status']}
-    print(json.dumps(summary,ensure_ascii=False))
+    print(json.dumps(run_inspection(args.input, args.out, args.kind, args.extract_media, args.reuse), ensure_ascii=False))
 
 
 if __name__=='__main__':

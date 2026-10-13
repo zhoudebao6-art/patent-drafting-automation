@@ -10,13 +10,13 @@
 
 ```text
 python scripts/render_docx_checked.py --preflight
-python scripts/render_docx_checked.py 当前稿.docx --output-dir 本案/render-r1
-python scripts/render_docx_checked.py 当前稿.docx --output-dir 本案/render-r1 --verify
+python scripts/render_docx_checked.py 当前稿.docx --output-dir 本案/render-r1 --reuse --compact
+python scripts/render_docx_checked.py 当前稿.docx --output-dir 本案/render-r1 --verify --compact
 ```
 
-先预检再派发本批文稿任务，首次配置或环境改变时用小样实际渲染。预检仅证明依赖可找到；实际转换并打开每一页才证明页面可验收。正常批次中，draft和revise worker在最后一次编辑后渲染；review worker验证`render.json`对应当前稿件SHA256，逐页打开全部PNG，单独记录视觉结论。
+先预检再派发本批文稿任务，首次配置或环境改变时用小样实际渲染。预检仅证明依赖可找到；实际转换并打开每一页才证明页面可验收。正常批次中，draft和revise worker完成稿件与结构预检；review先完成内容核查，内容可通过时再在当前review目录渲染最终版本，或复用同一当前稿写稿attempt内的有效页面。有明确内容错误时先修改，不提前渲染待改稿。review验证`render.json`对应当前稿件SHA256，逐页打开全部PNG，单独记录视觉结论。
 
-包装器只对子进程设置已验证LibreOffice及打包Poppler的PATH。官方脚本创建唯一临时LibreOffice用户配置，不接管用户正在打开的文档。超时只终止本次包装器创建的渲染进程树，禁止按soffice、Word等名称全局结束进程。每次渲染使用新输出目录，失败不覆盖之前的页面或证据。
+包装器只对子进程设置已验证LibreOffice及打包Poppler的PATH。官方脚本创建唯一临时LibreOffice用户配置，不接管用户正在打开的文档。超时只终止本次包装器创建的渲染进程树，禁止按soffice、Word等名称全局结束进程。新版本渲染使用新输出目录，失败不覆盖之前的页面或证据；--reuse仅在同一路径稿件、字节、工具/配置/DPI指纹及全部产物核验相同时复用，--compact只返回状态、页数和证据路径。
 
 `render.json`记录输入、渲染器、原生程序及产物哈希，PDF页数必须等于连续编号PNG数量。生成成功状态是`rendered_pending_visual_review`，不是通过复查。改稿后旧渲染证据会被拒绝；必须重新渲染并由Astra/high再验。
 

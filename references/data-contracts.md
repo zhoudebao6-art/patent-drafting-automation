@@ -18,7 +18,7 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 - `figure_registry.json`：每项 `id, source_file, source_media, sha256, old_number, title, first_mention, dependent_paragraphs, evidence, status, action, final_number, abstract_reuse, review_notes`。删除图保留台账，final_number 为 null，记全部删改处；无图用空数组和原因，不造条目。
 - `review.json`：`input_hashes, rule_version, output_hash, checks, issues, release_status`。checks 记录实际检查及证据；antecedents绑定逐处名词与前置记录，formulas绑定来源/成稿分类计数、双向映射、完整符号对应及空白/格式结论（见[执行规范](terminology-and-formula.md)），未做为 not_run；issues 含位置、影响、程度、处理、剩余缺口。release_status 为 ready/needs_confirmation/visual_review_pending。语义与技术核查完成且最终渲染逐页验收后才 ready，脚本不自动签发 ready。
 
-小项目可把这些记录合成一个 JSON；必要对应关系不能省略。记录中的 null 代表未核定，不用零或空字符串掩盖。
+各案默认可把这些记录合成一份evidence.json；必要对应关系不能省略，已有定位使用引用避免重复抄写正文。记录中的 null 代表未核定，不用零或空字符串掩盖。
 
 ## 批次记录
 
@@ -30,7 +30,7 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 
 已交付的失败/待处理单案可通过retry建立新批次。新批次使用retry_origin保存源批次、源案件、原始回执与继承稿件证据，当前receipts从controller_retry事件起；这不是一次新的模型调用。状态从原失败前阶段恢复，旧文稿必须哈希一致，后续仍须新派发的Astra复查/修改。旧通过标记不可继承。
 
-每次最终Word渲染在独立目录保存render.json，绑定input_sha256、官方渲染脚本与配置的程序哈希、PDF和连续编号PNG的哈希。其成功状态rendered_pending_visual_review只证明转换和完整性，review.json另记实际逐页审阅结论。
+先完成内容核查，有阻碍通过的问题时页面检查标not_run并先修正；最终pass仍须六项全部通过。每次最终Word渲染在独立目录保存render.json，绑定input_sha256、官方渲染脚本与配置的程序哈希、PDF和连续编号PNG的哈希。其成功状态rendered_pending_visual_review只证明转换和完整性，review.json另记实际逐页审阅结论。
 
 ## 并行批次（schema_version=2）
 
@@ -61,3 +61,7 @@ delivery.timing=after_each_acceptance表示每案验收通过后立即调用deli
 规则版本8起，新批次delivery={folder_prefix:专利撰写完成,layout:flat_final_files,timing:after_each_acceptance}。此布局记录delivery_mode=flat_final_files_v1；所有验收DOCX直接位于delivery_path根目录，relative_path为单个文件名，不包含“已完成”或项目子目录。名称按冻结全队列预分配并持久保存；通常为项目名称.docx，同名、大小写或清洗冲突时加稳定案号，不能按完工先后任意重命名。
 
 桌面仅展示成稿；只保留一个隐藏的目录归属标记，批次清单、逐案发布记录、中断恢复信息和待处理说明位于批次工作目录的flat-delivery/中。新发布的复制阶段使用桌面同卷、核验批次归属的隐藏事务临时区，再原子改名到成稿根目录；进程中断的临时痕迹可能保留在该隐藏区，不属于交付成稿，也不能盲删未知文件。任何已发布文件的名称、归属和验收哈希均须一致；文件被修改、缺失或目标被其他内容占用时保留现场并报告，不能覆盖。复制或状态提交中断后依据真实发布证据恢复，不能把存在同名文件当作验收通过。未通过稿不发布；全部案一次交付与逐案追加使用相同布局。旧无layout快照保持原契约。
+
+## 提效模式
+
+新策略review_mode=review_fix_then_recheck允许Astra/high review在一次调用内修正并返回verdict=revised。reviewed_sha256对应输入旧稿；artifact/artifact_sha256对应当前review attempt内字节已改变的新稿；findings须非空，每项status=resolved或closed，并提供非空location和correction_evidence；checks六键记录实际结果，未做项标not_run。该回执只使案件进入revised，下次必须派发新的Astra/high review，最终pass不得同时夹带修改产物。未带review_mode的旧策略不接受revised审查回执，仍走独立revise。缓存只复用结构或渲染产物，不复用语义通过结论；--compact只影响工具返回，完整记录照常持久保存。

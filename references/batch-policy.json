@@ -31,11 +31,13 @@
     "Capacity is the actual available child-worker count, excluding the controller and unrelated running workers; never infer it from target_workers.",
     "Separate project and attempt directories; one active stage per project. Refill free slots and keep review/revision progressing.",
     "Deliver each accepted case immediately to the same desktop batch folder while other workers continue. Partial delivery must not close the batch; preserve prior outputs and update the delivery ledger.",
-    "Accepted DOCX files are published directly in one desktop batch folder; no accepted/per-case delivery subdirectories. Keep case workspaces isolated and detailed receipts/pending notes in the work batch directory; freeze collision-safe filenames."
+    "Accepted DOCX files are published directly in one desktop batch folder; no accepted/per-case delivery subdirectories. Keep case workspaces isolated and detailed receipts/pending notes in the work batch directory; freeze collision-safe filenames.",
+    "New batches follow efficiency.md: verified case-local inspection cache, same-artifact render reuse, compact CLI replies, content review before final rendering, and tests scoped to the actual skill change. Acceptance and model policies remain mandatory."
   ],
   "concurrency": {
     "target_workers": 4,
     "max_in_flight_cases": 8,
     "min_draft_slots": 1
-  }
+  },
+  "review_mode": "review_fix_then_recheck"
 }

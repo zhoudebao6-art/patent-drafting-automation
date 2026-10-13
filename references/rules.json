@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 8,
-  "updated_at": "2026-10-13T10:28:27Z",
+  "version": 9,
+  "updated_at": "2026-10-13T11:37:20Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -685,12 +685,16 @@
       "scope": "global",
       "section": "review",
       "level": "must",
-      "instruction": "文稿复查由gpt-6-astra执行，reasoning_effort固定为high，逐项核对来源、所述、公式、附图及最终页面。",
+      "instruction": "文稿复查由gpt-6-astra执行，reasoning_effort固定为high；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。有阻碍通过的内容错误时先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
       "check": "确认review阶段工具派发模型与high强度，检查实际文件哈希及复查证据。",
       "evidence": [
         {
           "source": "references/batch-user-requirement.txt",
           "locator": "第3行"
+        },
+        {
+          "source": "references/efficiency-user-requirement.txt",
+          "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
         }
       ],
       "exceptions": []
@@ -702,12 +706,16 @@
       "scope": "global",
       "section": "revise",
       "level": "must",
-      "instruction": "复查发现错误时，由gpt-6-astra/high直接修正文稿并同步关联内容，不把修改交回Sol或主控模型。",
-      "check": "确认revise阶段模型及实际修订稿，记录每项问题的处理位置。",
+      "instruction": "复查发现错误时，由gpt-6-astra/high修正文稿并同步关联内容，不交回Sol或主控。新策略允许当前review代理在一次调用内完成有明确依据的修正，另存新稿并返回revised；不适合合并时走独立revise，旧策略仍保持原流程。",
+      "check": "核对真实Astra/high派发及修改产物、问题定位和新稿哈希；合并修正仅在允许的新策略下接受，返回revised后不能交付，必须进入新的独立review。",
       "evidence": [
         {
           "source": "references/batch-user-requirement.txt",
           "locator": "第3行"
+        },
+        {
+          "source": "references/efficiency-user-requirement.txt",
+          "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
         }
       ],
       "exceptions": []
@@ -719,12 +727,16 @@
       "scope": "global",
       "section": "review",
       "level": "must",
-      "instruction": "修订后再次由Astra/high复查最终版本，未解决问题、未完成页面复核或复查哈希不一致不得进入已完成。",
+      "instruction": "任何修订（含review内直接修正）后，由新派发的Astra/high代理独立复查最终版本；修改者不得在同次回执直接通过自己的变更稿。未解决问题、未完成最终页面复核或复查哈希不一致不得进入已完成。",
       "check": "以最终内容哈希绑定审阅结果；需要源材料补充的项目单列待处理并继续其他项目。",
       "evidence": [
         {
           "source": "workflow:批量撰写执行保障",
           "locator": "BATCH-06"
+        },
+        {
+          "source": "references/efficiency-user-requirement.txt",
+          "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
         }
       ],
       "exceptions": []
@@ -787,12 +799,16 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "减少重复读取、提取、渲染和等待：同案未变化来源复用带哈希的提取结果，同一DOCX复用已绑定的渲染产物；最后修改后的新稿必须重新渲染并独立验收。",
-      "check": "缓存以当前来源/输出哈希及工具版本匹配为前提；同名异内容、跨项目或改稿后的旧缓存不得复用；最终六项复查仍齐全。",
+      "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许Astra在当前review内直接完成有明确依据的一次修正，再交新的Astra/high独立重验，减少单独修改派发；修正回执不得直接验收。",
+      "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。",
       "evidence": [
         {
           "source": "references/parallel-user-requirement.txt",
           "locator": "第2行"
+        },
+        {
+          "source": "references/efficiency-user-requirement.txt",
+          "locator": "2026-10-13 用户通用提效要求"
         }
       ],
       "exceptions": []
@@ -1451,6 +1467,110 @@
               {
                 "source": "references/delivery-user-requirement.txt",
                 "locator": "2026-10-13 用户补充通用交付布局要求"
+              }
+            ],
+            "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "previous_version": 8,
+      "updated_at": "2026-10-13T11:37:20Z",
+      "summary": "通用提效：落实可校验缓存与简短回执，按阶段和影响范围检查，先技术核查再渲染最终稿，保留最终质量门禁。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-10",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许Astra在当前review内直接完成有明确依据的一次修正，再交新的Astra/high独立重验，减少单独修改派发；修正回执不得直接验收。",
+            "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户通用提效要求"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "review",
+            "level": "must",
+            "instruction": "文稿复查由gpt-6-astra执行，reasoning_effort固定为high；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。有阻碍通过的内容错误时先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
+            "check": "确认review阶段工具派发模型与high强度，检查实际文件哈希及复查证据。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-05",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "revise",
+            "level": "must",
+            "instruction": "复查发现错误时，由gpt-6-astra/high修正文稿并同步关联内容，不交回Sol或主控。新策略允许当前review代理在一次调用内完成有明确依据的修正，另存新稿并返回revised；不适合合并时走独立revise，旧策略仍保持原流程。",
+            "check": "核对真实Astra/high派发及修改产物、问题定位和新稿哈希；合并修正仅在允许的新策略下接受，返回revised后不能交付，必须进入新的独立review。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-06",
+            "status": "active",
+            "origin": "workflow",
+            "scope": "global",
+            "section": "review",
+            "level": "must",
+            "instruction": "任何修订（含review内直接修正）后，由新派发的Astra/high代理独立复查最终版本；修改者不得在同次回执直接通过自己的变更稿。未解决问题、未完成最终页面复核或复查哈希不一致不得进入已完成。",
+            "check": "以最终内容哈希绑定审阅结果；需要源材料补充的项目单列待处理并继续其他项目。",
+            "evidence": [
+              {
+                "source": "workflow:批量撰写执行保障",
+                "locator": "BATCH-06"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
               }
             ],
             "exceptions": []

@@ -25,7 +25,7 @@ python scripts/parallel_batch.py plan --manifest 批次清单 --capacity 实际w
 
 总控维护事件循环：启动时连续reserve并派发多个不同项目；每个worker完成即登记回执；本案最终验收通过就立即deliver，然后推进其他案复查/修正、重新plan并补位，不等待整批完成。有草稿与审查同时待办时兼顾两个方向，修正和重验及时推进，达到在制上限后先消化积压。满槽时等待完成事件，避免紧密轮询及固定长时间睡眠。单案缺资料或输入变化要具体记录，其他案继续。
 
-每案内部仍是draft→review→revise(需要时)→review，最多一个活跃attempt。不同案可以同时处于不同阶段。各案按实际验收完成时间直接交付到同一文件夹根目录，交付台账保留原队列ID；仅重名文件附稳定案号。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
+每案内部最多一个活跃attempt。旧策略为draft→review→revise(需要时)→review；新review_fix_then_recheck策略允许review内一次有依据的修正返回revised，再由新Astra/high review独立重验，仍可在需要时使用独立revise路径。不同案可以同时处于不同阶段。各案按实际验收完成时间直接交付到同一文件夹根目录，交付台账保留原队列ID；仅重名文件附稳定案号。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
 
 ## 占槽和真实派发
 
@@ -45,9 +45,9 @@ context必须逐字段等于reserve返回值，包括batch/case/stage/attempt及
 
 ## 阶段回执
 
-draft写成本案DOCX及必要证据，结构预检后渲染最后版本。review独立读取来源和稿件，核对来源支持、所述、权项与发明内容、公式、附图、全部最终页面。revise由Astra/high直接另存修订版，联动章节和图号，重新渲染后再交新的Astra/high worker重验。连续两轮同问题无进展或缺关键技术事实时记录缺口，不无限空转。
+draft写成本案DOCX及必要证据，完成一次结构预检。review先独立核对来源支持、所述、权项与发明内容、公式、附图；有阻碍通过的内容错误时，若新策略允许且修正依据明确，Astra在本review内另存修订DOCX并返回revised；否则返回fix_required走独立revise，事实不足则needs_input。页面检查如实标not_run，省去已知待改稿的提前渲染。内容可通过时再渲染或复用当前稿页面，核对全部最终页面。revise由Astra/high直接另存修订版，联动章节和图号；新Astra/high worker重验内容后对最终稿渲染并逐页验收。连续两轮同问题无进展或缺关键技术事实时记录缺口，不无限空转。
 
-receipt含reserve完整context和stage/model/reasoning_effort/agent_id。写稿含artifact/artifact_sha256，输出在当前attempt内且不得使用原稿硬链接。审阅含reviewed_sha256/verdict/findings/checks。check键为source_support、antecedents、claims_alignment、formulas、figures、rendered_pages。pass要求全部passed且无未关闭发现。规则版本6起，worker必读[所述与公式执行规范](terminology-and-formula.md)：draft先登记完整术语首次引入及源公式清单；review/revise由Astra/high逐处核对完整名词与本项/父链前置，逐式核对源N→稿N、零源不造式、完整符号与解释、无真实空白及历史格式。详细证据并入antecedents/formulas，不另设验收捷径；旧批次保持冻结规则。
+receipt含reserve完整context和stage/model/reasoning_effort/agent_id。写稿含artifact/artifact_sha256，输出在当前attempt内且不得使用原稿硬链接。审阅含reviewed_sha256/verdict/findings/checks。check键为source_support、antecedents、claims_alignment、formulas、figures、rendered_pages。pass要求全部passed且无未关闭发现。新策略review返回revised时，reviewed_sha256绑定改前输入，artifact/artifact_sha256绑定本review attempt的新独立DOCX，findings须非空，每项包含status=resolved或closed、非空location与correction_evidence；变更稿不会在同一回执中pass，必须由新的Astra/high review重验。规则版本6起，worker必读[所述与公式执行规范](terminology-and-formula.md)：draft先登记完整术语首次引入及源公式清单；review/revise由Astra/high逐处核对完整名词与本项/父链前置，逐式核对源N→稿N、零源不造式、完整符号与解释、无真实空白及历史格式。详细证据并入antecedents/formulas，不另设验收捷径；旧批次保持冻结规则。
 
 pass另含render={artifact_sha256, evidence, evidence_sha256}，evidence指本次review或被审稿写稿attempt内的官方render.json。该文件绑定PDF与全部连续PNG哈希；脚本验证页数/图像完整性，Astra还须实际打开全部页面。旧稿pass、跨案路径、错模型/强度、旧attempt、重复回执均应拒绝。
 
@@ -70,6 +70,8 @@ python scripts/parallel_batch.py summary --manifest 批次清单
 stop-evidence含tool=collaboration.interrupt_agent、原context、arguments.target=agent_id、实际result及confirmed_stopped=true；只有真实确认停止才填写。reserved取消不需要停止模型证据。取消后的迟到回执拒绝，新attempt独立创建。恢复前先读取summary及真实worker状态，避免重复派发。不静默清除可能仍活跃的锁。对已终结待处理案，保留旧批次另建新批次，不能修改旧回执冒充通过。
 
 ## 减少重复工作
+
+默认使用[提效流程](efficiency.md)中的缓存、简短回执和按需检查。正常直接reserve，避免plan→reserve重复读取；总控在worker工作时可提前用本地工具提取下一案来源。--compact只缩短返回内容，不删证据。
 
 环境预检每批一次，依赖改变后重新检查和实测。来源快照按源SHA和提取器哈希复用提取结果，同名异内容不能命中；复查复用数据结构但独立核对原材料及OMML。一个evidence.json可以汇总来源/术语/公式/附图，避免重复台账。独立只读检查批量执行。
 

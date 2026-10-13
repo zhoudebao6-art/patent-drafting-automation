@@ -27,6 +27,8 @@ def validate_policy(p):
         raise BatchError('Parallel entry requires schema 2 rolling_parallel policy; serial batches use batch_tool.py')
     legacy = dict(p, schema_version=1, execution='serial_per_project')
     b.validate_policy(legacy)
+    if not isinstance(p.get('review_mode', 'review_only'), str) or p.get('review_mode', 'review_only') not in {'review_only', 'review_fix_then_recheck'}:
+        raise BatchError('Invalid review_mode policy')
     c = p.get('concurrency', {})
     if (set(c) != {'target_workers', 'max_in_flight_cases', 'min_draft_slots'}
             or any(type(v) is not int for v in c.values())
@@ -288,12 +290,15 @@ def reserve(path, capacity, case_id=None, stage=None, controller='controller'):
             receipt_template.update(verdict='<pass or fix_required>', reviewed_sha256=a['input_artifact_sha256'],
                                     checks={k: '<passed or concrete failure>' for k in sorted(b.CHECKS)}, findings=[],
                                     render={'artifact_sha256': a['input_artifact_sha256'], 'evidence': str(folder / 'render' / 'render.json'), 'evidence_sha256': '<SHA256 of render.json>'})
+            if m['policy'].get('review_mode') == 'review_fix_then_recheck':
+                receipt_template['verdict'] = '<pass, revised, fix_required or needs_input>'
         return {'case_id': c['id'], 'attempt': copy.deepcopy(a), 'spawn_arguments': dict(m['policy']['models'][row['stage']], fork_turns='none', task_name=a['task_name']),
                 'source_snapshots': copy.deepcopy(c['sources']), 'receipt_template': receipt_template,
                 'worker_context': {'title': c['title'], 'context': a['context'], 'case_directory': str(case_root(m, c)),
                                    'writable_directory': str(folder), 'rules_snapshot': str(Path(m['batch_dir']) / 'rules.snapshot.json'),
                                    'primary_snapshot': next(s['snapshot_path'] for s in c['sources'] if s['original_path'] == c['primary_source']),
                                    'input_artifact': a['input_artifact'], 'input_artifact_sha256': a['input_artifact_sha256'],
+                                   'review_mode': m['policy'].get('review_mode', 'review_only'),
                                    'latest_review': copy.deepcopy(latest_review),
                                    'receipt_path': str(folder / 'receipt.json'), 'dispatch_path': str(folder / 'dispatch.json'),
                                    'boundary': 'Read only source/rules/prior outputs; write only this attempt directory; never write manifest; render evidence does not substitute visual six-check acceptance'}}
@@ -374,11 +379,34 @@ def record(path, case_id, attempt, receipt, controller='controller'):
             if r.get('reviewed_sha256') != actual or actual != c['artifact_sha256'] or actual != a['input_artifact_sha256']:
                 raise BatchError('Stale review hash')
             if not isinstance(r.get('checks'), dict) or not isinstance(r.get('findings'), list): raise BatchError('Six checks and findings required')
+            if verdict != 'revised' and any(k in r for k in ('artifact', 'artifact_sha256')):
+                raise BatchError('Review acceptance cannot also submit a changed artifact; use revised then a new review')
             if verdict == 'pass':
                 if any(r['checks'].get(k) != 'passed' for k in b.CHECKS) or any(not isinstance(f, dict) or f.get('status') not in {'resolved', 'closed'} for f in r['findings']):
                     raise BatchError('Incomplete six-check acceptance or unresolved finding')
                 r['render'] = verify_render(m, c, a, r.get('render'))
                 c.update(status='accepted', passed_review_sha256=actual)
+            elif verdict == 'revised':
+                if m['policy'].get('review_mode', 'review_only') != 'review_fix_then_recheck':
+                    raise BatchError('This frozen policy does not allow review-stage revision')
+                if any(not isinstance(r['checks'].get(k), str) or not r['checks'][k].strip() for k in b.CHECKS):
+                    raise BatchError('Review revision must record all six checks, including not_run where applicable')
+                if not r['findings'] or any(
+                        not isinstance(f, dict) or f.get('status') not in {'resolved', 'closed'}
+                        or any(not isinstance(f.get(k), str) or not f[k].strip() for k in ('location', 'correction_evidence'))
+                        for f in r['findings']):
+                    raise BatchError('Review revision needs closed findings with location and correction_evidence')
+                artifact = file_path(r['artifact'], a['directory'])
+                if artifact.suffix.lower() != '.docx': raise BatchError('Revised output DOCX required')
+                b.verify_docx(artifact); revised_sha = b.sha(artifact)
+                if r.get('artifact_sha256') != revised_sha or revised_sha == actual:
+                    raise BatchError('Review revision SHA must match new bytes and differ from reviewed input')
+                # The original input must remain unchanged throughout validation.
+                if b.sha(file_path(a['input_artifact'], case_root(m, c))) != actual:
+                    raise BatchError('Reviewed input changed during revision validation')
+                r['artifact'] = str(artifact)
+                c.update(artifact=str(artifact), artifact_sha256=revised_sha, status='revised')
+                c.pop('passed_review_sha256', None)
             elif verdict == 'fix_required': c['status'] = 'fix_required'
             else: raise BatchError('Invalid review verdict')
         b.atomic(Path(a['directory']) / 'receipt.json', r)
@@ -521,12 +549,21 @@ def summary(path):
                 'concurrency_evidence_scope': 'Ledger reservations and controller-captured successful dispatches only; not independent proof of simultaneous model execution',
                 'cases': [{'id': c['id'], 'title': c['title'], 'status': c['status'], 'active_attempt': c['active_attempt']} for c in m['projects']]}
 
+def compact_result(command, result, manifest):
+    """Only shorten the CLI reply; durable receipts and acceptance stay intact."""
+    if command in {'record', 'defer'}:
+        return {k: result.get(k) for k in ('id', 'title', 'status', 'artifact', 'artifact_sha256', 'active_attempt')} | {'manifest': str(manifest)}
+    if command in {'bind', 'cancel'}:
+        return {k: result.get(k) for k in ('id', 'stage', 'state', 'agent_id', 'directory')} | {'manifest': str(manifest)}
+    return result
+
 def main():
     p = argparse.ArgumentParser(description=__doc__); sub = p.add_subparsers(dest='command', required=True)
     s = sub.add_parser('scan'); s.add_argument('--input', required=True); s.add_argument('--out', required=True)
     s = sub.add_parser('init'); s.add_argument('--input', required=True); s.add_argument('--work-root', required=True); s.add_argument('--selection', required=True); s.add_argument('--desktop'); s.add_argument('--controller', required=True)
     for command in ('plan', 'reserve', 'bind', 'record', 'cancel', 'defer', 'deliver', 'summary'):
         s = sub.add_parser(command); s.add_argument('--manifest', required=True)
+        s.add_argument('--compact', action='store_true', help='Short CLI reply; complete evidence stays in the manifest and receipt files')
         if command not in {'plan', 'summary'}: s.add_argument('--controller', required=True)
         if command in {'plan', 'reserve'}: s.add_argument('--capacity', type=int, required=True)
         if command in {'bind', 'record', 'cancel', 'defer'}: s.add_argument('--case', required=True)
@@ -552,6 +589,7 @@ def main():
         elif a.command == 'defer': result = defer(a.manifest, a.case, a.status, a.reason, a.controller)
         elif a.command == 'deliver': result = deliver(a.manifest, a.controller)
         else: result = summary(a.manifest)
+        if getattr(a, 'compact', False): result = compact_result(a.command, result, a.manifest)
         print(json.dumps(result, ensure_ascii=False, indent=2)); return 0
     except (BatchError, OSError, ValueError, KeyError, TypeError) as e:
         print(f'并行队列拒绝：{e}', file=sys.stderr); return 2

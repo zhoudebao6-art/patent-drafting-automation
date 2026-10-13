@@ -66,6 +66,50 @@ class RenderTests(unittest.TestCase):
             with self.assertRaises(r.RenderError): r.render(self.source, self.out, {})
         self.assertEqual((self.out/'page-1.png').read_bytes(), before)
 
+    def reusable(self):
+        tools = self.root/'tools'; tools.mkdir()
+        self.paths = {'python': tools/'python.exe', 'renderer': tools/'render.py',
+                      'libreoffice': tools/'soffice.exe', 'poppler_dir': tools}
+        for name in ('python.exe', 'render.py', 'soffice.exe', 'pdfinfo.exe', 'pdftoppm.exe'):
+            (tools/name).write_bytes(name.encode())
+        self.evidence.update(input=str(self.source.resolve()), runtime_fingerprint=r.runtime_fingerprint(self.paths, {}, 144))
+        self.write()
+
+    def test_reuse_skips_conversion_and_preserves_evidence(self):
+        self.reusable(); before = (self.out/'render.json').read_bytes()
+        with patch.object(r, 'preflight', return_value=self.paths), patch.object(r.subprocess, 'Popen') as process:
+            result = r.render(self.source, self.out, {}, reuse=True)
+        process.assert_not_called()
+        self.assertTrue(result['cache_hit'])
+        self.assertEqual((self.out/'render.json').read_bytes(), before)
+        self.assertEqual(r.compact_result(result, self.out)['visual_review'], 'not_run')
+
+    def test_reuse_rejects_changed_runtime_options_or_artifact_path(self):
+        self.reusable(); before = (self.out/'render.json').read_bytes()
+        other = self.root/'same-bytes.docx'; other.write_bytes(self.source.read_bytes())
+        with patch.object(r, 'preflight', return_value=self.paths):
+            with self.assertRaises(r.RenderError): r.render(other, self.out, {}, reuse=True)
+            with self.assertRaises(r.RenderError): r.render(self.source, self.out, {}, dpi=72, reuse=True)
+            self.paths['renderer'].write_bytes(b'new tool version')
+            with self.assertRaises(r.RenderError): r.render(self.source, self.out, {}, reuse=True)
+        self.assertEqual((self.out/'render.json').read_bytes(), before)
+
+    def test_reuse_rejects_changed_docx_or_tampered_page(self):
+        self.reusable(); before = self.source.read_bytes()
+        with patch.object(r, 'preflight', return_value=self.paths):
+            self.source.write_bytes(b'new DOCX')
+            with self.assertRaises(r.RenderError): r.render(self.source, self.out, {}, reuse=True)
+            self.source.write_bytes(before)
+            (self.out/'page-1.png').write_bytes(b'changed page')
+            with self.assertRaises(r.RenderError): r.render(self.source, self.out, {}, reuse=True)
+
+    def test_reuse_rechecks_source_after_page_verification(self):
+        self.reusable(); original = r.verify_render
+        def changed(*args):
+            result = original(*args); self.source.write_bytes(b'concurrent edit'); return result
+        with patch.object(r, 'preflight', return_value=self.paths), patch.object(r, 'verify_render', side_effect=changed):
+            with self.assertRaises(r.RenderError): r.render(self.source, self.out, {}, reuse=True)
+
     def test_missing_runtime_and_relative_path_rejected(self):
         config = {'schema_version': 1, 'python': str(self.root/'missing.exe'),
                   'renderer': str(self.root/'render.py'), 'libreoffice': str(self.root/'soffice.exe'),

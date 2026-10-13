@@ -78,20 +78,45 @@ def verify_render(output_dir, input_path):
             im.verify()
     return evidence
 
-def render(input_path, output_dir, config, timeout=180, dpi=144):
+def runtime_fingerprint(paths, config, dpi):
+    """Bind reuse to configured conversion tools and options, not timestamps."""
+    tools = {name: paths[name] for name in ('python', 'renderer', 'libreoffice')}
+    tools.update({name: paths['poppler_dir']/name for name in ('pdfinfo.exe', 'pdftoppm.exe')})
+    payload = {'config': config, 'dpi': dpi, 'wrapper_sha256': sha(__file__),
+               'tools': {name: {'path': str(path), 'sha256': sha(path)} for name, path in tools.items()}}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+def compact_result(evidence, output_dir):
+    return {'status': evidence['status'], 'visual_review': 'not_run',
+            'input_sha256': evidence['input_sha256'], 'pages': len(evidence['pages']),
+            'evidence': str(Path(output_dir).absolute()/'render.json'),
+            'cache_hit': evidence.get('cache_hit', False)}
+
+def render(input_path, output_dir, config, timeout=180, dpi=144, reuse=False):
     paths = preflight(config)
     source = Path(input_path).resolve(strict=True)
     if source.suffix.lower() != '.docx':
         raise RenderError('Only DOCX is supported by this workflow')
     out = Path(output_dir).absolute()
     if out.exists():
-        raise RenderError('Use a new output directory for every render')
+        if not reuse:
+            raise RenderError('Use a new output directory for every render')
+        evidence = verify_render(out, source)
+        if evidence.get('input') != str(source):
+            raise RenderError('Reuse must refer to the same case artifact path')
+        if evidence.get('runtime_fingerprint') != runtime_fingerprint(paths, config, dpi):
+            raise RenderError('Render tools/options changed or reuse evidence is missing; use a new output directory')
+        if sha(source) != evidence['input_sha256']:
+            raise RenderError('DOCX changed while verifying reusable pages')
+        return dict(evidence, cache_hit=True)
+    fingerprint = runtime_fingerprint(paths, config, dpi)
     out.mkdir(parents=True, exist_ok=False)
     initial = sha(source)
     evidence = {'schema_version': 1, 'input': str(source), 'input_sha256': initial,
                 'renderer': str(paths['renderer']), 'renderer_sha256': sha(paths['renderer']),
                 'libreoffice': str(paths['libreoffice']), 'libreoffice_sha256': sha(paths['libreoffice']),
                 'python': str(paths['python']), 'dpi': dpi,
+                'runtime_fingerprint': fingerprint,
                 'status': 'running', 'visual_review': 'not_run'}
     dump(out/'render.json', evidence)
     env = os.environ.copy()
@@ -150,6 +175,8 @@ def main():
     p.add_argument('--config', default=str(CONFIG))
     p.add_argument('--preflight', action='store_true')
     p.add_argument('--verify', action='store_true')
+    p.add_argument('--reuse', action='store_true', help='Reuse valid pages in this same artifact output directory; never overwrite mismatches')
+    p.add_argument('--compact', action='store_true', help='Print a short result; full evidence remains in render.json')
     p.add_argument('--timeout', type=int, default=180)
     args = p.parse_args()
     try:
@@ -159,7 +186,9 @@ def main():
         else:
             if not args.input or not args.output_dir:
                 raise RenderError('Input and --output-dir are required')
-            result = verify_render(args.output_dir, args.input) if args.verify else render(args.input, args.output_dir, read(args.config), args.timeout)
+            result = verify_render(args.output_dir, args.input) if args.verify else render(args.input, args.output_dir, read(args.config), args.timeout, reuse=args.reuse)
+            if args.compact:
+                result = compact_result(result, args.output_dir)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError, ImportError, subprocess.SubprocessError) as exc:
