@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 6,
-  "updated_at": "2026-10-13T09:29:54Z",
+  "version": 7,
+  "updated_at": "2026-10-13T10:01:13Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -581,19 +581,25 @@
     {
       "id": "UPDATE-01",
       "status": "active",
-      "origin": "workflow",
+      "origin": "user",
       "scope": "global",
       "section": "update",
       "level": "must",
-      "instruction": "用户明确长期反馈才更新全局规则，项目例外保留project范围，单案例归纳差异先candidate。",
+      "instruction": "用户要求的所有技能更新默认长期通用，持久写入当前技能的全局规则并供以后所有适用项目和批次使用；无需用户再次强调长期或以后，不得只在当前稿或当前会话临时执行。只有用户明确限定仅本项目或仅本次时才作为项目覆盖。基于案例的技能纠错提炼为通用写作或检查约束，不移植个案技术事实。",
       "evidence": [
         {
           "source": "workflow:本技能执行机制",
           "locator": "维护授权与范围"
+        },
+        {
+          "source": "user:2026-10-13-general-skill-updates",
+          "locator": "本轮消息：你做的所有的技能更新都是通用更新不是一次性更新"
         }
       ],
-      "check": "对照用户原话与适用范围。",
-      "exceptions": []
+      "check": "核对规则持久化、scope=global、受影响说明及安装版同步；用不同项目检查规则适用性，不能依赖原案例名称。明确项目例外按限定执行；无用户通用化要求的案例观察仍先candidate。已冻结批次按既定版本流程迁移，不静默改写历史快照。",
+      "exceptions": [
+        "用户明确限定仅本项目或仅本次时记project范围；单纯编辑稿件不自动构成技能更新。"
+      ]
     },
     {
       "id": "UPDATE-02",
@@ -1377,6 +1383,40 @@
             "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。",
             "exceptions": [
               "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "previous_version": 6,
+      "updated_at": "2026-10-13T10:01:13Z",
+      "summary": "用户明确所有技能更新为长期通用更新，后续适用项目默认继承；仅显式限定才作为项目例外。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "UPDATE-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "update",
+            "level": "must",
+            "instruction": "用户要求的所有技能更新默认长期通用，持久写入当前技能的全局规则并供以后所有适用项目和批次使用；无需用户再次强调长期或以后，不得只在当前稿或当前会话临时执行。只有用户明确限定仅本项目或仅本次时才作为项目覆盖。基于案例的技能纠错提炼为通用写作或检查约束，不移植个案技术事实。",
+            "evidence": [
+              {
+                "source": "workflow:本技能执行机制",
+                "locator": "维护授权与范围"
+              },
+              {
+                "source": "user:2026-10-13-general-skill-updates",
+                "locator": "本轮消息：你做的所有的技能更新都是通用更新不是一次性更新"
+              }
+            ],
+            "check": "核对规则持久化、scope=global、受影响说明及安装版同步；用不同项目检查规则适用性，不能依赖原案例名称。明确项目例外按限定执行；无用户通用化要求的案例观察仍先candidate。已冻结批次按既定版本流程迁移，不静默改写历史快照。",
+            "exceptions": [
+              "用户明确限定仅本项目或仅本次时记project范围；单纯编辑稿件不自动构成技能更新。"
             ]
           }
         }
