@@ -1,6 +1,6 @@
 # 专利撰写自动化
 
-v4.1在多项目滚动并行、持续补位和独立分区的基础上，增加每案验收通过后立即交付。业务规则版本v5，42条结构化规则。原模型分工保持：GPT-6.1-sol/high撰写；GPT-6-astra/high复查、修正及再次复查。
+v4.2细化“所述”后完整名词的首次引入检查，严格按来源保留公式数量，禁止无源造式，统一完整符号及解释，并清除公式内真实空白。业务规则版本v6，45条结构化规则。继续多项目滚动并行、持续补位和独立分区，每案验收通过后立即交付。原模型分工保持：GPT-6.1-sol/high撰写；GPT-6-astra/high复查、修正及再次复查。
 
 ## 使用
 
@@ -17,7 +17,8 @@ v4.1在多项目滚动并行、持续补位和独立分区的基础上，增加�
 - [SKILL.md](SKILL.md)：技能入口。
 - [并行流程](references/batch-workflow.md)、[策略](references/batch-policy.json)：占槽、派发、补位、取消、验收及交付。
 - [规则库](references/rules.json)、[规则维护](references/rule-maintenance.md)：话术、范围、来源和版本记录。
-- [写作标准](references/writing-standard.md)、[技术校核](references/technical-review.md)：原有来源、所述、公式、图文要求。
+- [写作标准](references/writing-standard.md)、[技术校核](references/technical-review.md)、[所述与公式规范](references/terminology-and-formula.md)：完整名词的前置、源公式数量、完整符号、无空白及图文要求。
+- [历史格式证据](references/terminology-formula-evidence.md)：三组定稿的Cambria Math/14磅/正体、主公式映射和不再继承的个别缺陷。
 - [运行环境](references/runtime.md)：Windows Word页面转换及哈希验证。
 - [案例资料](references/corpus)、[来源清单](references/source-manifest.json)：三组历史参考项目。
 
@@ -30,5 +31,7 @@ v4.1在多项目滚动并行、持续补位和独立分区的基础上，增加�
 v3.2历史验证：66项测试通过，一份虚拟样稿实际完成指定模型撰写、复查、修订、6页验收和桌面交付。v4.0新增多项目调度、隔离、并发写入、补位和故障恢复测试；测试中的模拟dispatch仅用于状态机验证，不代表实际多模型并发已经完成。每批summary报告占槽与绑定峰值；该计数本身不独立证明模型实际同时运行。
 
 v4.1新增22项逐案交付测试，全部116项回归通过；覆盖其他案仍在工作时交付、继续追加到同一目录、重试不覆盖、摘要中断恢复、未验收稿不交付及旧批次兼容。这些交付测试使用模拟回执，不代表新增实际模型撰写。
+
+v4.2全部124项回归通过；新增公式空白/数学结构证据、逐处所述登记、文本框不重复提取及父项范围完整展开测试。GPT-6-astra/high独立审阅16组虚拟片段，定位首次所述、同级引用、无源造式、数量一增一漏、符号字形差异等问题；另做11项边界检查，发现的两处提取缺陷已修复重验。六份原DOCX哈希及三定稿数学格式核对通过。这些检查验证技能规则与提取行为，不代替未来每份成稿的语义和逐页验收。
 
 runtime.json为本机已验证工具路径；当前文档插件26.1011.11113。换电脑或升级后需重新探测和实际渲染，ZIP不包含Python、LibreOffice或Poppler程序。三组历史参考文件未被宣称为全页视觉验收通过。

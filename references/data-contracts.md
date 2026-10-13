@@ -13,10 +13,10 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 ## 项目记录
 
 - `source_map.json`：输入文件/哈希、规则版本、项目范围、本次用户覆盖、技术特征。每特征 `id, source_file, source_locator, source_text, claims, invention_paragraphs, embodiment_paragraphs, decision`。
-- `terms.json`：terms 包含 `id, canonical_name, definition, source_locator, variants, prohibited_ambiguities`；claims 包含 `number, parents, introduced_terms, references`。每处 references 记录实际短语、位置、前置基础位置、父链、审核结论，不能只记“已检查所述”。
-- `formula_registry.json`：每项 `id, source_file, source_locator, representation, raw_formula, normalized_formula, symbols, assumptions, dimension_check, numerical_check, target_locator, status, corrections`。representation 为 OMML/text/image/OLE；规范表达未核定为 null。symbols 每项含符号、含义、类型、维数、单位证据、范围、定义位置。无单位证据不得猜成无单位。
+- `terms.json`：terms 包含 `id, canonical_name, definition, source_locator, variants, prohibited_ambiguities`；claims 包含 `number, parents, introduced_terms, references`。每处 references 记录 following_noun_phrase（紧随所述的完整名词）、occurrence_locator（含句内偏移）、scope、introduced_at、ancestor_path、identity_evidence、verdict、correction；引用头单独分类，不能只记“已检查所述”。
+- `formula_registry.json`：顶层记录 source_inventory_complete、source_main_count、target_main_count、source/target分类计数、coverage_by_representation及unresolved；未核定数量为null，不用零掩盖。每项 `id, source_file, source_locator, representation, raw_formula, normalized_formula, symbols, assumptions, dimension_check, numerical_check, target_locator, status, corrections`。representation 为 OMML/text/image/OLE；规范表达未核定为 null。每项另记 category（main_formula/source_example/symbol_reference）、source_occurrence_id、target_occurrences及mapping_verdict；逐条完整公式一对一、所有成稿表达都有源，不能用相等计数代替映射。symbols 每项含符号、含义、类型、维数、单位证据、范围、定义位置，以及canonical_math_fragment、codepoints、structure、font/style/size、explanation_occurrences、identity_check。公式另记 literal_whitespace_findings、format_check；无单位证据不得猜成无单位。
 - `figure_registry.json`：每项 `id, source_file, source_media, sha256, old_number, title, first_mention, dependent_paragraphs, evidence, status, action, final_number, abstract_reuse, review_notes`。删除图保留台账，final_number 为 null，记全部删改处；无图用空数组和原因，不造条目。
-- `review.json`：`input_hashes, rule_version, output_hash, checks, issues, release_status`。checks 记录实际检查及证据，未做为 not_run；issues 含位置、影响、程度、处理、剩余缺口。release_status 为 ready/needs_confirmation/visual_review_pending。语义与技术核查完成且最终渲染逐页验收后才 ready，脚本不自动签发 ready。
+- `review.json`：`input_hashes, rule_version, output_hash, checks, issues, release_status`。checks 记录实际检查及证据；antecedents绑定逐处名词与前置记录，formulas绑定来源/成稿分类计数、双向映射、完整符号对应及空白/格式结论（见[执行规范](terminology-and-formula.md)），未做为 not_run；issues 含位置、影响、程度、处理、剩余缺口。release_status 为 ready/needs_confirmation/visual_review_pending。语义与技术核查完成且最终渲染逐页验收后才 ready，脚本不自动签发 ready。
 
 小项目可把这些记录合成一个 JSON；必要对应关系不能省略。记录中的 null 代表未核定，不用零或空字符串掩盖。
 

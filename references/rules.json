@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 5,
-  "updated_at": "2026-10-13T08:37:15Z",
+  "version": 6,
+  "updated_at": "2026-10-13T09:29:54Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -59,16 +59,20 @@
       "status": "active",
       "origin": "user",
       "scope": "global",
-      "section": "claims",
+      "section": "all",
       "level": "must",
-      "instruction": "正确使用所述，确保对象身份明确并具有本项前文或合法父项链的前置基础。",
+      "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
           "locator": "第3行"
+        },
+        {
+          "source": "references/terminology-formula-user-requirement.txt",
+          "locator": "2026-10-13 第1至5项"
         }
       ],
-      "check": "术语与引用链语义审核，不以关键词出现次数替代。",
+      "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。",
       "exceptions": []
     },
     {
@@ -163,14 +167,18 @@
       "scope": "global",
       "section": "formula",
       "level": "must",
-      "instruction": "检查公式逻辑、参数与格式，解释每一参数，保持公式与解释一致。",
+      "instruction": "检查公式逻辑、参数与格式，解释每一参数、索引和算子；解释复用公式完整符号，包含字母大小写、上下标、帽号、字形族和运算作用范围，符号及含义均须一致。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
           "locator": "第8行"
+        },
+        {
+          "source": "references/terminology-formula-user-requirement.txt",
+          "locator": "2026-10-13 第1至5项"
         }
       ],
-      "check": "原始结构、规范表达、全部符号和语义逐项核验。",
+      "check": "逐符号对照原始数学结构、正文解释和最终显示；相同线性文本不证明完整符号一致，未核定差异不得通过。",
       "exceptions": []
     },
     {
@@ -795,6 +803,71 @@
         }
       ],
       "exceptions": []
+    },
+    {
+      "id": "FORMULA-01",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "源技术优化书/说明书有N条完整公式，成稿逐条对应N条；核定零公式时不得造式。禁止新增、遗漏、合并、拆分或重复抄写完整公式增加数量，也不得新增推导、定义式、数值代入、示例阈值等。所有行内表达同样追溯来源，不能以符号引用或算例名义绕过。",
+      "evidence": [
+        {
+          "source": "references/terminology-formula-user-requirement.txt",
+          "locator": "2026-10-13 第3至4项"
+        },
+        {
+          "source": "references/terminology-formula-evidence.md",
+          "locator": "历史主公式映射及数学格式证据"
+        }
+      ],
+      "check": "先核定所有表示方式并冻结源清单，区分完整公式、源已有数值代入、符号引用，逐类计数并源稿双向映射；OMML/oMathPara总数不等于公式数，N相等仍须查一增一漏。来源不清记待核定，不猜为0。",
+      "exceptions": []
+    },
+    {
+      "id": "FORMULA-02",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "成稿公式及说明中的数学符号片段内不含真实空格、全角/不换行/窄空格、制表换行文本或零宽占位；保留有语义的数学结构及引擎自然间距，不能通过压扁结构或盲目拼接改变含义。",
+      "evidence": [
+        {
+          "source": "references/terminology-formula-user-requirement.txt",
+          "locator": "2026-10-13 第3至4项"
+        },
+        {
+          "source": "references/terminology-formula-evidence.md",
+          "locator": "历史主公式映射及数学格式证据"
+        }
+      ],
+      "check": "OMML扫描m:t/w:t空白并核对普通文本、图像、对象公式；区分真实空白与XML缩进、自然排版间距及语义运算符。移除空白可能改变符号身份时按源结构修复，歧义记待确认。",
+      "exceptions": []
+    },
+    {
+      "id": "FORMULA-03",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "按三份历史定稿采用Cambria Math、14磅、正体的数学基准，保留来源有含义的完整上下标、修饰和特殊字形；正文解释复用公式中同一完整符号及格式。不得继承旧稿个别空白或公式与解释字形不一致，不把某案T转置规范化扩大为全局替换。",
+      "evidence": [
+        {
+          "source": "references/terminology-formula-user-requirement.txt",
+          "locator": "2026-10-13 第3至4项"
+        },
+        {
+          "source": "references/terminology-formula-evidence.md",
+          "locator": "历史主公式映射及数学格式证据"
+        }
+      ],
+      "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。",
+      "exceptions": [
+        "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
+      ]
     }
   ],
   "history": [
@@ -1175,6 +1248,136 @@
               }
             ],
             "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "previous_version": 5,
+      "updated_at": "2026-10-13T09:29:54Z",
+      "summary": "用户要求逐处审核所述后完整名词首次引入；源公式数量不增不减、零公式不造式；公式无真实空白、完整符号与解释一致，依据三组历史定稿规范数学格式。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第1至5项"
+              }
+            ],
+            "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-10",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "检查公式逻辑、参数与格式，解释每一参数、索引和算子；解释复用公式完整符号，包含字母大小写、上下标、帽号、字形族和运算作用范围，符号及含义均须一致。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第8行"
+              },
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第1至5项"
+              }
+            ],
+            "check": "逐符号对照原始数学结构、正文解释和最终显示；相同线性文本不证明完整符号一致，未核定差异不得通过。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "FORMULA-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "源技术优化书/说明书有N条完整公式，成稿逐条对应N条；核定零公式时不得造式。禁止新增、遗漏、合并、拆分或重复抄写完整公式增加数量，也不得新增推导、定义式、数值代入、示例阈值等。所有行内表达同样追溯来源，不能以符号引用或算例名义绕过。",
+            "evidence": [
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第3至4项"
+              },
+              {
+                "source": "references/terminology-formula-evidence.md",
+                "locator": "历史主公式映射及数学格式证据"
+              }
+            ],
+            "check": "先核定所有表示方式并冻结源清单，区分完整公式、源已有数值代入、符号引用，逐类计数并源稿双向映射；OMML/oMathPara总数不等于公式数，N相等仍须查一增一漏。来源不清记待核定，不猜为0。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "FORMULA-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "成稿公式及说明中的数学符号片段内不含真实空格、全角/不换行/窄空格、制表换行文本或零宽占位；保留有语义的数学结构及引擎自然间距，不能通过压扁结构或盲目拼接改变含义。",
+            "evidence": [
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第3至4项"
+              },
+              {
+                "source": "references/terminology-formula-evidence.md",
+                "locator": "历史主公式映射及数学格式证据"
+              }
+            ],
+            "check": "OMML扫描m:t/w:t空白并核对普通文本、图像、对象公式；区分真实空白与XML缩进、自然排版间距及语义运算符。移除空白可能改变符号身份时按源结构修复，歧义记待确认。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "FORMULA-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "按三份历史定稿采用Cambria Math、14磅、正体的数学基准，保留来源有含义的完整上下标、修饰和特殊字形；正文解释复用公式中同一完整符号及格式。不得继承旧稿个别空白或公式与解释字形不一致，不把某案T转置规范化扩大为全局替换。",
+            "evidence": [
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第3至4项"
+              },
+              {
+                "source": "references/terminology-formula-evidence.md",
+                "locator": "历史主公式映射及数学格式证据"
+              }
+            ],
+            "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。",
+            "exceptions": [
+              "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
+            ]
           }
         }
       ]

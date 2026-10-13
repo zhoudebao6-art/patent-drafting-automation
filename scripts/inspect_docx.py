@@ -18,7 +18,48 @@ NS = {
 }
 
 
-def visible_text(node):
+def math_evidence(math):
+    """Record exact glyph/structure evidence, not a count of source formulas.
+
+    Explicit properties are reported as-is. Missing properties may be inherited;
+    no guessed font, style, symbol meaning, or visual-acceptance result is added.
+    """
+    runs = []
+    whitespace = []
+    for index, run in enumerate(math.findall('.//m:r', NS), 1):
+        text = ''.join(n.text or '' for n in run.findall('.//m:t', NS))
+        props = run.find('./w:rPr', NS)
+        fonts = props.find('./w:rFonts', NS) if props is not None else None
+        size = props.find('./w:sz', NS) if props is not None else None
+        mprops = run.find('./m:rPr', NS)
+        values = {n.tag.split('}')[-1]: n.get(f'{{{NS["m"]}}}val')
+                  for n in mprops} if mprops is not None else {}
+        runs.append({'run': index, 'text': text,
+                     'fonts_explicit': {k.split('}')[-1]: v for k, v in fonts.attrib.items()} if fonts is not None else {},
+                     'size_half_points_explicit': size.get(f'{{{NS["w"]}}}val') if size is not None else None,
+                     'math_run_properties_explicit': values})
+    # Inspect every math text node, including malformed non-run text, once.
+    for index, node in enumerate(math.iter(), 1):
+        if node.tag not in {f'{{{NS["m"]}}}t', f'{{{NS["w"]}}}t'}:
+            continue
+        for offset, char in enumerate(node.text or ''):
+            if char.isspace() or char in {'\u200b', '\ufeff'}:
+                whitespace.append({'node': index, 'offset': offset, 'codepoint': f'U+{ord(char):04X}'})
+    structures = []
+    properties = []
+    for node in math.iter():
+        if not node.tag.startswith('{' + NS['m'] + '}'):
+            continue
+        name = node.tag.split('}')[-1]
+        if name not in structures: structures.append(name)
+        if node.attrib:
+            properties.append({'element': name, 'attributes': {k.split('}')[-1]: v for k, v in node.attrib.items()}})
+    return {'runs': runs, 'structure_elements': structures, 'math_properties': properties,
+            'literal_whitespace': whitespace,
+            'boundary': 'OMML objects include main equations, inline symbols and examples; classify against source before counting. Native operator spacing is not a literal space.'}
+
+
+def visible_text(node, skip_nested_paragraphs=False):
     # Approximate accepted view; deleted/moved-from text is separately counted.
     if node.tag in {f'{{{NS["w"]}}}del', f'{{{NS["w"]}}}moveFrom'}:
         return ''
@@ -31,7 +72,44 @@ def visible_text(node):
         char=node.get(f'{{{NS["w"]}}}char','unknown')
         # Font-encoded glyphs need a font-aware renderer; never silently drop them.
         return f'[w:sym {font}:{char}]'
-    return ''.join(visible_text(child) for child in node)
+    return ''.join(visible_text(child, skip_nested_paragraphs) for child in node
+                   if not (skip_nested_paragraphs and child.tag == f'{{{NS["w"]}}}p'))
+
+
+def paragraph_owned_nodes(paragraph):
+    """Keep all-w:p numbering, but assign descendants to their nearest w:p."""
+    yield paragraph
+    for child in paragraph:
+        if child.tag != f'{{{NS["w"]}}}p':
+            yield from paragraph_owned_nodes(child)
+
+
+def parse_parent_references(head, expansion_limit=1000):
+    """Bounded syntax hints only: never certify a legal dependency path."""
+    refs = re.findall(r'权利要求\s*([\d、，,至到\-—–及或 \t]+)', head)
+    parents = []
+    issues = []
+    token = r'\d+(?:\s*[至到\-—–]\s*\d+)?'
+    for ref in refs:
+        # A conjunction can precede another explicit 权利要求 heading.
+        cleaned = ref.strip().rstrip('、，,及或').strip()
+        if not re.fullmatch(token + r'(?:\s*[、，,及或]\s*' + token + r')*', cleaned):
+            issues.append({'reference': ref, 'reason': 'unrecognized_reference_syntax'})
+            continue
+        for match in re.finditer(r'(\d+)(?:\s*[至到\-—–]\s*(\d+))?', cleaned):
+            values = [s for s in match.groups() if s is not None]
+            if any(len(s) > 9 for s in values):
+                issues.append({'reference': ref, 'reason': 'number_too_large'})
+                continue
+            start = int(values[0]); end = int(values[-1])
+            if end < start:
+                issues.append({'reference': ref, 'reason': 'descending_range'})
+                continue
+            if end - start + 1 + len(parents) > expansion_limit:
+                issues.append({'reference': ref, 'reason': 'expansion_limit_exceeded'})
+                continue
+            parents.extend(range(start, end + 1))
+    return refs, list(dict.fromkeys(parents)), issues
 
 
 def relationships(z, part):
@@ -91,15 +169,17 @@ def inspect(path):
             rels = relationships(z, part)
             paragraphs = []
             for index, p in enumerate(root.findall('.//w:p', NS), 1):
+                owned_nodes = list(paragraph_owned_nodes(p))
                 formula_ids = []
-                for math in p.findall('.//m:oMath', NS):
+                for math in (n for n in owned_nodes if n.tag == f'{{{NS["m"]}}}oMath'):
                     fid = f'F{len(result["formulas"])+1:04}'
                     formula_ids.append(fid)
                     result['formulas'].append({'id':fid,'part':part,'paragraph':index,
                         'linear_text':visible_text(math),'omml_xml':ET.tostring(math,encoding='unicode'),
+                        'math_evidence':math_evidence(math),
                         'status':'unverified'})
                 media_refs = []
-                for node in p.iter():
+                for node in owned_nodes:
                     if node.tag == f'{{{NS["a"]}}}blip':
                         rid = node.get(f'{{{NS["r"]}}}embed') or node.get(f'{{{NS["r"]}}}link')
                     elif node.tag in {f'{{{NS["v"]}}}imagedata', f'{{{NS["o"]}}}OLEObject'}:
@@ -114,8 +194,8 @@ def inspect(path):
                         continue
                     media_refs.append({'rid':rid, **rels.get(rid, {'missing_relationship':True})})
                 symbols=[{'font':n.get(f'{{{NS["w"]}}}font'),'char':n.get(f'{{{NS["w"]}}}char'),
-                    'xml':ET.tostring(n,encoding='unicode')} for n in p.findall('.//w:sym',NS)]
-                paragraphs.append({'p':index, 'text':visible_text(p), 'formulas':formula_ids, 'media':media_refs,
+                    'xml':ET.tostring(n,encoding='unicode')} for n in owned_nodes if n.tag == f'{{{NS["w"]}}}sym']
+                paragraphs.append({'p':index, 'text':visible_text(p, skip_nested_paragraphs=True), 'formulas':formula_ids, 'media':media_refs,
                     'font_encoded_symbols':symbols})
             if part == 'word/document.xml':
                 attach_section_headers(root, paragraphs, rels, z)
@@ -136,6 +216,17 @@ def precheck(result, kind):
     def add(code, message, loc=None):
         issues.append({'code':code,'message':message,'locator':loc,'status':'needs_review'})
     body = next(p for p in result['parts'] if p['part']=='word/document.xml')['paragraphs']
+    result['antecedent_occurrences'] = [
+        {'part': 'word/document.xml', 'paragraph': p['p'], 'offset': match.start(),
+         'before': p['text'][max(0, match.start()-40):match.start()],
+         'following': p['text'][match.end():match.end()+80],
+         'status': 'requires_complete_head_noun_and_legal_prior_basis_review'}
+        for p in body for match in re.finditer('所述', p['text'])]
+    result['formula_count_status'] = 'unclassified_math_objects_not_source_formula_count'
+    for formula in result['formulas']:
+        if formula.get('math_evidence', {}).get('literal_whitespace'):
+            add('MATH_LITERAL_WHITESPACE', 'Literal whitespace inside math text; remove layout padding without altering mathematical meaning. Native math spacing is not flagged.',
+                f'{formula["part"]} P{formula["paragraph"]:04} {formula["id"]}')
     if any(any(p['revisions'].values()) for p in result['parts']):
         add('REVISIONS','Tracked changes present; choose intended version before drafting. No source edits performed.')
     for part in result['parts']:
@@ -187,11 +278,14 @@ def precheck(result, kind):
         add('CLAIM_NUMBERS','Claims absent, duplicated or nonconsecutive; check document layout.')
     for claim in claims:
         head=claim['text'].split('其特征在于')[0]
-        refs=re.findall(r'权利要求\s*([\d、，,至到\-—及或 ]+)',head)
-        parents=[]
-        for ref in refs:
-            parents.extend(int(n) for n in re.findall(r'\d+',ref))
+        refs, parents, parse_issues = parse_parent_references(head)
         claim['parents_detected']=parents
+        claim['parent_reference_texts']=refs
+        claim['parent_parse_issues']=parse_issues
+        claim['parent_parse_status']=('requires_manual_reference_review' if parse_issues
+                                      else 'structural_only_requires_legal_path_review')
+        if parse_issues:
+            add('CLAIM_REFERENCE_PARSE','Reference syntax/range unresolved; detected parents are incomplete and require manual review.',f'P{claim["p"]:04}')
         if any(n>=claim['number'] or n<1 or n not in nums for n in parents):
             add('CLAIM_REFERENCE','Self, future or missing parent detected',f'P{claim["p"]:04}')
     result['claims_detected']=claims
@@ -256,6 +350,8 @@ def main():
         lines.extend(f'P{p["p"]:04}: {p["text"]}' for p in part['paragraphs'])
     (args.out/'content.txt').write_text('\n'.join(lines),encoding='utf-8')
     summary={'input':str(args.input),'parts':len(result['parts']),'formulas':len(result['formulas']),
+        'math_objects':len(result['formulas']),'formula_count_status':result['formula_count_status'],
+        'formulas_field_note':'Compatibility alias for math_objects, not the semantic source formula count.',
         'media_files':len(result['media']),'issues':len(result['issues']),'status':result['review_status']}
     print(json.dumps(summary,ensure_ascii=False))
 

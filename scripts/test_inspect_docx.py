@@ -24,6 +24,85 @@ class InspectionTests(unittest.TestCase):
             self.assertEqual(data['media'],[])
             self.assertTrue(any(x['code']=='REVISIONS' for x in data['issues']))
 
+    def test_math_literal_spaces_and_invisible_padding_are_reported(self):
+        body='<w:p><m:oMath><m:r><m:t xml:space="preserve">a =b\u00a0+\u2009c\u200b</m:t></m:r></m:oMath></w:p>'
+        with tempfile.TemporaryDirectory() as root:
+            data=inspect(self.make_docx(root,body)); precheck(data,'proposal')
+            points={x['codepoint'] for x in data['formulas'][0]['math_evidence']['literal_whitespace']}
+            self.assertEqual(points, {'U+0020','U+00A0','U+2009','U+200B'})
+            self.assertTrue(any(x['code']=='MATH_LITERAL_WHITESPACE' for x in data['issues']))
+
+    def test_math_native_structure_is_not_literal_whitespace(self):
+        body='<w:p><m:oMath><m:f><m:num><m:r><m:t>x</m:t></m:r></m:num><m:den><m:r><m:t>y</m:t></m:r></m:den></m:f><m:r><m:t>+sin\u2061θ</m:t></m:r></m:oMath></w:p>'
+        with tempfile.TemporaryDirectory() as root:
+            data=inspect(self.make_docx(root,body)); precheck(data,'proposal')
+            self.assertFalse(data['formulas'][0]['math_evidence']['literal_whitespace'])
+            self.assertFalse(any(x['code']=='MATH_LITERAL_WHITESPACE' for x in data['issues']))
+            self.assertIn('num',data['formulas'][0]['math_evidence']['structure_elements'])
+
+    def test_math_font_and_full_symbol_properties_are_preserved(self):
+        body='<w:p><m:oMath><m:acc><m:accPr><m:chr m:val="̂"/></m:accPr><m:e><m:sSubSup><m:e><m:r><m:rPr><m:sty m:val="p"/><m:scr m:val="script"/></m:rPr><w:rPr><w:rFonts w:ascii="Cambria Math"/><w:sz w:val="28"/></w:rPr><m:t>C</m:t></m:r></m:e><m:sub><m:r><m:t>t</m:t></m:r></m:sub><m:sup><m:r><m:t>⊺</m:t></m:r></m:sup></m:sSubSup></m:e></m:acc></m:oMath></w:p>'
+        with tempfile.TemporaryDirectory() as root:
+            data=inspect(self.make_docx(root,body))
+            ev=data['formulas'][0]['math_evidence']; first=ev['runs'][0]
+            self.assertEqual(first['fonts_explicit']['ascii'],'Cambria Math')
+            self.assertEqual(first['size_half_points_explicit'],'28')
+            self.assertEqual(first['math_run_properties_explicit'],{'sty':'p','scr':'script'})
+            self.assertTrue({'acc','sSubSup','sub','sup'}<=set(ev['structure_elements']))
+            self.assertIsNone(ev['runs'][1]['size_half_points_explicit'])
+
+    def test_every_suoshu_occurrence_is_exposed_without_false_semantic_pass(self):
+        text='2.根据权利要求1所述的方法，其特征在于，在保持所述参考轨迹位置的周期顺序后，形成与参考轨迹位置的对应关系。'
+        with tempfile.TemporaryDirectory() as root:
+            data=inspect(self.make_docx(root,'<w:p><w:r><w:t>'+text+'</w:t></w:r></w:p>'))
+            precheck(data,'draft'); items=data['antecedent_occurrences']
+            self.assertEqual(len(items),2)
+            self.assertTrue(items[1]['following'].startswith('参考轨迹位置'))
+            self.assertEqual(text[items[1]['offset']:items[1]['offset']+2],'所述')
+            self.assertTrue(all(x['status'].startswith('requires_') for x in items))
+
+    def test_inline_symbol_objects_are_not_claimed_as_source_formula_count(self):
+        body='<w:p><m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></w:p>'
+        with tempfile.TemporaryDirectory() as root:
+            data=inspect(self.make_docx(root,body)); precheck(data,'proposal')
+            self.assertEqual(len(data['formulas']),1)
+            self.assertEqual(data['formula_count_status'],'unclassified_math_objects_not_source_formula_count')
+
+    def test_nested_textbox_objects_belong_only_to_nearest_paragraph(self):
+        body='<w:p><w:r><w:t>外段</w:t><w:pict><w:txbxContent><w:p><m:oMath><m:r><m:t>y=ax</m:t></m:r></m:oMath><w:r><w:t>所述新对象</w:t></w:r></w:p></w:txbxContent></w:pict><w:t>末尾</w:t></w:r></w:p>'
+        with tempfile.TemporaryDirectory() as root:
+            data=inspect(self.make_docx(root,body)); precheck(data,'draft')
+            self.assertEqual(len(data['formulas']),1)
+            self.assertEqual(data['formulas'][0]['paragraph'],2)
+            paras=data['parts'][0]['paragraphs']
+            self.assertEqual([p['p'] for p in paras],[1,2])
+            self.assertEqual(paras[0]['text'],'外段末尾')
+            self.assertEqual(paras[0]['formulas'],[])
+            self.assertEqual(len(data['antecedent_occurrences']),1)
+            self.assertEqual(data['antecedent_occurrences'][0]['paragraph'],2)
+
+    def test_claim_parent_ranges_expand_all_branches_without_legal_approval(self):
+        texts=[f'{n}.检测方法，其特征在于，获得数据。' for n in range(1,6)]
+        texts.append('6.根据权利要求1至3或5所述的检测方法，其特征在于，处理数据。')
+        body=''.join(f'<w:p><w:r><w:t>{t}</w:t></w:r></w:p>' for t in texts)
+        with tempfile.TemporaryDirectory() as root:
+            data=inspect(self.make_docx(root,body)); precheck(data,'draft')
+            claim=data['claims_detected'][-1]
+            self.assertEqual(claim['parents_detected'],[1,2,3,5])
+            self.assertEqual(claim['parent_parse_status'],'structural_only_requires_legal_path_review')
+
+    def test_invalid_or_oversized_parent_ranges_remain_unresolved(self):
+        for reference in ['3至1','1至1000000','1至'+'9'*5000]:
+            with self.subTest(reference=reference[:30]), tempfile.TemporaryDirectory() as root:
+                body='<w:p><w:r><w:t>1.方法，其特征在于，操作。</w:t></w:r></w:p>'
+                body+='<w:p><w:r><w:t>2.根据权利要求'+reference+'所述的方法，其特征在于，操作。</w:t></w:r></w:p>'
+                data=inspect(self.make_docx(root,body)); precheck(data,'draft')
+                claim=data['claims_detected'][-1]
+                self.assertEqual(claim['parent_parse_status'],'requires_manual_reference_review')
+                self.assertTrue(claim['parent_parse_issues'])
+                self.assertLessEqual(len(claim['parents_detected']),1000)
+                self.assertTrue(any(i['code']=='CLAIM_REFERENCE_PARSE' for i in data['issues']))
+
     def test_vml_shape_is_not_broken_image(self):
         with tempfile.TemporaryDirectory() as root:
             data=inspect(self.make_docx(root,'<w:p><v:imagedata o:title=""/></w:p>'))
