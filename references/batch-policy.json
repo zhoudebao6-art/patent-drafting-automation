@@ -17,8 +17,7 @@
   },
   "delivery": {
     "folder_prefix": "专利撰写完成",
-    "accepted_subdir": "已完成",
-    "pending_subdir": "待处理",
+    "layout": "flat_final_files",
     "timing": "after_each_acceptance"
   },
   "fallback_model_allowed": false,
@@ -31,7 +30,8 @@
     "New batches use parallel_batch.py. Existing serial batches retain their frozen policy and batch_tool.py.",
     "Capacity is the actual available child-worker count, excluding the controller and unrelated running workers; never infer it from target_workers.",
     "Separate project and attempt directories; one active stage per project. Refill free slots and keep review/revision progressing.",
-    "Deliver each accepted case immediately to the same desktop batch folder while other workers continue. Partial delivery must not close the batch; preserve prior outputs and update the delivery ledger."
+    "Deliver each accepted case immediately to the same desktop batch folder while other workers continue. Partial delivery must not close the batch; preserve prior outputs and update the delivery ledger.",
+    "Accepted DOCX files are published directly in one desktop batch folder; no accepted/per-case delivery subdirectories. Keep case workspaces isolated and detailed receipts/pending notes in the work batch directory; freeze collision-safe filenames."
   ],
   "concurrency": {
     "target_workers": 4,

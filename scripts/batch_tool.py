@@ -95,7 +95,8 @@ def validate_policy(p, *, legacy_snapshot=False):
         if actual != {'model': model, 'reasoning_effort': effort}: raise BatchError('Invalid model policy')
     delivery = p.get('delivery')
     expected_delivery = {'folder_prefix': '专利撰写完成', 'accepted_subdir': '已完成', 'pending_subdir': '待处理'}
-    if not isinstance(delivery, dict) or delivery not in (expected_delivery, dict(expected_delivery, timing='after_each_acceptance')):
+    flat_delivery = {'folder_prefix': '专利撰写完成', 'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}
+    if not isinstance(delivery, dict) or delivery not in (expected_delivery, dict(expected_delivery, timing='after_each_acceptance'), flat_delivery):
         raise BatchError('Invalid delivery policy')
 def init(root, work, selection, desktop=None):
     root, work = root_path(root, required=True), root_path(work)
@@ -336,7 +337,42 @@ def retry(path, case_id, reason, work=None, desktop=None):
 
 def deliver(path):
     import incremental_delivery as incremental
+    import flat_delivery as flat
     m = load_manifest(path)
+    if flat.enabled(m):
+        # New flat serial batches share the same kernel publication lock.
+        from parallel_batch import locked
+        with locked(path):
+            m = load_manifest(path)
+            def quarantine(c):
+                try: verify_inputs(m, [c])
+                except (BatchError, OSError) as exc:
+                    c['receipts'].append({'event': 'controller_input_change', 'previous_status': c['status'],
+                                          'verdict': 'needs_input', 'reason': str(exc)})
+                    c['status'] = 'needs_input'; c.pop('passed_review_sha256', None)
+                    return True
+                return False
+            def verify(c):
+                original = next(x for x in m['projects'] if x['id'] == c['id'])
+                if c['status'] == 'accepted' and quarantine(original):
+                    atomic(path, m)
+                    raise BatchError('Input changed during delivery; case quarantined; retry delivers remaining cases')
+                if c.get('retry_origin'): verify_retry_origin(m, c)
+                artifact = clean_path(c['artifact'], m['batch_dir']); verify_docx(artifact)
+                if sha(artifact) != c.get('passed_review_sha256') or sha(artifact) != c.get('artifact_sha256'):
+                    raise BatchError('Artifact changed after review')
+            recovered = flat.recover_published_cases(m, verify)
+            for c in recovered:
+                event = {'event': 'controller_delivery_recovery', 'case_id': c['id'],
+                         'artifact_sha256': c['passed_review_sha256'], 'original_inputs_changed': False}
+                try: verify_inputs(m, [c])
+                except (BatchError, OSError) as exc: event.update(original_inputs_changed=True, reason=str(exc))
+                m.setdefault('delivery_recovery_events', []).append(event)
+            changed = False
+            for c in m['projects']:
+                if c['status'] == 'accepted': changed = quarantine(c) or changed
+            if changed or recovered: atomic(path, m)
+            return flat.deliver(path, m, verify)
     if m.get('delivery_mode') != incremental.MODE and all(c['status'] in TERMINAL for c in m['projects']):
         return _deliver_legacy(path)
     def verify(c):

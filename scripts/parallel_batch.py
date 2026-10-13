@@ -254,7 +254,7 @@ def mutate(path, controller, operation):
     with locked(path):
         m = load_manifest(path)
         if controller != m['controller']: raise BatchError('Only the batch controller may write the manifest')
-        if m.get('delivery_closed') or (m.get('delivery_path') and m.get('delivery_mode') != 'incremental_v1'):
+        if m.get('delivery_closed') or (m.get('delivery_path') and m.get('delivery_mode') not in {'incremental_v1', 'flat_final_files_v1'}):
             raise BatchError('Delivered batch is closed')
         result = operation(m)
         m['sequence'] += 1; b.atomic(path, m)
@@ -418,10 +418,12 @@ def defer(path, case_id, status, reason, controller='controller'):
 
 def deliver(path, controller='controller'):
     import incremental_delivery as incremental
+    import flat_delivery as flat
     with locked(path):
         m = load_manifest(path)
         if controller != m['controller']: raise BatchError('Only batch controller may deliver')
-        legacy = m.get('delivery_mode') != incremental.MODE and all(c['status'] in TERMINAL and not c['active_attempt'] for c in m['projects'])
+        publisher = flat if flat.enabled(m) else incremental
+        legacy = not flat.enabled(m) and m.get('delivery_mode') != incremental.MODE and all(c['status'] in TERMINAL and not c['active_attempt'] for c in m['projects'])
         if not legacy:
             def verify(c):
                 original = case_by_id(m, c['id'])
@@ -435,7 +437,7 @@ def deliver(path, controller='controller'):
                 r = c['receipts'][-1]
                 a = next(x for x in c['attempts'] if x['id'] == r['context']['attempt'])
                 verify_render(m, c, a, r.get('render'))
-            recovered = incremental.recover_published_cases(m, verify)
+            recovered = publisher.recover_published_cases(m, verify)
             for c in recovered:
                 event = {'event': 'controller_delivery_recovery', 'case_id': c['id'],
                          'artifact_sha256': c['passed_review_sha256'], 'original_inputs_changed': False}
@@ -447,7 +449,7 @@ def deliver(path, controller='controller'):
             for c in m['projects']:
                 if c['status'] == 'accepted': quarantined = quarantine_changed_input(m, c) or quarantined
             if quarantined or recovered: b.atomic(path, m)
-            return incremental.deliver(path, m, verify)
+            return publisher.deliver(path, m, verify)
     # The legacy implementation owns its lock and preserves old completed batches.
     return _deliver_legacy(path, controller)
 

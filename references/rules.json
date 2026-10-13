@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 7,
-  "updated_at": "2026-10-13T10:01:13Z",
+  "version": 8,
+  "updated_at": "2026-10-13T10:28:27Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -642,12 +642,16 @@
       "scope": "global",
       "section": "delivery",
       "level": "must",
-      "instruction": "每案完成并经GPT-6-astra/high最终复查通过后立即交付DOCX到用户实际桌面的同一批次文件夹，不等待其他项目完成；同名项目以ID区分且不覆盖往期批次。",
-      "check": "每次最终通过回执后即执行增量交付，核对源资料及最终文稿哈希；部分交付不关闭批次，未验收稿不交付，重试不覆盖已交付文件，实时同步交付清单。",
+      "instruction": "每案完成并经GPT-6-astra/high最终复查通过后，立即将DOCX直接交付到用户实际桌面同一批次文件夹根目录。全部合格成稿同层排列，不建立已完成或每案交付子目录；不等待其他项目完成。以项目名命名，同名、大小写或清洗后冲突以稳定案号区分，不覆盖用户文件或往期批次。内部撰写与复查仍分案隔离，详细台账及待处理说明留工作目录。",
+      "check": "每次通过回执后执行交付，核对来源、最终稿及渲染证据；检查所有成稿父目录相同且等于批次交付根目录，名称按全队列冻结并消歧；部分交付不关闭批次，未验收稿不交付，重试不覆盖，发布中断可恢复；新平铺布局与旧快照均有回归验证。",
       "evidence": [
         {
           "source": "references/delivery-user-requirement.txt",
           "locator": "第2-3行"
+        },
+        {
+          "source": "references/delivery-user-requirement.txt",
+          "locator": "2026-10-13 用户补充通用交付布局要求"
         }
       ],
       "exceptions": []
@@ -1418,6 +1422,38 @@
             "exceptions": [
               "用户明确限定仅本项目或仅本次时记project范围；单纯编辑稿件不自动构成技能更新。"
             ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "previous_version": 7,
+      "updated_at": "2026-10-13T10:28:27Z",
+      "summary": "用户通用要求同批所有验收成稿直接放同一个文件夹根目录；保留逐案即时交付和内部工作隔离，取消新批次逐案交付子目录。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "delivery",
+            "level": "must",
+            "instruction": "每案完成并经GPT-6-astra/high最终复查通过后，立即将DOCX直接交付到用户实际桌面同一批次文件夹根目录。全部合格成稿同层排列，不建立已完成或每案交付子目录；不等待其他项目完成。以项目名命名，同名、大小写或清洗后冲突以稳定案号区分，不覆盖用户文件或往期批次。内部撰写与复查仍分案隔离，详细台账及待处理说明留工作目录。",
+            "check": "每次通过回执后执行交付，核对来源、最终稿及渲染证据；检查所有成稿父目录相同且等于批次交付根目录，名称按全队列冻结并消歧；部分交付不关闭批次，未验收稿不交付，重试不覆盖，发布中断可恢复；新平铺布局与旧快照均有回归验证。",
+            "evidence": [
+              {
+                "source": "references/delivery-user-requirement.txt",
+                "locator": "第2-3行"
+              },
+              {
+                "source": "references/delivery-user-requirement.txt",
+                "locator": "2026-10-13 用户补充通用交付布局要求"
+              }
+            ],
+            "exceptions": []
           }
         }
       ]

@@ -44,14 +44,20 @@ worker_context给出该案来源、当前稿件、规则快照、上一轮审查
 
 pass回执render={artifact_sha256,evidence,evidence_sha256}指向本案官方render.json；其PDF、连续PNG及输入哈希由render_docx_checked.verify_render校验，实际逐页查看结果仍写入checks及详细证据。写稿artifact和dispatch/receipt应位于当前attempt目录；引用已存在的本案当前稿仅用于review输入。
 
-总控为唯一状态写入者，锁保护事务读改写。reserved不等于已成功调用模型，bound不等于已完成；取消仅释放已确认不会继续写入的worker，保留attempt历史，拒绝迟到记录。单案一个活跃阶段，跨案可以乱序完成，验收一案交付一案，交付目录内保留队列ID，不等待前序未完成案。
+总控为唯一状态写入者，锁保护事务读改写。reserved不等于已成功调用模型，bound不等于已完成；取消仅释放已确认不会继续写入的worker，保留attempt历史，拒绝迟到记录。单案一个活跃阶段，跨案可以乱序完成，验收一案交付一案，交付台账保留队列ID，不等待前序未完成案；新批次的成稿直接同层交付，重名时以案号消歧。
 
 并行批次另记录controller_input_change事件：保持冻结快照和worker原回执，移除该案当前通过标志，转needs_input。summary中的peak_reserved_slots/peak_bound_workers是账面占槽/已绑定派发峰值，不是独立的模型同时执行证明。
 
-## 逐案增量交付
+## 旧层级逐案增量交付（兼容）
 
 delivery.timing=after_each_acceptance表示每案验收通过后立即调用deliver；无此字段的旧快照仍可恢复。部分交付记录delivery_mode=incremental_v1、delivery_path、delivery_items及delivery_closed=false。delivery_path存在不再等于整批结束；只有全部项目进入终态且交付清单同步完成后才能关闭。delivery_items按项目ID记录relative_path、sha256和kind；kind=accepted绑定成稿通过哈希，kind=pending绑定待处理说明。
 
 交付目录归属本批次，已有成稿不重新覆盖；每案发布成功后更新台账和清单。发生中断时重复deliver核对归属、验收哈希与已发布产物后恢复，不能把目录存在视为已完成证明。仍在撰写、复查或修正的项目继续原状态和attempt，未验收稿不会复制。
 
 并行增量交付以delivery_recovery_events记录已发布文件在台账提交中断后的恢复事实及发布后原资料是否发生变化；只有归属、成稿哈希和原验收证据均核实的已发布案才能恢复为delivered。事件独立于receipts，未发布案仍须核对来源并隔离变化。
+
+## 同一文件夹直接交付
+
+规则版本8起，新批次delivery={folder_prefix:专利撰写完成,layout:flat_final_files,timing:after_each_acceptance}。此布局记录delivery_mode=flat_final_files_v1；所有验收DOCX直接位于delivery_path根目录，relative_path为单个文件名，不包含“已完成”或项目子目录。名称按冻结全队列预分配并持久保存；通常为项目名称.docx，同名、大小写或清洗冲突时加稳定案号，不能按完工先后任意重命名。
+
+桌面仅展示成稿；只保留一个隐藏的目录归属标记，批次清单、逐案发布记录、中断恢复信息和待处理说明位于批次工作目录的flat-delivery/中。新发布的复制阶段使用桌面同卷、核验批次归属的隐藏事务临时区，再原子改名到成稿根目录；进程中断的临时痕迹可能保留在该隐藏区，不属于交付成稿，也不能盲删未知文件。任何已发布文件的名称、归属和验收哈希均须一致；文件被修改、缺失或目标被其他内容占用时保留现场并报告，不能覆盖。复制或状态提交中断后依据真实发布证据恢复，不能把存在同名文件当作验收通过。未通过稿不发布；全部案一次交付与逐案追加使用相同布局。旧无layout快照保持原契约。
