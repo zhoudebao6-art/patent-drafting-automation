@@ -59,7 +59,7 @@ class HandoffTests(unittest.TestCase):
     def test_preparation_failure_does_not_commit_a_reservation(self):
         before = self.manifest.read_bytes()
         with patch.object(inspector, 'run_inspection', side_effect=ValueError('bad source')):
-            with self.assertRaisesRegex(ValueError, 'bad source'):
+            with self.assertRaisesRegex(p.PreparationError, 'bad source'):
                 p.reserve(self.manifest, 1, prepare=True)
         self.assertEqual(self.manifest.read_bytes(), before)
         self.assertTrue(all(c['active_attempt'] is None for c in p.load_manifest(self.manifest)['projects']))

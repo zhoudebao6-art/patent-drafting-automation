@@ -69,3 +69,11 @@ delivery.timing=after_each_acceptance表示每案验收通过后立即调用deli
 ## 提效模式
 
 新策略review_mode=review_fix_then_recheck允许Astra/high review在一次调用内修正并返回verdict=revised。reviewed_sha256对应输入旧稿；artifact/artifact_sha256对应当前review attempt内字节已改变的新稿；findings须非空，每项status=resolved或closed，并提供非空location和correction_evidence；checks六键记录实际结果，未做项标not_run。该回执只使案件进入revised，下次必须派发新的Astra/high review，最终pass不得同时夹带修改产物。未带review_mode的旧策略不接受revised审查回执，仍走独立revise。缓存只复用结构或渲染产物，不复用语义通过结论；--compact只影响工具返回，完整记录照常持久保存。
+
+## CLI派发（规则版本12起）
+
+冻结策略`dispatch_transports`可含collaboration与codex_cli；旧策略省略时只允许collaboration。CLI attempt额外记录transport=codex_cli、完成后的cli_session_id，阶段receipt仍使用原完整context和六项验收格式。
+
+真实dispatch={tool:codex.exec,context,arguments:{argv,cwd,model,reasoning_effort},result:{pid,created,executable},prompt_sha256,agent_id:cli:<attempt_id>}。argv必须是规定的workspace-write命令；PID绑定Windows创建FILETIME。cli-completion.json必须含exit_code=0、pid、created，以及events.jsonl、worker-final.json、session.jsonl、prompt.txt、cli-exit.json五文件哈希。实际会话身份、模型/high、cwd/sandbox、原始prompt、最终assistant回复和退出码均需匹配；最终回执不能由总控补写模型的审查结论。
+
+CLI退出证明tool=codex.exec.exit，绑定原context/pid/created，含真实整数returncode及confirmed_stopped=true；校验原进程已停止。坏日志或未知身份不是退出证明，不释放不确定槽位。CLI有效完成后的record仍执行原来源/文件/六项/页面门禁，CLI启动/退出证据不替代业务验收。细节见[CLI执行](cli-workers.md)。

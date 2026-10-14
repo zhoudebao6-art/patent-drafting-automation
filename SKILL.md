@@ -9,11 +9,11 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 ## 批处理与指定模型
 
-主控先读 [批处理流程](references/batch-workflow.md) 和 [模型及交付策略](references/batch-policy.json)，识别文件夹中本次要撰写的项目并冻结队列。新批次使用`scripts/parallel_batch.py`；已经冻结为serial_per_project的旧批次使用`scripts/batch_tool.py`和[历史串行流程](references/batch-workflow-serial.md)，不迁移正在运行的案件。每项目按 **GPT-6.1-sol/high 撰写 → GPT-6-astra/high 复查 → 有错误则 GPT-6-astra/high 修改 → 新的GPT-6-astra/high独立重验** 执行。新批次允许Astra在本次review内完成有明确依据的一次修正，记录revised后必须再派发新的独立review，减少另起修改代理的一次交接；不同项目可同时处于撰写、复查或修正，空闲名额及时补位下一项目。每案内部阶段不可重叠。默认目标4个worker、最多8个在制项目；实际并发按工具提供的可用子代理名额收缩，主控占用的名额不计worker。一个文件夹只有一案时也是单项批次。
+主控先读 [批处理流程](references/batch-workflow.md) 和 [模型及交付策略](references/batch-policy.json)，识别文件夹中本次要撰写的项目并冻结队列。新批次使用`scripts/parallel_batch.py`；已经冻结为serial_per_project的旧批次使用`scripts/batch_tool.py`和[历史串行流程](references/batch-workflow-serial.md)，不迁移正在运行的案件。每项目按 **GPT-6.1-sol/high 撰写 → GPT-6-astra/high 复查 → 有错误则 GPT-6-astra/high 修改 → 新的GPT-6-astra/high独立重验** 执行。新批次允许Astra在本次review内完成有明确依据的一次修正，记录revised后必须再派发新的独立review，减少另起修改代理的一次交接；不同项目可同时处于撰写、复查或修正，空闲名额及时补位下一项目。每案内部阶段不可重叠。默认目标4个worker、最多8个在制项目；新批次优先按[多CLI执行](references/cli-workers.md)启动受限的真实CLI池，容量按实际账户和机器资源确定；CLI不可用时按真实collaboration名额执行，主控不计worker。一个文件夹只有一案时也是单项批次。
 
 先按[运行环境与页面验收](references/runtime.md)检查实际渲染路径。Windows使用本技能已验证并配置的原生LibreOffice与打包文档Python/Poppler，调用官方渲染脚本；每批预检一次；仅首次配置、依赖改变或转换失败时用小样实测，不在每案重复环境小样。
 
-使用具有模型参数的实际子代理调用实现切换，不以提示词“你现在是某模型”冒充。不要改用户全局模型配置。指定模型不可调用时记录失败及原因，不擅自换模型。用户已授权这个模型分工，不逐案重复确认。
+使用具有模型参数的真实CLI或子代理调用实现切换，不以提示词“你现在是某模型”冒充。不要改用户全局模型配置。指定模型不可调用时记录失败及原因，不擅自换模型。用户已授权这个模型分工，不逐案重复确认。
 
 主控负责队列、派发、证据保存及交付，不替指定模型书写或修正文稿。被派发的 worker 只执行本项目指定阶段，读取写作与校核规范；**worker 不再次启动批处理，不递归派发相同阶段**。接到复查/修改阶段时遵守明确的 Astra/high 分工。
 
@@ -73,6 +73,8 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 ## 效率与隔离
 
+新批次默认由`scripts/cli_pool.py run`自动占槽、派发、收稿、补位和逐案交付。每个worker独立attempt和会话；主控重启先收既有结果，不重跑已完成阶段。reserve只校验到首个可派候选，不重复全队列校验；缓存及模型验收边界详见[多CLI执行](references/cli-workers.md)。旧批次不静默开启新通道。
+
 默认执行[提效流程](references/efficiency.md)，有依据的小范围修正由当前Astra复查代理直接做并交新代理独立重验：来源提取使用--reuse，render使用--reuse --compact，阶段回执使用--compact；先审技术内容、通过后再渲染最终页面，省略对已知还需修改稿件的提前转换。普通批次不运行技能回归测试、不反复读历史案例全文；技能维护只测试本次影响范围。
 
 总控默认`reserve --prepare`，把返回的prepared原样交给worker，直接提供来源/当前稿缓存、冻结active规则与本稿页面候选。worker先读content与导航索引，再按定位核对完整公式结构，不重复遍历整批、重抄规则history或在新目录再次提取同一来源；数据复用不替代新Astra独立结论。
@@ -85,10 +87,12 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 - `scripts/inspect_docx.py`：只读提取与结构预检；--reuse校验后复用同案来源证据。
 - `scripts/render_docx_checked.py`：真实运行环境预检、官方DOCX渲染、输入与逐页产物哈希校验；不自动签发视觉通过。
+- `scripts/cli_pool.py`：真实多CLI执行池、唯一控制器、独立supervisor与中断后收稿；非模型预检每次启动一次。
+- `scripts/cli_evidence.py`：核对进程身份、实际模型/high、会话/最终回复/退出及五文件封存；不能替代文稿验收。
 - `scripts/parallel_batch.py`：新批次的并行计划、占槽、真实派发绑定、乱序回执、取消恢复、项目隔离及桌面交付。
 - `scripts/prepare_handoff.py`：由reserve --prepare调用，准备并交接本案验证过的缓存位置、冻结active规则和当前稿页面候选；数据准备不产生验收结论。
 - `scripts/flat_delivery.py`：将新批次验收稿直接发布到同一交付文件夹根目录，处理重名、不可覆盖及中断恢复；旧批次保留旧布局。
-- `scripts/batch_tool.py`：旧串行批次恢复及共用文件工具。脚本本身不发模型请求，由主控按流程调用子代理；不能只运行扫描就声称已经批量撰写。
+- `scripts/batch_tool.py`：旧串行批次恢复及共用文件工具。该旧工具本身不发模型请求；新CLI池会实际执行模型，不能只运行扫描就声称已经批量撰写。
 - `scripts/rules_tool.py validate --skill 技能目录`：规则库与引用完整性检查。
 - `scripts/rules_tool.py apply --skill 技能目录 --patch 更新.json`：版本检查、备份、更新与历史记录；按维护流程先 dry-run。
 - 三组原始优化书与定稿保存在 `references/corpus/`，用 [source-manifest.json](references/source-manifest.json) 查 ID；需要具体来源或版式时再读。

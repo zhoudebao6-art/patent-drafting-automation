@@ -13,6 +13,18 @@ RULES = Path(__file__).resolve().parent.parent / 'references' / 'rules.json'
 NEXT = {'pending': 'draft', 'drafted': 'review', 'revised': 'review', 'fix_required': 'revise'}
 TERMINAL = b.TERMINAL
 
+
+class NoReadyWork(BatchError):
+    def __init__(self, plan):
+        self.plan = plan
+        super().__init__(plan.get('reason', plan['action']))
+
+
+class PreparationError(BatchError):
+    def __init__(self, case_id, reason):
+        self.case_id = case_id
+        super().__init__('Case '+case_id+' preparation failed: '+reason)
+
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
@@ -36,6 +48,11 @@ def validate_policy(p):
             or not c['target_workers'] <= c['max_in_flight_cases'] <= 256
             or not 1 <= c['min_draft_slots'] <= c['target_workers']):
         raise BatchError('Invalid concurrency policy')
+    transports = p.get('dispatch_transports', ['collaboration'])
+    if (not isinstance(transports, list) or not transports or any(not isinstance(t, str) for t in transports)
+            or len(transports) != len(set(transports))
+            or any(t not in {'collaboration', 'codex_cli'} for t in transports)):
+        raise BatchError('Invalid dispatch transports')
 
 @contextmanager
 def locked(path, timeout=10):
@@ -211,7 +228,7 @@ def capacity_value(m, capacity):
     if type(capacity) is not int or not 1 <= capacity <= m['policy']['concurrency']['target_workers']:
         raise BatchError('Explicit actual capacity must be 1..target_workers; controller does not count as worker')
 
-def plan_manifest(m, capacity):
+def plan_manifest(m, capacity, first_only=False):
     capacity_value(m, capacity)
     active = [c for c in m['projects'] if c['active_attempt']]
     if len(active) >= capacity:
@@ -221,10 +238,6 @@ def plan_manifest(m, capacity):
     for c in m['projects']:
         if c['status'] not in NEXT or c['active_attempt']: continue
         if c['status'] == 'pending' and in_flight >= m['policy']['concurrency']['max_in_flight_cases']: continue
-        try:
-            verify_case(m, c, original=True)
-        except (BatchError, OSError) as e:
-            blocked.append({'case_id': c['id'], 'reason': str(e)}); continue
         row = {'case_id': c['id'], 'stage': NEXT[c['status']]}
         (drafts if row['stage'] == 'draft' else followups).append(row)
     # Every waiting stage has a monotonic ready sequence: revised/revise stages
@@ -245,7 +258,16 @@ def plan_manifest(m, capacity):
     prefer_draft = bool(drafts) and active_drafts < m['policy']['concurrency']['min_draft_slots'] and (
         (capacity == 1 and m.get('last_reserved_stage') != 'draft') or
         (capacity > 1 and free <= m['policy']['concurrency']['min_draft_slots'] - active_drafts))
-    ready = (drafts + followups) if prefer_draft else (followups + drafts)
+    ordered = (drafts + followups) if prefer_draft else (followups + drafts)
+    ready = []
+    for row in ordered:
+        try:
+            verify_case(m, case_by_id(m, row['case_id']), original=True)
+        except (BatchError, OSError) as e:
+            blocked.append({'case_id': row['case_id'], 'reason': str(e)}); continue
+        ready.append(row)
+        if first_only:
+            break  # Reserve needs one verified case, not a re-hash of the entire queue.
     return {'action': 'reserve' if ready else ('wait' if active else 'done' if all(c['status'] in TERMINAL for c in m['projects']) else 'blocked'),
             'active_workers': len(active), 'capacity': capacity, 'in_flight_cases': in_flight, 'ready': ready, 'blocked': blocked}
 
@@ -262,19 +284,23 @@ def mutate(path, controller, operation):
         m['sequence'] += 1; b.atomic(path, m)
         return result
 
-def reserve(path, capacity, case_id=None, stage=None, controller='controller', prepare=False):
+def reserve(path, capacity, case_id=None, stage=None, controller='controller', prepare=False, transport='collaboration'):
     def apply(m):
-        p = plan_manifest(m, capacity)
-        if not p['ready']: raise BatchError(p.get('reason', p['action']))
+        if transport not in m['policy'].get('dispatch_transports', ['collaboration']):
+            raise BatchError('Transport not authorized in this frozen policy')
+        p = plan_manifest(m, capacity, first_only=True)
+        if not p['ready']: raise NoReadyWork(p)
         row = p['ready'][0]
         if case_id is not None and case_id != row['case_id']: raise BatchError('Reserve scheduler-selected case to preserve fairness')
         if stage is not None and stage != row['stage']: raise BatchError('Stage out of order')
-        c = case_by_id(m, row['case_id']); verify_case(m, c, original=True)
+        c = case_by_id(m, row['case_id'])  # Verified once under this same controller lock.
         ident = uuid.uuid4().hex
         folder = case_root(m, c) / 'stages' / ident; folder.mkdir(parents=True, exist_ok=False)
         a = {'id': ident, 'stage': row['stage'], 'state': 'reserved', 'directory': str(folder),
              'input_artifact': c.get('artifact'), 'input_artifact_sha256': c.get('artifact_sha256'),
              'task_name': 'p_' + m['batch_id'].split('_')[-1] + '_' + c['id'] + '_' + row['stage'] + '_' + ident}
+        if transport == 'codex_cli':
+            a['transport'] = transport
         c['attempts'].append(a); c['active_attempt'] = ident
         m['peak_reserved_slots'] = max(m.get('peak_reserved_slots', 0), sum(bool(row['active_attempt']) for row in m['projects']))
         m['last_reserved_stage'] = row['stage']
@@ -285,7 +311,9 @@ def reserve(path, capacity, case_id=None, stage=None, controller='controller', p
             try:
                 prepared, a['prepared_handoff'] = prepare_data(m, c, a)
             except SOURCE_ERRORS as exc:
-                raise BatchError('Invalid DOCX source during preparation: ' + str(exc)) from exc
+                raise PreparationError(c['id'], 'Invalid DOCX source: '+str(exc)) from exc
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                raise PreparationError(c['id'], str(exc)) from exc
         b.atomic(folder / 'reservation.json', a)
         a['reservation_sha256'] = b.sha(folder / 'reservation.json')
         latest_review = next((r for r in reversed(c['receipts']) if r.get('stage') == 'review'), None)
@@ -323,15 +351,22 @@ def bind(path, case_id, attempt, dispatch, controller='controller'):
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 raise BatchError('Invalid prepared handoff: ' + str(exc)) from exc
         evp = file_path(dispatch, a['directory']); ev = b.read(evp)
-        expected = dict(m['policy']['models'][a['stage']], fork_turns='none', task_name=a['task_name'])
-        args, result = ev.get('arguments'), ev.get('result')
-        agent = result.get('task_name') if isinstance(result, dict) else None
-        if (ev.get('tool') != 'collaboration.spawn_agent' or ev.get('context') != context(m, c, a)
-                or not isinstance(args, dict) or any(args.get(k) != v for k, v in expected.items())
-                or not isinstance(agent, str) or agent.split('/')[-1] != a['task_name']
-                or any(result.get(k) for k in ('error', 'errors', 'isError')) or result.get('success') is False
-                or result.get('status') in {'failed', 'error', 'rejected'}):
-            raise BatchError('Dispatch model/high/none/task/context/result mismatch')
+        if a.get('transport') == 'codex_cli':
+            from cli_evidence import verify_dispatch
+            try:
+                agent = verify_dispatch(ev, a, m['policy']['models'][a['stage']])
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                raise BatchError('Invalid CLI dispatch: ' + str(exc)) from exc
+        else:
+            expected = dict(m['policy']['models'][a['stage']], fork_turns='none', task_name=a['task_name'])
+            args, result = ev.get('arguments'), ev.get('result')
+            agent = result.get('task_name') if isinstance(result, dict) else None
+            if (ev.get('tool') != 'collaboration.spawn_agent' or ev.get('context') != context(m, c, a)
+                    or not isinstance(args, dict) or any(args.get(k) != v for k, v in expected.items())
+                    or not isinstance(agent, str) or agent.split('/')[-1] != a['task_name']
+                    or any(result.get(k) for k in ('error', 'errors', 'isError')) or result.get('success') is False
+                    or result.get('status') in {'failed', 'error', 'rejected'}):
+                raise BatchError('Dispatch model/high/none/task/context/result mismatch')
         if any(old.get('agent_id') == agent for row in m['projects'] for old in row['attempts']):
             raise BatchError('Worker dispatch already used')
         verify_case(m, c)
@@ -371,6 +406,17 @@ def record(path, case_id, attempt, receipt, controller='controller'):
         verify_case(m, c)
         if b.sha(file_path(a['dispatch_evidence'], a['directory'])) != a['dispatch_sha256']:
             raise BatchError('Dispatch evidence changed')
+        if a.get('transport') == 'codex_cli':
+            from cli_evidence import verify_completion
+            try:
+                execution = verify_completion(a, a['dispatch_record'])
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                raise BatchError('Invalid CLI completion: ' + str(exc)) from exc
+            if execution['receipt'] != receipt:
+                raise BatchError('CLI final message differs from submitted receipt')
+            if any(old.get('cli_session_id') == execution['session_id'] for row in m['projects'] for old in row['attempts']):
+                raise BatchError('CLI session already used; independent stage session required')
+            a['cli_session_id'] = execution['session_id']
         if receipt.get('context') != context(m, c, a): raise BatchError('Cross-case, source, rules or attempt receipt mismatch')
         model = m['policy']['models'][a['stage']]
         if any(receipt.get(k) != v for k, v in model.items()) or receipt.get('agent_id') != a['agent_id'] or receipt.get('stage') != a['stage']:
@@ -434,10 +480,18 @@ def cancel(path, case_id, attempt, reason, stop_evidence=None, controller='contr
     def apply(m):
         if not isinstance(reason, str) or not reason.strip(): raise BatchError('Concrete cancellation reason required')
         c = case_by_id(m, case_id); a = attempt_by_id(c, attempt)
-        if a['state'] == 'bound':
+        launched_cli = a.get('transport') == 'codex_cli' and (Path(a['directory'])/'cli-launch-intent.json').exists()
+        if a['state'] == 'bound' or launched_cli:
             if stop_evidence is None: raise BatchError('Bound worker requires confirmed stop evidence before release')
             evp = file_path(stop_evidence, a['directory']); ev = b.read(evp)
-            if (ev.get('tool') != 'collaboration.interrupt_agent' or ev.get('context') != context(m, c, a)
+            if a.get('transport') == 'codex_cli':
+                from cli_evidence import verify_stop
+                dispatch = a.get('dispatch_record') or b.read(file_path(Path(a['directory'])/'dispatch.json', a['directory']))
+                try:
+                    verify_stop(ev, a, dispatch)
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    raise BatchError('Invalid CLI stop: ' + str(exc)) from exc
+            elif (ev.get('tool') != 'collaboration.interrupt_agent' or ev.get('context') != context(m, c, a)
                     or ev.get('arguments') != {'target': a['agent_id']} or ev.get('confirmed_stopped') is not True
                     or not isinstance(ev.get('result'), dict) or any(ev['result'].get(k) for k in ('error', 'errors', 'isError'))
                     or ev['result'].get('success') is False
@@ -580,7 +634,9 @@ def main():
         s.add_argument('--compact', action='store_true', help='Short CLI reply; complete evidence stays in the manifest and receipt files')
         if command not in {'plan', 'summary'}: s.add_argument('--controller', required=True)
         if command in {'plan', 'reserve'}: s.add_argument('--capacity', type=int, required=True)
-        if command == 'reserve': s.add_argument('--prepare', action='store_true', help='Prepare verified case cache paths and active frozen rules before dispatch')
+        if command == 'reserve':
+            s.add_argument('--prepare', action='store_true', help='Prepare verified case cache paths and active frozen rules before dispatch')
+            s.add_argument('--transport', choices=['collaboration', 'codex_cli'], default='collaboration')
         if command in {'bind', 'record', 'cancel', 'defer'}: s.add_argument('--case', required=True)
         if command in {'bind', 'record', 'cancel'}: s.add_argument('--attempt', required=True)
         if command == 'bind': s.add_argument('--dispatch', required=True)
@@ -595,7 +651,7 @@ def main():
             result = b.scan(a.input); b.atomic(output, result)
         elif a.command == 'init': result = str(init(a.input, a.work_root, b.read(a.selection), a.desktop, a.controller))
         elif a.command == 'plan': result = plan(a.manifest, a.capacity)
-        elif a.command == 'reserve': result = reserve(a.manifest, a.capacity, controller=a.controller, prepare=a.prepare)
+        elif a.command == 'reserve': result = reserve(a.manifest, a.capacity, controller=a.controller, prepare=a.prepare, transport=a.transport)
         elif a.command == 'bind': result = bind(a.manifest, a.case, a.attempt, a.dispatch, a.controller)
         elif a.command == 'record':
             m = load_manifest(a.manifest); c = case_by_id(m, a.case); attempt = attempt_by_id(c, a.attempt)

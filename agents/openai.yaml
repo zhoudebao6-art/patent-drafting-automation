@@ -1,4 +1,4 @@
 interface:
   display_name: "专利撰写自动化"
-  short_description: "多项目滚动并行，Sol高强度撰写、Astra高强度复查修正，分案隔离并逐案即时交付桌面"
+  short_description: "多CLI持续补位，Sol高强度撰写、Astra高强度复查修正，分案隔离并逐案交付桌面"
   default_prompt: "请使用 $patent-drafting-automation，并行处理我指定文件夹中的技术项目优化书，按可用名额持续补位，使用GPT-6.1-sol高强度撰写、GPT-6-astra高强度复查修正，每案独立验收通过后立即将成稿直接放到桌面同一批次文件夹根目录，所有成稿同层排列。"

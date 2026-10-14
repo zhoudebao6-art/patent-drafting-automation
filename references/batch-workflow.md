@@ -20,7 +20,7 @@ python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目
 
 ## 滚动补位
 
-默认目标4个worker，最多8个在制项目，保留1个草稿推进机会。--capacity填写本批可使用的worker总额度，包含本批已占槽，不计总控和无关任务；不是当前空闲数。容量受真实工具额度约束，不能根据配置臆造名额。只有1个worker时如实顺序执行，不能声称真实多模型并行，也不能通过未授权的新聊天、全局设置或递归agent绕过额度。
+默认目标4个worker，最多8个在制项目，保留1个草稿推进机会。--capacity填写本批可使用的worker总额度，包含本批已占槽，不计总控和无关任务；不是当前空闲数。容量受真实工具额度约束，不能根据配置臆造名额。新批次优先由[多CLI执行池](cli-workers.md)自动执行整个循环；独立CLI容量与app子代理槽分别核实，不能机械共用槽位数。只有1个worker时如实顺序执行，不能声称真实多模型并行，也不能通过未授权的新聊天、全局设置或递归agent绕过额度。
 
 总控维护事件循环：启动时连续reserve并派发多个不同项目；每个worker完成即登记回执；本案最终验收通过就立即deliver，然后直接reserve推进复查/修正并补位，不等待整批完成。plan仅用于需要观察队列的情况，不在每次reserve前后重复调用。有草稿与审查同时待办时兼顾两个方向，修正和重验及时推进，达到在制上限后先消化积压。满槽时等待完成事件，避免紧密轮询及固定长时间睡眠。单案缺资料或输入变化要具体记录，其他案继续。
 
@@ -28,11 +28,13 @@ python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目
 
 ## 占槽和真实派发
 
+新批次默认运行`cli_pool.py run`，由其调用reserve/bind/record/deliver，不同时另起手工控制器。以下步骤保留用于collaboration通道及诊断。CLI模式reserve使用`--transport codex_cli --prepare`，仅在冻结策略允许时生效；真实进程与会话证据契约见[多CLI执行](cli-workers.md)。
+
 ```text
 python scripts/parallel_batch.py reserve --manifest 批次清单 --capacity 实际worker总额度 --controller 本批控制器标识 --prepare
 ```
 
-reserve持久保存占槽并返回case_id、attempt、directory、task_name、context、spawn_arguments及source_snapshots。严格使用返回的上下文及路径。使用真实collaboration.spawn_agent，参数取spawn_arguments再补message：draft=gpt-6.1-sol/high；review/revise=gpt-6-astra/high；fork_turns=none。成功后保存真实tool/context/arguments/result为本attempt的dispatch.json；reserve本身不代表模型已经运行。
+reserve持久保存占槽并返回case_id、attempt、directory、task_name、context、spawn_arguments及source_snapshots。严格使用返回的上下文及路径。collaboration通道使用真实collaboration.spawn_agent，参数取spawn_arguments再补message：draft=gpt-6.1-sol/high；review/revise=gpt-6-astra/high；fork_turns=none。成功后保存真实tool/context/arguments/result为本attempt的dispatch.json；reserve本身不代表模型已经运行。
 
 message包含本案来源快照及哈希、rules.snapshot.json、当前稿和哈希、attempt目录、阶段输出及上一轮问题。不得传入别案正文。worker不下派、不改共享规则或manifest，不写其他案目录。主控只编排，不能冒充指定模型写稿。
 
@@ -62,7 +64,7 @@ python scripts/parallel_batch.py record --manifest 批次清单 --case 项目ID 
 
 ## 取消、恢复与待处理
 
-未bind的预留可因派发失败cancel；已bind先停止对应worker并确认实际停止，再保存停止证据并cancel。仅发出中断请求不等于停止确认。不得因超时直接启动同案第二个worker，活动worker不能直接defer。
+collaboration未bind的预留可因派发失败cancel；CLI已有启动意图即须确认原进程退出，不能因尚未bind直接取消。已bind先停止对应worker并确认实际停止，再保存停止证据并cancel。仅发出中断请求不等于停止确认。不得因超时直接启动同案第二个worker，活动worker不能直接defer。
 
 ```text
 python scripts/parallel_batch.py cancel --manifest 批次清单 --case 项目ID --attempt attempt_id --reason 原因 --stop-evidence 停止证据.json --controller 本批控制器标识
@@ -70,7 +72,7 @@ python scripts/parallel_batch.py defer --manifest 批次清单 --case 项目ID -
 python scripts/parallel_batch.py summary --manifest 批次清单
 ```
 
-stop-evidence含tool=collaboration.interrupt_agent、原context、arguments.target=agent_id、实际result及confirmed_stopped=true；只有真实确认停止才填写。reserved取消不需要停止模型证据。取消后的迟到回执拒绝，新attempt独立创建。恢复前先读取summary及真实worker状态，避免重复派发。不静默清除可能仍活跃的锁。对已终结待处理案，保留旧批次另建新批次，不能修改旧回执冒充通过。
+stop-evidence含tool=collaboration.interrupt_agent、原context、arguments.target=agent_id、实际result及confirmed_stopped=true；只有真实确认停止才填写。collaboration reserved或尚无CLI启动意图的reserved取消不需要停止模型证据；其余CLI使用cli-workers规定的原进程退出证据。取消后的迟到回执拒绝，新attempt独立创建。恢复前先读取summary及真实worker状态，避免重复派发。不静默清除可能仍活跃的锁。对已终结待处理案，保留旧批次另建新批次，不能修改旧回执冒充通过。
 
 ## 减少重复工作
 

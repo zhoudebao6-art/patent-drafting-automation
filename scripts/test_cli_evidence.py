@@ -1,0 +1,216 @@
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import cli_evidence as ce
+
+
+class CliEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.exe = str(self.root / 'codex.exe')
+        self.model = {'model': 'gpt-6.1-sol', 'reasoning_effort': 'high'}
+        self.attempt = {'id': 'attempt1', 'directory': str(self.root),
+                        'context': {'case_id': '001', 'attempt': 'attempt1'}}
+        self.identity = {'pid': 123, 'created': 23456789, 'executable': self.exe}
+        self.prompt = '只处理本案。\n请返回真实回执。'
+        (self.root / 'prompt.txt').write_bytes(self.prompt.encode('utf-8'))
+        self.dispatch = {
+            'tool': 'codex.exec', 'context': self.attempt['context'],
+            'arguments': {'argv': ce.build_command(self.exe, self.root, **self.model),
+                          'cwd': str(self.root), **self.model},
+            'result': self.identity, 'prompt_sha256': self.sha('prompt.txt'),
+            'agent_id': 'cli:attempt1'}
+        self.session_id = '01a138c4-5fcd-7053-b553-f763330b7180'
+        self.receipt = {'context': self.attempt['context'], 'verdict': 'complete'}
+        self.events = [
+            {'type': 'thread.started', 'thread_id': self.session_id},
+            {'type': 'turn.started'},
+            {'type': 'item.completed', 'item': {'type': 'agent_message',
+                                             'text': json.dumps(self.receipt)}},
+            {'type': 'turn.completed', 'usage': {'input_tokens': 1}}]
+        self.session = [
+            {'type': 'session_meta', 'payload': {'id': self.session_id, 'source': 'exec', 'cwd': str(self.root)}},
+            {'type': 'turn_context', 'payload': {'model': self.model['model'], 'effort': 'high',
+                                              'cwd': str(self.root), 'sandbox_policy': {'type': 'workspace-write'}}},
+            {'type': 'response_item', 'payload': {'type': 'message', 'role': 'user',
+                                               'content': [{'type': 'input_text', 'text': self.prompt}]}}]
+
+    def sha(self, name):
+        return hashlib.sha256((self.root / name).read_bytes()).hexdigest()
+
+    def seal(self):
+        session = self.session + [{'type': 'response_item', 'payload': {'type': 'message', 'role': 'assistant',
+                   'phase': 'final_answer', 'content': [{'type': 'output_text', 'text': json.dumps(self.receipt)}]}}]
+        for name, rows in (('events.jsonl', self.events), ('session.jsonl', session)):
+            (self.root / name).write_text('\n'.join(json.dumps(r, ensure_ascii=False) for r in rows), encoding='utf-8')
+        (self.root / 'worker-final.json').write_text(json.dumps(self.receipt), encoding='utf-8')
+        (self.root / 'cli-exit.json').write_text(json.dumps({'pid': self.identity['pid'], 'created': self.identity['created'], 'returncode': 0}), encoding='utf8')
+        meta = {'exit_code': 0, 'pid': self.identity['pid'], 'created': self.identity['created'],
+                'files': {n: self.sha(n) for n in ce.COMPLETION_FILES}}
+        (self.root / 'cli-completion.json').write_text(json.dumps(meta), encoding='utf-8')
+        return meta
+
+    def test_command_and_dispatch_use_explicit_safe_model_and_prompt(self):
+        self.assertEqual(self.dispatch['arguments']['argv'], [
+            self.exe, 'exec', '--model', 'gpt-6.1-sol', '-c', 'model_reasoning_effort="high"',
+            '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '--color', 'never',
+            '-C', str(self.root), '-o', str(self.root / 'worker-final.json'), '-'])
+        with patch.object(ce, 'process_identity', return_value=self.identity):
+            self.assertEqual(ce.verify_dispatch(self.dispatch, self.attempt, self.model), 'cli:attempt1')
+
+    def test_dispatch_rejects_changed_model_effort_context_prompt_and_unsafe_argv(self):
+        for key, value in [('model', 'gpt-6-astra'), ('reasoning_effort', 'low'),
+                           ('cwd', str(self.root.parent)), ('argv', ['codex', 'exec', '--yolo'])]:
+            ev = copy.deepcopy(self.dispatch)
+            ev['arguments'][key] = value
+            with self.subTest(key=key), patch.object(ce, 'process_identity', return_value=self.identity), self.assertRaises(ValueError):
+                ce.verify_dispatch(ev, self.attempt, self.model)
+        for key, value in [('context', {'case_id': 'other'}), ('prompt_sha256', '0' * 64), ('agent_id', 'cli:other')]:
+            ev = copy.deepcopy(self.dispatch); ev[key] = value
+            with self.subTest(key=key), patch.object(ce, 'process_identity', return_value=self.identity), self.assertRaises(ValueError):
+                ce.verify_dispatch(ev, self.attempt, self.model)
+
+    def test_dispatch_rejects_missing_reused_or_different_process(self):
+        for identity in (None, dict(self.identity, created=1), dict(self.identity, executable=str(self.root / 'other.exe'))):
+            with self.subTest(identity=identity), patch.object(ce, 'process_identity', return_value=identity), self.assertRaises(ValueError):
+                ce.verify_dispatch(self.dispatch, self.attempt, self.model)
+
+    def test_completion_returns_actual_session_and_receipt(self):
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None):
+            self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
+                             {'session_id': self.session_id, 'receipt': self.receipt})
+
+    def test_dispatch_recovery_requires_complete_successful_evidence(self):
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None):
+            self.assertEqual(ce.verify_dispatch(self.dispatch, self.attempt, self.model), 'cli:attempt1')
+        (self.root / 'worker-final.json').write_text('{}', encoding='utf-8')
+        with patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+            ce.verify_dispatch(self.dispatch, self.attempt, self.model)
+
+    def test_completion_rejects_live_original_but_accepts_pid_reuse(self):
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=self.identity), self.assertRaises(ValueError):
+            ce.verify_completion(self.attempt, self.dispatch)
+        with patch.object(ce, 'process_identity', return_value=dict(self.identity, created=999)):
+            ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_completion_rejects_each_tampered_file(self):
+        for name in ('events.jsonl', 'session.jsonl', 'worker-final.json', 'prompt.txt'):
+            self.seal()
+            original = (self.root / name).read_bytes()
+            (self.root / name).write_bytes(original + b' ')
+            with self.subTest(name=name), patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                ce.verify_completion(self.attempt, self.dispatch)
+            (self.root / name).write_bytes(original)
+
+    def test_completion_rejects_wrong_turn_model_effort_cwd_or_sandbox(self):
+        base = copy.deepcopy(self.session)
+        for key, value in [('model', 'gpt-6-astra'), ('effort', 'low'), ('cwd', str(self.root.parent)),
+                           ('sandbox_policy', {'type': 'danger-full-access'})]:
+            self.session = copy.deepcopy(base); self.session[1]['payload'][key] = value
+            self.seal()
+            with self.subTest(key=key), patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_completion_rejects_wrong_prompt_session_and_non_exec_source(self):
+        base = copy.deepcopy(self.session)
+        for key, value in [('id', '01a138c4-5fcd-7053-b553-f763330b7181'), ('source', 'cli'), ('cwd', str(self.root.parent))]:
+            self.session = copy.deepcopy(base); self.session[0]['payload'][key] = value
+            self.seal()
+            with self.subTest(key=key), patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                ce.verify_completion(self.attempt, self.dispatch)
+        self.session = copy.deepcopy(base)
+        self.session[2]['payload']['content'][0]['text'] += '\nextra'
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+            ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_completion_rejects_error_failed_missing_completed_duplicate_or_invalid_thread(self):
+        base = copy.deepcopy(self.events)
+        mutations = [base + [{'type': 'error', 'message': 'failed'}],
+                     base + [{'type': 'turn.failed'}], base[:-1], base + [base[0]],
+                     [dict(base[0], thread_id='not-a-uuid'), *base[1:]]]
+        for rows in mutations:
+            self.events = rows; self.seal()
+            with self.subTest(rows=rows), patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_completion_rejects_final_receipt_disagreement_and_bad_exit_identity(self):
+        self.events[2]['item']['text'] = '{"verdict":"other"}'
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+            ce.verify_completion(self.attempt, self.dispatch)
+        self.events[2]['item']['text'] = json.dumps(self.receipt)
+        for key, value in [('exit_code', 1), ('exit_code', False), ('pid', 456), ('created', 1)]:
+            meta = self.seal(); meta[key] = value
+            (self.root / 'cli-completion.json').write_text(json.dumps(meta), encoding='utf-8')
+            with self.subTest(key=key, value=value), patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_stop_requires_exit_identity_and_confirmed_original_stopped(self):
+        ev = {'tool': 'codex.exec.exit', 'context': self.attempt['context'], 'pid': 123,
+              'created': self.identity['created'], 'confirmed_stopped': True, 'returncode': 0}
+        with patch.object(ce, 'process_identity', return_value=None):
+            ce.verify_stop(ev, self.attempt, self.dispatch)
+        with patch.object(ce, 'process_identity', return_value=self.identity), self.assertRaises(ValueError):
+            ce.verify_stop(ev, self.attempt, self.dispatch)
+        for key, value in [('tool', 'unknown'), ('context', {}), ('pid', 456), ('created', 1),
+                           ('confirmed_stopped', False), ('returncode', None), ('returncode', False)]:
+            bad = dict(ev); bad[key] = value
+            with self.subTest(key=key), patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                ce.verify_stop(bad, self.attempt, self.dispatch)
+
+    def test_stop_can_release_exited_failed_worker_even_if_prompt_was_damaged(self):
+        ev = {'tool': 'codex.exec.exit', 'context': self.attempt['context'], 'pid': 123,
+              'created': self.identity['created'], 'confirmed_stopped': True, 'returncode': 1}
+        (self.root / 'prompt.txt').unlink()
+        with patch.object(ce, 'process_identity', return_value=None):
+            self.assertTrue(ce.verify_stop(ev, self.attempt, self.dispatch))
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows native identity')
+    def test_hardlinked_evidence_cannot_be_accepted_even_with_matching_hash(self):
+        self.seal()
+        os.link(self.root/'events.jsonl',self.root/'linked-events.jsonl')
+        with patch.object(ce,'process_identity',return_value=None):
+            with self.assertRaisesRegex(ValueError,'Hard-linked'):
+                ce.verify_completion(self.attempt,self.dispatch)
+
+    def test_actual_exit_and_actual_final_cannot_be_overruled_by_resealing(self):
+        for corrupt in ('exit','final','aborted'):
+            with self.subTest(corrupt=corrupt):
+                meta=self.seal()
+                if corrupt=='exit':
+                    path=self.root/'cli-exit.json'; data=json.loads(path.read_text()); data['returncode']=17
+                    path.write_text(json.dumps(data),encoding='utf8')
+                else:
+                    path=self.root/'session.jsonl'; rows=[json.loads(line) for line in path.read_text(encoding='utf8').splitlines()]
+                    if corrupt=='final': rows[-1]['payload']['content'][0]['text']='{"wrong":true}'
+                    else: rows.append({'type':'event_msg','payload':{'type':'turn_aborted'}})
+                    path.write_text('\n'.join(json.dumps(x) for x in rows),encoding='utf8')
+                meta['files'][path.name]=self.sha(path.name)
+                (self.root/'cli-completion.json').write_text(json.dumps(meta),encoding='utf8')
+                with patch.object(ce,'process_identity',return_value=None):
+                    with self.assertRaises(ValueError): ce.verify_completion(self.attempt,self.dispatch)
+
+    def test_native_process_identity_current_and_absent(self):
+        import sys
+        identity = ce.process_identity(os.getpid())
+        self.assertEqual(identity['pid'], os.getpid())
+        self.assertIs(type(identity['created']), int)
+        # Windows venv python.exe may redirect to the base runtime process.
+        self.assertTrue(os.path.samefile(identity['executable'], sys._base_executable))
+        self.assertIsNone(ce.process_identity(0xFFFFFFFE))
+
+
+if __name__ == '__main__':
+    unittest.main()
