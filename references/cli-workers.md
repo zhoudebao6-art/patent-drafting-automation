@@ -1,5 +1,7 @@
 # 多 CLI 通用执行通道（v4.7）
 
+v5.0新增frozen_stage_packet_v1准备模式，见[快速执行](fast-execution.md)。新批次的run/status及队列命令自动转入本批skill-snapshot脚本；worker接收单份阶段清单和公共生成工具路径，不重复打开清单已经包含的原始规范。旧批次缺少该标志时仍按原契约运行，不虚构完整历史工具快照。以下CLI身份、收稿及恢复要求保持。
+
 用户已明确允许同时调用多个CLI提高效率。后续新批次默认优先使用本通道，仍由一个总控维护队列；每个CLI只负责一个case的一个attempt。旧批次缺少`dispatch_transports`时仅允许原collaboration通道，不改写冻结策略。CLI不可用时，在未创建启动意图前使用实际可用的collaboration容量；不得换模型、绕过额度或更改全局安全设置。
 
 ## 启动与补位

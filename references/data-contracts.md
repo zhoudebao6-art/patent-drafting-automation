@@ -1,5 +1,7 @@
 # 结构化记录
 
+v5.0带prepared.pipeline的worker以stage_guide中已包含的“项目记录”原文为证据字段，不另读本文件的控制器状态操作部分；仅遇契约疑点再定位查阅。本文件其他数据要求仍由相应执行角色遵守。
+
 规则唯一可编辑权威是 rules.json；其他参考文件解释执行方式，修改规则时同步冲突说明。
 
 ## 规则库
@@ -75,6 +77,8 @@ delivery.timing=after_each_acceptance表示每案验收通过后立即调用deli
 新策略review_mode=review_fix_then_recheck允许Astra/high review在一次调用内修正并返回verdict=revised。reviewed_sha256对应输入旧稿；artifact/artifact_sha256对应当前review attempt内字节已改变的新稿；findings须非空，每项status=resolved或closed，并提供非空location和correction_evidence；checks六键记录实际结果，未做项标not_run。该回执只使案件进入revised，下次必须派发新的Astra/high review，最终pass不得同时夹带修改产物。未带review_mode的旧策略不接受revised审查回执，仍走独立revise。缓存只复用结构或渲染产物，不复用语义通过结论；--compact只影响工具返回，完整记录照常持久保存。
 
 ## CLI派发（规则版本12起）
+
+规则版本17起的新批次可声明worker_preparation=frozen_stage_packet_v1。manifest.skill_snapshot={path,sha256}绑定本批快照清单，清单逐项绑定工具/规范文件以及规则和策略身份。prepared.pipeline提供root、stage_guide及其sha、math_guide、toolkit及其guide、snapshot_sha256；绑定与收稿核验这些身份，worker不写快照。仅引用缓存和生成器的客观结果不产生任何六项passed结论。旧批次字段缺失时仍按旧契约执行。
 
 冻结策略`dispatch_transports`可含collaboration与codex_cli；旧策略省略时只允许collaboration。CLI attempt额外记录transport=codex_cli、完成后的cli_session_id，阶段receipt仍使用原完整context和六项验收格式。
 

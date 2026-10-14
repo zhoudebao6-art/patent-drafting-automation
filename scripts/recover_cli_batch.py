@@ -102,6 +102,9 @@ def recover(manifest, work_root, controller, new_generation=False):
         shutil.copyfile(manifest.parent/'policy.snapshot.json', new_path.parent/'policy.snapshot.json')
         new.update(policy=copy.deepcopy(old['policy']), rule_version=old['rule_version'],
                    rules_sha256=old['rules_sha256'])
+        if new.get('skill_snapshot') or old.get('skill_snapshot'):
+            from stage_bundle import restore_snapshot
+            restore_snapshot(old, new)
         for target, (source, a, execution, artifact) in zip(new['projects'], drafts):
             if (target['id'] != source['id'] or
                 [(s['relative_path'], s['sha256']) for s in target['sources']] !=

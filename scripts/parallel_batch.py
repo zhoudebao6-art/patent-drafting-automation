@@ -53,6 +53,8 @@ def validate_policy(p):
             or len(transports) != len(set(transports))
             or any(t not in {'collaboration', 'codex_cli'} for t in transports)):
         raise BatchError('Invalid dispatch transports')
+    if p.get('worker_preparation') not in (None, 'frozen_stage_packet_v1'):
+        raise BatchError('Invalid worker preparation mode')
 
 @contextmanager
 def locked(path, timeout=10):
@@ -143,6 +145,9 @@ def init(root, work, selection, desktop=None, controller='controller'):
          'policy': policy, 'rule_version': rules['version'], 'rules_sha256': hashlib.sha256(rules_bytes).hexdigest(),
          'evidence_limit': 'Controller-captured records, not independent model/server attestations; simulations are scheduling regressions only',
          'sequence': 0, 'peak_reserved_slots': 0, 'peak_bound_workers': 0, 'projects': rows}
+    if policy.get('worker_preparation') == 'frozen_stage_packet_v1':
+        from stage_bundle import freeze
+        m['skill_snapshot'] = freeze(Path(__file__).resolve().parent.parent, batch, rules_bytes, policy)
     b.atomic(batch / 'manifest.json', m)
     return batch / 'manifest.json'
 
@@ -158,6 +163,12 @@ def load_manifest(path):
     rules = file_path(root / 'rules.snapshot.json', root)
     if b.sha(rules) != m['rules_sha256'] or b.read(rules).get('version') != m['rule_version']:
         raise BatchError('Rule snapshot changed')
+    if m.get('skill_snapshot') or m['policy'].get('worker_preparation'):
+        from stage_bundle import verify
+        try:
+            verify(m, full=False)
+        except (ValueError, OSError) as exc:
+            raise BatchError(str(exc)) from exc
     return m
 
 def case_by_id(m, ident):
@@ -314,7 +325,7 @@ def reserve(path, capacity, case_id=None, stage=None, controller='controller', p
         m['last_reserved_stage'] = row['stage']
         a['context'] = context(m, c, a)
         prepared = None
-        if prepare:
+        if prepare or m['policy'].get('worker_preparation') == 'frozen_stage_packet_v1':
             from prepare_handoff import prepare as prepare_data, SOURCE_ERRORS
             try:
                 prepared, a['prepared_handoff'] = prepare_data(m, c, a)
@@ -409,6 +420,12 @@ def verify_render(m, c, a, render):
 
 def record(path, case_id, attempt, receipt, controller='controller'):
     def apply(m):
+        if m.get('skill_snapshot'):
+            from stage_bundle import verify
+            try:
+                verify(m)
+            except (ValueError, OSError) as exc:
+                raise BatchError(str(exc)) from exc
         c = case_by_id(m, case_id); a = attempt_by_id(c, attempt)
         if a['state'] != 'bound': raise BatchError('Successful dispatch must be bound before recording')
         verify_case(m, c)
@@ -655,6 +672,11 @@ def main():
         if command == 'defer': s.add_argument('--status', choices=['failed', 'needs_input'], required=True); s.add_argument('--reason', required=True)
     a = p.parse_args()
     try:
+        if getattr(a, 'manifest', None):
+            from stage_bundle import redirect_cli
+            redirected = redirect_cli(a.manifest, 'parallel_batch.py', sys.argv[1:])
+            if redirected is not None:
+                return redirected
         if a.command == 'scan':
             output = Path(a.out).absolute(); b.root_path(output.parent)
             if b.inside(output, a.input) or (output.exists() and (b.linked(output) or output.stat().st_nlink != 1)): raise BatchError('Scan output must be independent and outside input')

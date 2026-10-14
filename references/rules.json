@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 16,
-  "updated_at": "2026-10-14T09:22:36Z",
+  "version": 17,
+  "updated_at": "2026-10-14T10:05:53Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -805,12 +805,16 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "冻结本批来源、规则版本及模型策略。每案使用独立case目录和每阶段唯一attempt目录、独立稿件与证据；同案最多一个活跃阶段。后续更新不静默修改已运行批次。",
+      "instruction": "冻结本批来源、规则版本及模型策略。每案使用独立case目录和每阶段唯一attempt目录、独立稿件与证据；同案最多一个活跃阶段。后续更新不静默修改已运行批次。 新批次启用frozen_stage_packet_v1时，一次冻结规则、引用规范及本技能运行工具；模型读取本批快照，批次命令自动进入冻结工具，后续技能安装不改变该批执行版本。旧批次没有该标志时维持原契约，不虚构其历史快照。",
       "check": "来源/规则/稿件哈希与batch_id、case_id、stage、attempt_id一致；拒绝跨案路径、旧attempt和重复回执；旧串行批次按原快照恢复。",
       "evidence": [
         {
           "source": "references/parallel-user-requirement.txt",
           "locator": "第2行"
+        },
+        {
+          "source": "references/speed-user-requirement.txt",
+          "locator": "全文"
         }
       ],
       "exceptions": []
@@ -847,7 +851,7 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许Astra在当前review内直接完成有明确依据的一次修正，再交新的Astra/high独立重验，减少单独修改派发；修正回执不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。",
+      "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许Astra在当前review内直接完成有明确依据的一次修正，再交新的Astra/high独立重验，减少单独修改派发；修正回执不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
       "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。 核对派发实际包含prepared路径、同稿热交接不再解析ZIP、规则例外未丢失、跨案/过期证据拒绝及准备失败不提交占槽；页面候选必须验证，不能把同SHA的证据复制、工具升级或渲染器纠错重试计成无效重复。 通过真实隔离CLI实测区分通道可用与整批提速；不可把账面并行或局部测量宣称为已证实的文稿产能倍数。",
       "evidence": [
         {
@@ -873,6 +877,10 @@
         {
           "source": "references/cli-workers.md",
           "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+        },
+        {
+          "source": "references/speed-user-requirement.txt",
+          "locator": "全文"
         }
       ],
       "exceptions": []
@@ -1164,6 +1172,25 @@
         }
       ],
       "exceptions": []
+    },
+    {
+      "id": "BATCH-13",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "通用优化应显著减少重复规范读取、每案排版编程和客观台账整理；优先由指定撰写模型提供结构化内容，公共工具按人工定稿参数生成Word并复用本案原始公式和图。保留Sol/high撰写、Astra/high复查修正及修改后新Astra独立验收。现有必要检查合并执行，不额外增加逐案维护审计；客观索引不能自签语义或视觉通过，未支持结构不得静默丢失。",
+      "check": "核对阶段清单覆盖全部active规则原文及例外；公共生成器独立读回成品的对象和位置，Astra仍直接核对来源及最终文件；测量局部工具收益与真实批次耗时，未经端到端实测不承诺加速比例。",
+      "exceptions": [
+        "公共生成器尚不支持的有源结构仅补充该部分，不能擅自展平、删减或伪造通过；旧批次不静默迁移。"
+      ],
+      "evidence": [
+        {
+          "source": "references/speed-user-requirement.txt",
+          "locator": "全文"
+        }
+      ]
     }
   ],
   "history": [
@@ -2676,6 +2703,104 @@
               }
             ],
             "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 17,
+      "previous_version": 16,
+      "updated_at": "2026-10-14T10:05:53Z",
+      "summary": "通用大幅提速：冻结单份阶段清单、公共Word生成及客观台账，保留原有独立验收与旧批次契约",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-08",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "冻结本批来源、规则版本及模型策略。每案使用独立case目录和每阶段唯一attempt目录、独立稿件与证据；同案最多一个活跃阶段。后续更新不静默修改已运行批次。 新批次启用frozen_stage_packet_v1时，一次冻结规则、引用规范及本技能运行工具；模型读取本批快照，批次命令自动进入冻结工具，后续技能安装不改变该批执行版本。旧批次没有该标志时维持原契约，不虚构其历史快照。",
+            "check": "来源/规则/稿件哈希与batch_id、case_id、stage、attempt_id一致；拒绝跨案路径、旧attempt和重复回执；旧串行批次按原快照恢复。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/speed-user-requirement.txt",
+                "locator": "全文"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-10",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许Astra在当前review内直接完成有明确依据的一次修正，再交新的Astra/high独立重验，减少单独修改派发；修正回执不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
+            "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。 核对派发实际包含prepared路径、同稿热交接不再解析ZIP、规则例外未丢失、跨案/过期证据拒绝及准备失败不提交占槽；页面候选必须验证，不能把同SHA的证据复制、工具升级或渲染器纠错重试计成无效重复。 通过真实隔离CLI实测区分通道可用与整批提速；不可把账面并行或局部测量宣称为已证实的文稿产能倍数。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户通用提效要求"
+              },
+              {
+                "source": "user:2026-10-14",
+                "locator": "再次检查必需重复步骤的效率优化，并明确这是通用修改优化"
+              },
+              {
+                "source": "references/efficiency.md",
+                "locator": "直接交接，避免每阶段重新查找；容量与可验证收益"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "references/speed-user-requirement.txt",
+                "locator": "全文"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-13",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "通用优化应显著减少重复规范读取、每案排版编程和客观台账整理；优先由指定撰写模型提供结构化内容，公共工具按人工定稿参数生成Word并复用本案原始公式和图。保留Sol/high撰写、Astra/high复查修正及修改后新Astra独立验收。现有必要检查合并执行，不额外增加逐案维护审计；客观索引不能自签语义或视觉通过，未支持结构不得静默丢失。",
+            "check": "核对阶段清单覆盖全部active规则原文及例外；公共生成器独立读回成品的对象和位置，Astra仍直接核对来源及最终文件；测量局部工具收益与真实批次耗时，未经端到端实测不承诺加速比例。",
+            "exceptions": [
+              "公共生成器尚不支持的有源结构仅补充该部分，不能擅自展平、删减或伪造通过；旧批次不静默迁移。"
+            ],
+            "evidence": [
+              {
+                "source": "references/speed-user-requirement.txt",
+                "locator": "全文"
+              }
+            ]
           }
         }
       ]

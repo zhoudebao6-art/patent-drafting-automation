@@ -123,6 +123,9 @@ def prepare(m, case, attempt):
               'render_candidates': render_candidates(attempt.get('input_artifact'), attempt.get('input_artifact_sha256')),
               'draft_inspection_cache': str(attempt_root/'inspection-cache'),
               'boundary': 'Read content and index first; load full OMML for relevant IDs. Reuse data, never semantic approval. Verify render candidates before viewing; invalid or distorted output cannot pass.'}
+    if m.get('skill_snapshot') or m['policy'].get('worker_preparation'):
+        from stage_bundle import worker_paths
+        result['pipeline'] = worker_paths(m, attempt['stage'])
     result['prepared_files'] = [{'file': p.name, 'sha256': inspector.file_sha(p)} for p in sorted(out.glob('*.json'))]
     path = out/'handoff.json'
     save_new(path, result)
@@ -162,6 +165,10 @@ def verify_prepared(m, case, attempt):
     data = json.loads(path.read_text(encoding='utf-8'))
     if data['context'] != attempt['context']:
         raise ValueError('Prepared handoff context mismatch')
+    if m.get('skill_snapshot') or m['policy'].get('worker_preparation'):
+        from stage_bundle import worker_paths
+        if data.get('pipeline') != worker_paths(m, attempt['stage']):
+            raise ValueError('Prepared frozen pipeline changed')
     for entry in data['prepared_files']:
         target = inspector.local_path(root/entry['file'])
         if target.parent != root or inspector.file_sha(target) != entry['sha256']:

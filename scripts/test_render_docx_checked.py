@@ -110,6 +110,24 @@ class RenderTests(unittest.TestCase):
         with patch.object(r, 'preflight', return_value=self.paths), patch.object(r, 'verify_render', side_effect=changed):
             with self.assertRaises(r.RenderError): r.render(self.source, self.out, {}, reuse=True)
 
+    def test_font_content_change_invalidates_same_document_pages(self):
+        self.reusable()
+        font = self.root/'example.ttf'; font.write_bytes(b'font-version-one')
+        config = {'font_files': {'math': str(font)}}
+        self.evidence['runtime_fingerprint'] = r.runtime_fingerprint(self.paths, config, 144)
+        self.write()
+        with patch.object(r, 'preflight', return_value=self.paths), patch.object(r.subprocess, 'Popen') as process:
+            self.assertTrue(r.render(self.source, self.out, config, reuse=True)['cache_hit'])
+            font.write_bytes(b'font-version-two')
+            with self.assertRaises(r.RenderError): r.render(self.source, self.out, config, reuse=True)
+        process.assert_not_called()
+
+    def test_missing_configured_font_is_not_silently_ignored(self):
+        with self.assertRaises(r.RenderError):
+            r.font_identity({'font_files': {'math': str(self.root/'missing.ttf')}})
+        with self.assertRaises(r.RenderError):
+            r.font_identity({'font_files': {'math': 'relative.ttf'}})
+
     def test_missing_runtime_and_relative_path_rejected(self):
         config = {'schema_version': 1, 'python': str(self.root/'missing.exe'),
                   'renderer': str(self.root/'render.py'), 'libreoffice': str(self.root/'soffice.exe'),

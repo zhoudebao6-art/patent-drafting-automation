@@ -44,5 +44,6 @@
     "max_in_flight_cases": 8,
     "min_draft_slots": 1
   },
-  "review_mode": "review_fix_then_recheck"
+  "review_mode": "review_fix_then_recheck",
+  "worker_preparation": "frozen_stage_packet_v1"
 }

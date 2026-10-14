@@ -7,5 +7,10 @@
   "poppler_dir": "C:\\Users\\HS\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin",
   "verified_version": "26.2.4.2",
   "verified_signer": "The Document Foundation",
-  "purpose": "2026-10-13 user-requested Windows rendering repair; process-local PATH and isolated profile only"
+  "purpose": "2026-10-13 user-requested Windows rendering repair; process-local PATH and isolated profile only",
+  "font_files": {
+    "math": "C:\\Windows\\Fonts\\cambria.ttc",
+    "body": "C:\\Windows\\Fonts\\simsun.ttc",
+    "header": "C:\\Windows\\Fonts\\simhei.ttf"
+  }
 }

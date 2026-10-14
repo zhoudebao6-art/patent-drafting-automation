@@ -78,12 +78,43 @@ def verify_render(output_dir, input_path):
             im.verify()
     return evidence
 
+def font_identity(config):
+    """Bind explicitly configured fonts and Windows substitution choices to reuse."""
+    configured = config.get('font_files', {})
+    if not isinstance(configured, dict):
+        raise RenderError('font_files must map font roles to absolute files')
+    fonts = {}
+    for role, filename in configured.items():
+        path = Path(filename)
+        if not path.is_absolute() or not path.is_file():
+            raise RenderError('Missing or relative configured font: '+str(role))
+        fonts[role] = {'path': str(path), 'sha256': sha(path)}
+    substitutions = {}
+    if configured and os.name == 'nt':
+        import winreg
+        for label, hive in [('machine', winreg.HKEY_LOCAL_MACHINE), ('user', winreg.HKEY_CURRENT_USER)]:
+            values = {}
+            try:
+                with winreg.OpenKey(hive, r'SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontSubstitutes') as key:
+                    count = winreg.QueryInfoKey(key)[1]
+                    for i in range(count):
+                        name, value, kind = winreg.EnumValue(key, i)
+                        values[name] = {'value': value, 'type': kind}
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                raise RenderError('Cannot verify font substitution configuration') from exc
+            substitutions[label] = values
+    return {'files': fonts, 'substitutions': substitutions}
+
+
 def runtime_fingerprint(paths, config, dpi):
     """Bind reuse to configured conversion tools and options, not timestamps."""
     tools = {name: paths[name] for name in ('python', 'renderer', 'libreoffice')}
     tools.update({name: paths['poppler_dir']/name for name in ('pdfinfo.exe', 'pdftoppm.exe')})
     payload = {'config': config, 'dpi': dpi, 'wrapper_sha256': sha(__file__),
-               'tools': {name: {'path': str(path), 'sha256': sha(path)} for name, path in tools.items()}}
+               'tools': {name: {'path': str(path), 'sha256': sha(path)} for name, path in tools.items()},
+               'fonts': font_identity(config)}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 def compact_result(evidence, output_dir):
