@@ -9,12 +9,16 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import uuid
 
 
 MODELS = frozenset({'gpt-6.1-sol', 'gpt-6-astra'})
 COMPLETION_FILES = ('events.jsonl', 'worker-final.json', 'session.jsonl', 'prompt.txt', 'cli-exit.json')
+CONNECTION_RETRY = re.compile(
+    r'Reconnecting\.\.\. ([1-9][0-9]*)/([1-9][0-9]*) '
+    r'\(stream disconnected before completion: [^\r\n]+\)')
 
 
 def _require(condition, message):
@@ -217,15 +221,33 @@ def verify_completion(attempt, dispatch):
         _require(str(uuid.UUID(session_id)) == session_id, 'Canonical CLI session UUID required')
     except (AttributeError, ValueError) as exc:
         raise ValueError('CLI session UUID invalid') from exc
-    _require(any(row.get('type') == 'turn.completed' for row in events), 'CLI turn.completed required')
-    _require(not any(row.get('type') in {'error', 'turn.failed'} for row in events),
-             'CLI events contain an error or failed turn')
-    messages = [row['item']['text'] for row in events
+    turn_starts = [i for i, row in enumerate(events) if row.get('type') == 'turn.started']
+    turn_completions = [i for i, row in enumerate(events) if row.get('type') == 'turn.completed']
+    _require(len(turn_starts) == 1 and len(turn_completions) == 1,
+             'Exactly one CLI turn.started and turn.completed required')
+    _require(not any(row.get('type') == 'turn.failed' for row in events),
+             'CLI events contain a failed turn')
+    messages = [(i, row['item']['text']) for i, row in enumerate(events)
                 if row.get('type') == 'item.completed' and isinstance(row.get('item'), dict)
                 and row['item'].get('type') == 'agent_message' and isinstance(row['item'].get('text'), str)]
     _require(bool(messages), 'Completed CLI agent message required')
+    final_index, final_text = messages[-1]
+    _require(events.index(starts[0]) < turn_starts[0] < final_index < turn_completions[0],
+             'CLI thread, turn, final message and completion must be ordered')
+    for i, row in enumerate(events):
+        if row.get('type') != 'error':
+            continue
+        message = row.get('message')
+        retry = CONNECTION_RETRY.fullmatch(message) if isinstance(message, str) else None
+        # CLI emits recovered stream reconnects as error events. Accept only
+        # this known shape, followed by a new final message in the same turn.
+        # Successful exit, real session final and all seals remain mandatory.
+        _require(set(row) == {'type', 'message'} and retry is not None
+                 and int(retry[1]) <= int(retry[2])
+                 and turn_starts[0] < i < final_index,
+                 'CLI events contain an unknown, terminal or unrecovered error')
     receipt = _json(data['worker-final.json'])
-    _require(_json(messages[-1]) == receipt, 'CLI final JSON differs from the final agent message')
+    _require(_json(final_text) == receipt, 'CLI final JSON differs from the final agent message')
     rows = _jsonl(data['session.jsonl'])
     _require(not any(row.get('type') == 'event_msg' and isinstance(row.get('payload'), dict)
                      and row['payload'].get('type') in {'turn_aborted', 'turn_failed', 'error'} for row in rows),

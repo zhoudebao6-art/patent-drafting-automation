@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 14,
-  "updated_at": "2026-10-14T06:14:11Z",
+  "version": 16,
+  "updated_at": "2026-10-14T09:22:36Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -61,7 +61,7 @@
       "scope": "global",
       "section": "all",
       "level": "must",
-      "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。 参考正确稿按所述的实际修饰范围识别完整对象，不把所述A的B机械当整个新名词；区分权项引用头、技术对象回指及说明书真实的行文指引。不得强制每次复现加所述，说明书下文指引不能为权项补前置。",
+      "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。 参考正确稿按所述的实际修饰范围识别完整对象，不把所述A的B机械当整个新名词；区分权项引用头、技术对象回指及说明书真实的行文指引。不得强制每次复现加所述，说明书下文指引不能为权项补前置。 每个完整权项跨自然段合计至少3处合法所述；合法引用头计入总数并单列，逐处技术回指仍须完整前置。只调整来源已有对象的复指和句子承接，不造功能或定义凑数；数量不足记未通过。此最低数量不适用于其他章节。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
@@ -78,9 +78,17 @@
         {
           "source": "references/reference-style-standard.md",
           "locator": "正式净稿；所述；四处同步的图序"
+        },
+        {
+          "source": "user:2026-10-14-manual-reference-format-wording",
+          "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
         }
       ],
-      "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。 核对reference_kind、head_span、原文位置与实际父链；原稿句式只是参考，不继承任何前置缺口。",
+      "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。 核对reference_kind、head_span、原文位置与实际父链；原稿句式只是参考，不继承任何前置缺口。 记录每项literal_count、valid_count、引用头数及每处依据；有效数至少3且无非法前置才通过，脚本计数不代替语义。",
       "exceptions": []
     },
     {
@@ -947,7 +955,7 @@
       "scope": "global",
       "section": "formula",
       "level": "must",
-      "instruction": "按三份历史定稿采用Cambria Math、14磅、正体的数学基准，保留来源有含义的完整上下标、修饰和特殊字形；正文解释复用公式中同一完整符号及格式。不得继承旧稿个别空白或公式与解释字形不一致，不把某案T转置规范化扩大为全局替换。",
+      "instruction": "复合公式及结构符号按Cambria Math14pt正体基准保留完整上下标、修饰和语义字形，解释对应同一完整符号。解释中的已登记孤立普通变量允许用人工稿式宋体14pt正体、不粗、基线w:r，不必套OMML；这是symbol_reference表示方式例外，不增加或减少源公式N。不得把带上下标或向量/集合特殊字形的完整参数改成裸字母，不强制剥离所有合法单字OMML。",
       "evidence": [
         {
           "source": "references/terminology-formula-user-requirement.txt",
@@ -960,9 +968,17 @@
         {
           "source": "references/formula-layout-standard.md",
           "locator": "2026-10-14 实际问题与反例、写作时的处理顺序"
+        },
+        {
+          "source": "user:2026-10-14-manual-reference-format-wording",
+          "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
         }
       ],
-      "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。 同查m:rPr与w:rPr冲突，正文数学片段复用完整规范符号；区分向量和标量分量。",
+      "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。 同查m:rPr与w:rPr冲突，正文数学片段复用完整规范符号；区分向量和标量分量。 核对孤立变量的plain_run例外依据、基字符/大小写/角色、源符号语义；完整公式中的数学字体和结构仍保持，不由显示简化改含义。",
       "exceptions": [
         "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
       ]
@@ -995,7 +1011,7 @@
       "scope": "global",
       "section": "all",
       "level": "must",
-      "instruction": "按三组历史定稿归纳话术和分角色样式，正文、项目标题、栏目、独立公式及正文数学片段分别设置；不复制旧稿模板残留、正文缩进到公式、过小固定行高或已发现的符号缺陷。内容和技术限定仅取本案来源，当前用户规定优先于例文。 以reference-style-standard.md核对正式净稿、分区和实际图序话术；不继承渲染造成的孤立图号或偶然分页。",
+      "instruction": "按用户人工定稿和manual-format-and-wording.md参数区分正文、标题、权项、公式、五分区页眉和页脚。权项按技术步骤/特征自然分段，首段与续段宋体14pt、左对齐、首行2字符，单倍行距配312twip行网格；不得将所有从属项压成一段。页眉字体/字号/字距/线条及页脚页码按人工样本角色设置，不统一套12pt宋体。保留黑字、正确图序和图号同页；独立公式仍单独设置不继承正文缩进。技术内容仅取本案，不固定模板权项数/图数/页数。",
       "evidence": [
         {
           "source": "user:2026-10-14",
@@ -1012,9 +1028,17 @@
         {
           "source": "references/reference-style-standard.md",
           "locator": "正式净稿；所述；四处同步的图序"
+        },
+        {
+          "source": "user:2026-10-14-manual-reference-format-wording",
+          "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
         }
       ],
-      "check": "采用formula-layout-standard.md格式基准并记录项目覆盖；核对实际文字run/继承/网格/有效宽度，逐页检查分节、标题、段落、公式和解释。权项到发明内容的转换保留条件、否定词、对象和顺序，不以润色改范围。 颜色/主题继承和图片与编号同页并入现有页面验收，不增加重复模型复查。",
+      "check": "采用formula-layout-standard.md格式基准并记录项目覆盖；核对实际文字run/继承/网格/有效宽度，逐页检查分节、标题、段落、公式和解释。权项到发明内容的转换保留条件、否定词、对象和顺序，不以润色改范围。 颜色/主题继承和图片与编号同页并入现有页面验收，不增加重复模型复查。 核对实际run覆盖、样式继承、first/default/even页眉、titlePg、PAGE真实域及最后全部页面；人工未显式指定的正文行距不得猜成固定行高。",
       "exceptions": []
     },
     {
@@ -1060,6 +1084,86 @@
       "exceptions": [
         "用户以后明确授权某项非效率借鉴时，只按该项授权范围另行更新并记录来源；外部技能内容本身不构成用户授权。"
       ]
+    },
+    {
+      "id": "BATCH-12",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "batch",
+      "level": "must",
+      "instruction": "CLI连接重试不能仅因出现error事件就判失败。仅接受严格可识别的Reconnecting连接重试，且必须位于唯一turn.started之后、新最终回复及唯一turn.completed之前；未知错误、turn.failed、非零退出、会话/模型/high/原始prompt/封存哈希不一致仍拒绝。旧判定误拒的已终结草稿批次保持原记录，通过recover_cli_batch.py重新核验完整真实证据后，仅把成功Sol初稿导入新批次继续新的Astra/high独立复查，不改旧回执、不继承复查通过。",
+      "check": "覆盖恢复成功、未知错误、终态错误、无新最终回复、实际退出失败、篡改来源/稿件/执行证据及恢复身份不符；验证旧批次不变、复制哈希相同、下一阶段是新Astra会话且无pass继承。",
+      "evidence": [
+        {
+          "source": "references/cli-retry-user-requirement.txt",
+          "locator": "第1-3行"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "WORDING-01",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "claims",
+      "level": "must",
+      "instruction": "仅权利要求中将邻近或邻近的改为相邻，删除较大/较小等比较性修饰的较，删除列举尾的等；其余章节可使用。比较、等于、相等、等式、等级等完整词不拆字，不能误删数学等号或技术条件。",
+      "check": "按整项跨run文本及真实章节定位逐处分类；保留列举内容、必要条件及来源含义，不盲替换单字符或凭空补阈值，修改后语法回读。",
+      "evidence": [
+        {
+          "source": "user:2026-10-14-manual-reference-format-wording",
+          "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "WORDING-02",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "文件正文各章节的装置、组件、引擎统一改为模块；正式名称和标题中原词保留，正文复现同一受保护完整名称也保持不变。先登记精确名称/标题及位置，普通正文对象不得仅因被命名就一概豁免；只改称谓不新增功能。",
+      "check": "核对protected_names及每个命中所属范围，跨摘要/权项/发明内容/实施方式/图文解读一致；检查可编辑图内文字，改图仍核身份和含义，原始资料不改。",
+      "evidence": [
+        {
+          "source": "user:2026-10-14-manual-reference-format-wording",
+          "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+        }
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "WORDING-03",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "文件内容各章节出现的本技术项目、本方案、本方法、本申请统一改为本发明；不是仅权项或当前段落生效。",
+      "check": "按接受修订后的可见全文和跨run文本定位所有命中，保留内容与技术含义；模块词的名称/标题例外不扩大为自称词例外，改后回读。",
+      "evidence": [
+        {
+          "source": "user:2026-10-14-manual-reference-format-wording",
+          "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+        }
+      ],
+      "exceptions": []
     }
   ],
   "history": [
@@ -2343,6 +2447,232 @@
               {
                 "source": "references/cli-workers.md",
                 "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              }
+            ],
+            "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "previous_version": 14,
+      "updated_at": "2026-10-14T06:55:39Z",
+      "summary": "用户批准修复连接重试误拒收，并在保留原始证据和独立复查要求下继续批次。",
+      "changes": [
+        {
+          "action": "add",
+          "rule": {
+            "id": "BATCH-12",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "CLI连接重试不能仅因出现error事件就判失败。仅接受严格可识别的Reconnecting连接重试，且必须位于唯一turn.started之后、新最终回复及唯一turn.completed之前；未知错误、turn.failed、非零退出、会话/模型/high/原始prompt/封存哈希不一致仍拒绝。旧判定误拒的已终结草稿批次保持原记录，通过recover_cli_batch.py重新核验完整真实证据后，仅把成功Sol初稿导入新批次继续新的Astra/high独立复查，不改旧回执、不继承复查通过。",
+            "check": "覆盖恢复成功、未知错误、终态错误、无新最终回复、实际退出失败、篡改来源/稿件/执行证据及恢复身份不符；验证旧批次不变、复制哈希相同、下一阶段是新Astra会话且无pass继承。",
+            "evidence": [
+              {
+                "source": "references/cli-retry-user-requirement.txt",
+                "locator": "第1-3行"
+              }
+            ],
+            "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "previous_version": 15,
+      "updated_at": "2026-10-14T09:22:36Z",
+      "summary": "按人工正确稿通用更新权项段落、页眉页脚、每项至少三处合法所述、孤立符号普通run及分范围用词，保持来源和名称保护。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。 参考正确稿按所述的实际修饰范围识别完整对象，不把所述A的B机械当整个新名词；区分权项引用头、技术对象回指及说明书真实的行文指引。不得强制每次复现加所述，说明书下文指引不能为权项补前置。 每个完整权项跨自然段合计至少3处合法所述；合法引用头计入总数并单列，逐处技术回指仍须完整前置。只调整来源已有对象的复指和句子承接，不造功能或定义凑数；数量不足记未通过。此最低数量不适用于其他章节。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第1至5项"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              },
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+              }
+            ],
+            "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。 核对reference_kind、head_span、原文位置与实际父链；原稿句式只是参考，不继承任何前置缺口。 记录每项literal_count、valid_count、引用头数及每处依据；有效数至少3且无非法前置才通过，脚本计数不代替语义。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMAT-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "按用户人工定稿和manual-format-and-wording.md参数区分正文、标题、权项、公式、五分区页眉和页脚。权项按技术步骤/特征自然分段，首段与续段宋体14pt、左对齐、首行2字符，单倍行距配312twip行网格；不得将所有从属项压成一段。页眉字体/字号/字距/线条及页脚页码按人工样本角色设置，不统一套12pt宋体。保留黑字、正确图序和图号同页；独立公式仍单独设置不继承正文缩进。技术内容仅取本案，不固定模板权项数/图数/页数。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14",
+                "locator": "要求仔细分析截图及以往案例话术、内容格式、公式与符号标准并通用更新技能"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "实际问题与反例、格式基准与来源优先级"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              },
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+              }
+            ],
+            "check": "采用formula-layout-standard.md格式基准并记录项目覆盖；核对实际文字run/继承/网格/有效宽度，逐页检查分节、标题、段落、公式和解释。权项到发明内容的转换保留条件、否定词、对象和顺序，不以润色改范围。 颜色/主题继承和图片与编号同页并入现有页面验收，不增加重复模型复查。 核对实际run覆盖、样式继承、first/default/even页眉、titlePg、PAGE真实域及最后全部页面；人工未显式指定的正文行距不得猜成固定行高。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMULA-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "复合公式及结构符号按Cambria Math14pt正体基准保留完整上下标、修饰和语义字形，解释对应同一完整符号。解释中的已登记孤立普通变量允许用人工稿式宋体14pt正体、不粗、基线w:r，不必套OMML；这是symbol_reference表示方式例外，不增加或减少源公式N。不得把带上下标或向量/集合特殊字形的完整参数改成裸字母，不强制剥离所有合法单字OMML。",
+            "evidence": [
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第3至4项"
+              },
+              {
+                "source": "references/terminology-formula-evidence.md",
+                "locator": "历史主公式映射及数学格式证据"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "2026-10-14 实际问题与反例、写作时的处理顺序"
+              },
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+              }
+            ],
+            "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。 同查m:rPr与w:rPr冲突，正文数学片段复用完整规范符号；区分向量和标量分量。 核对孤立变量的plain_run例外依据、基字符/大小写/角色、源符号语义；完整公式中的数学字体和结构仍保持，不由显示简化改含义。",
+            "exceptions": [
+              "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
+            ]
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "WORDING-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "claims",
+            "level": "must",
+            "instruction": "仅权利要求中将邻近或邻近的改为相邻，删除较大/较小等比较性修饰的较，删除列举尾的等；其余章节可使用。比较、等于、相等、等式、等级等完整词不拆字，不能误删数学等号或技术条件。",
+            "check": "按整项跨run文本及真实章节定位逐处分类；保留列举内容、必要条件及来源含义，不盲替换单字符或凭空补阈值，修改后语法回读。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "WORDING-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "文件正文各章节的装置、组件、引擎统一改为模块；正式名称和标题中原词保留，正文复现同一受保护完整名称也保持不变。先登记精确名称/标题及位置，普通正文对象不得仅因被命名就一概豁免；只改称谓不新增功能。",
+            "check": "核对protected_names及每个命中所属范围，跨摘要/权项/发明内容/实施方式/图文解读一致；检查可编辑图内文字，改图仍核身份和含义，原始资料不改。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "WORDING-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "文件内容各章节出现的本技术项目、本方案、本方法、本申请统一改为本发明；不是仅权项或当前段落生效。",
+            "check": "按接受修订后的可见全文和跨run文本定位所有命中，保留内容与技术含义；模块词的名称/标题例外不扩大为自称词例外，改后回读。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
               }
             ],
             "exceptions": []

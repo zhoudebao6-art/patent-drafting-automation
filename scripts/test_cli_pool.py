@@ -36,6 +36,7 @@ class CliPoolTests(unittest.TestCase):
         receipt = self.receipt(r); receipt['agent_id'] = ev['agent_id']
         ident = str(uuid.uuid4())
         events = [{'type': 'thread.started', 'thread_id': ident},
+                  {'type': 'turn.started'},
                   {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': json.dumps(receipt)}},
                   {'type': 'turn.completed'}]
         session = [{'type': 'session_meta', 'payload': {'id': ident, 'source': 'exec', 'cwd': str(root)}},

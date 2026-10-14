@@ -89,6 +89,63 @@ class CliEvidenceTests(unittest.TestCase):
             self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
                              {'session_id': self.session_id, 'receipt': self.receipt})
 
+    def retry_event(self, message=None):
+        return {'type': 'error', 'message': message if message is not None else
+                'Reconnecting... 2/5 (stream disconnected before completion: transport interrupted)'}
+
+    def test_completion_accepts_only_recovered_connection_retries(self):
+        self.events[2:2] = [self.retry_event(), self.retry_event(
+            'Reconnecting... 5/5 (stream disconnected before completion: transport interrupted)')]
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None):
+            self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
+                             {'session_id': self.session_id, 'receipt': self.receipt})
+            self.assertEqual(ce.verify_dispatch(self.dispatch, self.attempt, self.model), 'cli:attempt1')
+
+    def test_completion_rejects_unknown_or_malformed_retry_errors(self):
+        base = copy.deepcopy(self.events)
+        errors = [self.retry_event(message) for message in (
+            'failed', 'Reconnecting... 2/5 (some other failure)',
+            'Reconnecting... 0/5 (stream disconnected before completion: interrupted)',
+            'Reconnecting... 6/5 (stream disconnected before completion: interrupted)',
+            'Reconnecting... 2/5 (stream disconnected before completion: )',
+            'Reconnecting... 2/5 (stream disconnected before completion: interrupted)\nturn failed',
+            'Reconnecting... 2/5 (stream disconnected before completion: interrupted) trailing',
+            None)]
+        errors[-1]['message'] = None
+        errors.append(dict(self.retry_event(), fatal=True))
+        for error in errors:
+            self.events = base[:2] + [error] + base[2:]
+            self.seal()
+            with self.subTest(error=error), patch.object(ce, 'process_identity', return_value=None):
+                with self.assertRaises(ValueError):
+                    ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_completion_rejects_retry_outside_turn_or_without_new_final(self):
+        base = copy.deepcopy(self.events)
+        # Even an identical pre-error receipt and a genuine session final do not
+        # prove recovery unless a new completed CLI final follows the retry.
+        for index in (0, 1, 3, 4):
+            self.events = base[:index] + [self.retry_event()] + base[index:]
+            self.seal()
+            with self.subTest(index=index), patch.object(ce, 'process_identity', return_value=None):
+                with self.assertRaises(ValueError):
+                    ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_completion_requires_one_ordered_turn_even_with_recovered_retry(self):
+        base = copy.deepcopy(self.events)
+        valid = base[:2] + [self.retry_event()] + base[2:]
+        mutations = [valid + [{'type': 'turn.failed'}], valid + [base[-1]],
+                     valid[:2] + [base[1]] + valid[2:], valid[0:1] + valid[2:],
+                     valid[:-1], [base[0], base[-1], base[1], self.retry_event(), base[2]],
+                     base[:2] + [self.retry_event(), self.retry_event('unknown error')] + base[2:]]
+        for index, rows in enumerate(mutations):
+            self.events = rows
+            self.seal()
+            with self.subTest(index=index), patch.object(ce, 'process_identity', return_value=None):
+                with self.assertRaises(ValueError):
+                    ce.verify_completion(self.attempt, self.dispatch)
+
     def test_dispatch_recovery_requires_complete_successful_evidence(self):
         self.seal()
         with patch.object(ce, 'process_identity', return_value=None):

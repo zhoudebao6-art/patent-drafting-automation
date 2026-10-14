@@ -185,6 +185,14 @@ def quarantine_changed_input(m, c):
 
 def verify_case(m, c, original=False):
     root = case_root(m, c)
+    if c.get('recovery_evidence'):
+        recovery = file_path(c['recovery_evidence'], root)
+        if b.sha(recovery) != c.get('recovery_evidence_sha256'):
+            raise BatchError('Draft recovery evidence changed')
+        imported = b.read(recovery)
+        if (imported not in c['receipts'] or imported.get('acceptance_inherited') is not False
+                or c.get('recovered_cli_session_ids') != [imported.get('cli_session_id')]):
+            raise BatchError('Draft recovery provenance mismatch')
     if digest(c['sources']) != c['source_digest']: raise BatchError('Source manifest changed')
     expected = {'case_id': c['id'], 'sources': c['sources'], 'source_digest': c['source_digest']}
     if b.read(file_path(root / 'sources' / 'verification.json', root)) != expected:
@@ -416,6 +424,8 @@ def record(path, case_id, attempt, receipt, controller='controller'):
                 raise BatchError('CLI final message differs from submitted receipt')
             if any(old.get('cli_session_id') == execution['session_id'] for row in m['projects'] for old in row['attempts']):
                 raise BatchError('CLI session already used; independent stage session required')
+            if any(execution['session_id'] in row.get('recovered_cli_session_ids', []) for row in m['projects']):
+                raise BatchError('Recovered draft session cannot provide independent review')
             a['cli_session_id'] = execution['session_id']
         if receipt.get('context') != context(m, c, a): raise BatchError('Cross-case, source, rules or attempt receipt mismatch')
         model = m['policy']['models'][a['stage']]

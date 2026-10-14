@@ -136,6 +136,66 @@ def math_evidence(math):
             'boundary': 'OMML objects include main equations, inline symbols and examples; classify against source before counting. Native operator spacing is not a literal space.'}
 
 
+def word_run_formats(paragraph):
+    """Compact direct Word text formatting; nested text boxes own their runs."""
+    groups = {}
+    for node in paragraph_owned_nodes(paragraph):
+        if node.tag != f'{{{NS["w"]}}}r':
+            continue
+        text = visible_text(node, skip_nested_paragraphs=True)
+        if not text:
+            continue
+        props = explicit_properties(node.find('./w:rPr', NS))
+        key = json.dumps(props, sort_keys=True)
+        if key not in groups:
+            groups[key] = {'properties_explicit': props, 'run_count': 0, 'samples': []}
+        row = groups[key]
+        row['run_count'] += 1
+        if len(row['samples']) < 3:
+            row['samples'].append(text[:80])
+    return list(groups.values())
+
+
+def isolated_symbol_candidate(math):
+    """Only a bare single letter; never flatten scripts, accents or operators."""
+    children = [n for n in math if n.tag != f'{{{NS["m"]}}}oMathPr']
+    if len(children) != 1 or children[0].tag != f'{{{NS["m"]}}}r':
+        return False
+    run = children[0]
+    allowed = {f'{{{NS["m"]}}}{n}' for n in ['t', 'rPr']} | {f'{{{NS["w"]}}}rPr'}
+    if any(n.tag not in allowed for n in run):
+        return False
+    text = visible_text(math)
+    return len(text) == 1 and text.isalpha() and not ('\u3400' <= text <= '\u9fff')
+
+
+def wording_evidence(body, claims):
+    """Locate edits by scope; never replace titles or certify antecedents."""
+    rows = []
+    claim_by_p = {p: c['number'] for c in claims for p in c['paragraphs']}
+    for p in body:
+        text = p['text']
+        claim = claim_by_p.get(p['p'])
+        for m in re.finditer('本技术项目|本方案|本方法|本申请|装置|组件|引擎', text):
+            token = m[0]
+            rows.append({'paragraph': p['p'], 'offset': m.start(), 'text': token,
+                         'context': text[max(0,m.start()-24):m.end()+32], 'claim': claim,
+                         'category': 'self_reference' if token.startswith('本') else 'module_term',
+                         'replacement': '本发明' if token.startswith('本') else '模块',
+                         'status': 'review_scope_and_protected_name_before_edit'})
+        if claim is not None:
+            # 所有“较/等”保留线索，比较/等于/等级等完整词由语义判别排除。
+            for m in re.finditer('邻近的?|较|等', text):
+                token = m[0]
+                rows.append({'paragraph': p['p'], 'offset': m.start(), 'text': token,
+                             'context': text[max(0,m.start()-24):m.end()+32], 'claim': claim,
+                             'category': 'claim_near' if token.startswith('邻近') else 'claim_qualifier_or_enumeration',
+                             'replacement': '相邻' if token.startswith('邻近') else None,
+                             'status': 'semantic_classification_required_not_character_deletion'})
+    return {'occurrences': rows,
+            'boundary': 'Claims-only neighbor/comparative qualifier/open enumeration rules do not apply elsewhere. Module terms require protected names/titles to remain unchanged. This is read-only candidate evidence; 等于/相等/等级 and 比较 are not automatically deleted. Check images/fields not represented as ordinary text separately.'}
+
+
 def visible_text(node, skip_nested_paragraphs=False):
     # Approximate accepted view; deleted/moved-from text is separately counted.
     if node.tag in {f'{{{NS["w"]}}}del', f'{{{NS["w"]}}}moveFrom'}:
@@ -311,6 +371,19 @@ def inspect(path):
         if z.testzip() is not None:
             raise ValueError('DOCX ZIP CRC failure')
         read_colors = color_reader(z)
+        # Keep compact style definitions so paragraph/header inheritance can be
+        # resolved without reopening the ZIP. This is not an effective-style verdict.
+        if 'word/styles.xml' in names:
+            styles_root = ET.fromstring(z.read('word/styles.xml'))
+            default = styles_root.find('./w:docDefaults', NS)
+            result['style_evidence'] = {
+                'doc_defaults_xml': ET.tostring(default, encoding='unicode') if default is not None else None,
+                'styles': [{'id': s.get(f'{{{NS["w"]}}}styleId'),
+                            'type': s.get(f'{{{NS["w"]}}}type'),
+                            'default': s.get(f'{{{NS["w"]}}}default'),
+                            'xml': ET.tostring(s, encoding='unicode')}
+                           for s in styles_root.findall('./w:style', NS)],
+                'boundary': 'Definitions, not applied formatting. Resolve actual styles, inheritance, direct overrides and final renderer output.'}
         parts = [n for n in names if re.fullmatch(r'word/(document|header\d+|footer\d+|footnotes|endnotes|comments)\.xml', n)]
         parts.sort(key=lambda n: (n != 'word/document.xml', n))
         for part in parts:
@@ -327,6 +400,7 @@ def inspect(path):
                     result['formulas'].append({'id':fid,'part':part,'paragraph':index,
                         'linear_text':visible_text(math),'omml_xml':ET.tostring(math,encoding='unicode'),
                         'math_evidence':math_evidence(math),
+                        'isolated_symbol_candidate':isolated_symbol_candidate(math),
                         'status':'unverified'})
                 media_refs = []
                 for node in owned_nodes:
@@ -347,7 +421,8 @@ def inspect(path):
                     'xml':ET.tostring(n,encoding='unicode')} for n in owned_nodes if n.tag == f'{{{NS["w"]}}}sym']
                 paragraphs.append({'p':index, 'text':visible_text(p, skip_nested_paragraphs=True), 'formulas':formula_ids, 'media':media_refs,
                     'font_encoded_symbols':symbols,
-                    'layout_evidence':paragraph_layout_evidence(p) if formula_ids else None})
+                    'word_run_formats':word_run_formats(p),
+                    'layout_evidence':paragraph_layout_evidence(p)})
             if part == 'word/document.xml':
                 attach_section_headers(root, paragraphs, rels, z)
             revisions = {kind:len(root.findall('.//w:'+kind, NS)) for kind in ['ins','del','moveFrom','moveTo']}
@@ -396,10 +471,10 @@ def precheck(result, kind):
     for part in result['parts']:
         for p in part['paragraphs']:
             layout = p.get('layout_evidence') or {}
-            if (layout.get('spacing_explicit') or {}).get('lineRule') == 'exact':
+            if p['formulas'] and (layout.get('spacing_explicit') or {}).get('lineRule') == 'exact':
                 add('MATH_FIXED_LINE_HEIGHT', 'Exact line height may clip tall inline or display math; resolve inheritance and inspect actual glyph bounds.', f'{part["part"]} P{p["p"]:04}')
             indent = layout.get('indent_explicit') or {}
-            if layout.get('math_only_text_candidate') and any(indent.get(k, '0') != '0' for k in ['firstLine', 'firstLineChars', 'hanging', 'hangingChars']):
+            if p['formulas'] and layout.get('math_only_text_candidate') and any(indent.get(k, '0') != '0' for k in ['firstLine', 'firstLineChars', 'hanging', 'hangingChars']):
                 add('MATH_DISPLAY_INDENT', 'Math-only paragraph carries an explicit first-line/hanging indent. Review display centering separately from prose.', f'{part["part"]} P{p["p"]:04}')
             if p['font_encoded_symbols']:
                 add('FONT_SYMBOL','Font-encoded symbols preserved as markers; verify displayed glyphs',f'{part["part"]} P{p["p"]:04}')
@@ -440,9 +515,10 @@ def precheck(result, kind):
             continue
         match=re.match(r'^\s*(\d+)[.．、]\s*(.*)',p['text'])
         if match:
-            claims.append({'number':int(match[1]),'p':p['p'],'text':p['text']})
+            claims.append({'number':int(match[1]),'p':p['p'],'text':p['text'], 'paragraphs':[p['p']]})
         elif claims:
             claims[-1]['text']+='\n'+p['text']
+            claims[-1]['paragraphs'].append(p['p'])
     nums=[c['number'] for c in claims]
     if nums != list(range(1,len(nums)+1)) or not nums:
         add('CLAIM_NUMBERS','Claims absent, duplicated or nonconsecutive; check document layout.')
@@ -454,11 +530,25 @@ def precheck(result, kind):
         claim['parent_parse_issues']=parse_issues
         claim['parent_parse_status']=('requires_manual_reference_review' if parse_issues
                                       else 'structural_only_requires_legal_path_review')
+        claim['antecedent_count_evidence'] = {
+            'literal_count':claim['text'].count('所述'),
+            'reference_head_count':len(re.findall(r'根据权利要求[^。；\n]*?所述',head)),
+            'required_valid_minimum':3,
+            'applicability':'Rule version 16 onward; earlier frozen batches keep their recorded requirements.',
+            'status':'requires_each_occurrence_validity_review_not_automatic_pass'}
+        if claim['text'].count('所述') < 3:
+            add('CLAIM_SHUSU_MINIMUM','Each whole claim needs at least 3 valid 所述. Rephrase existing source-backed references; never prefix first-use nouns or invent features to meet a count.',f'P{claim["p"]:04}')
         if parse_issues:
             add('CLAIM_REFERENCE_PARSE','Reference syntax/range unresolved; detected parents are incomplete and require manual review.',f'P{claim["p"]:04}')
         if any(n>=claim['number'] or n<1 or n not in nums for n in parents):
             add('CLAIM_REFERENCE','Self, future or missing parent detected',f'P{claim["p"]:04}')
     result['claims_detected']=claims
+    result['wording_evidence']=wording_evidence(body, claims)
+    if result['wording_evidence']['occurrences']:
+        add('WORDING_SCOPE_REVIEW','Review located wording candidates against claim-only restrictions, protected names/titles and whole-body replacements; never perform blind character replacement.')
+    result['isolated_symbol_evidence']=[{'id':f['id'],'part':f['part'],'paragraph':f['paragraph'],'symbol':f['linear_text'],
+        'status':'may_use_plain_upright_body_run_only_if_registered_bare_symbol_no_semantic_style'}
+        for f in result['formulas'] if f.get('isolated_symbol_candidate')]
     start=anchors['附图说明']; end=anchors['具体实施方式']
     descriptions=[]; captions=[]; mentions=[]
     for p in body:

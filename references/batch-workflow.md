@@ -64,6 +64,8 @@ python scripts/parallel_batch.py record --manifest 批次清单 --case 项目ID 
 
 ## 取消、恢复与待处理
 
+成功连接重试被旧CLI判定误拒的draft批次，使用[CLI恢复入口](cli-workers.md)中的`recover_cli_batch.py`保留旧批次并另建批次继承完整核验的初稿。此操作不重写旧回执、不新增虚构模型调用、不继承通过状态；新的Astra/high仍独立验收。
+
 collaboration未bind的预留可因派发失败cancel；CLI已有启动意图即须确认原进程退出，不能因尚未bind直接取消。已bind先停止对应worker并确认实际停止，再保存停止证据并cancel。仅发出中断请求不等于停止确认。不得因超时直接启动同案第二个worker，活动worker不能直接defer。
 
 ```text
