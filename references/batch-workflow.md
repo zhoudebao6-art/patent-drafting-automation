@@ -51,6 +51,8 @@ receipt含reserve完整context和stage/model/reasoning_effort/agent_id。写稿�
 
 pass另含render={artifact_sha256, evidence, evidence_sha256}，evidence指本次review或被审稿写稿attempt内的官方render.json。该文件绑定PDF与全部连续PNG哈希；脚本验证页数/图像完整性，Astra还须实际打开全部页面。旧稿pass、跨案路径、错模型/强度、旧attempt、重复回执均应拒绝。
 
+规则版本10起，有公式的draft/review/revise必读[公式结构与版式标准](formula-layout-standard.md)。复查逐条核对结构诊断处置、源与稿的完整符号/解释、每条主公式与邻接解释的清晰显示；仅有“公式数量相同、XML无空格、整页缩略图正常”不足以formulas或rendered_pages通过。与既有六项审查合并，缓存按最终文件/提取器哈希复用，不增加重复全稿扫描。
+
 ```text
 python scripts/parallel_batch.py record --manifest 批次清单 --case 项目ID --attempt attempt_id --receipt 本attempt/receipt.json --controller 本批控制器标识
 ```

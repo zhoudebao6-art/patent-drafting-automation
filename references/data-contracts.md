@@ -20,6 +20,8 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 
 各案默认可把这些记录合成一份evidence.json；必要对应关系不能省略，已有定位使用引用避免重复抄写正文。记录中的 null 代表未核定，不用零或空字符串掩盖。
 
+规则版本10起，formula_registry的format_check另含array_classification（每个eqArr路径、显示续行/独立多式/条件/矩阵等）、layout_changes（源/稿结构定位及依据）、diagnostic_dispositions（预检code/locator、结论、证据），以及visual_locations（最终页码与公式/解释显示记录）。未知保持unresolved；语义不适用的警告凭源关闭，不能自动全忽略。这些证据合入formulas/rendered_pages，不另加状态机通道。
+
 ## 批次记录
 
 `batch-policy.json` 是批处理可执行配置，与rules.json中的BATCH规则同步维护；具体编排见batch-workflow.md。每次init在工作目录建立批次清单，冻结输入目录、输入文件哈希、项目ID及顺序、桌面路径、模型策略和时间。每案保存当前阶段、稿件路径/哈希、阶段回执、真实派发证据、审阅问题和交付状态。输入来源、实际派发、最终文件三类证据不能互相替代。

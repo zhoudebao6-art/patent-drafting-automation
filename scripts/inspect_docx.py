@@ -20,6 +20,79 @@ NS = {
 }
 
 
+def explicit_properties(node):
+    """Retain direct properties only; absence does not mean a default value."""
+    if node is None:
+        return None
+    return [{'name': child.tag.split('}')[-1],
+             'attributes': {k.split('}')[-1]: v for k, v in child.attrib.items()}}
+            for child in node]
+
+
+def math_layout_evidence(math):
+    """Locate layout risks without flattening or rewriting mathematical trees."""
+    arrays, gaps, breaks, conflicts = [], [], [], []
+    required = {'f': ('num', 'den'), 'sSub': ('e', 'sub'),
+                'sSup': ('e', 'sup'), 'sSubSup': ('e', 'sub', 'sup'),
+                'acc': ('e',), 'bar': ('e',), 'nary': ('e',),
+                'limLow': ('e', 'lim'), 'limUpp': ('e', 'lim')}
+    def meaningful(node):
+        return bool(node is not None and (visible_text(node).strip() or
+                    node.find('.//w:sym', NS) is not None))
+    def walk(node, path):
+        name = node.tag.split('}')[-1]
+        if node.tag.startswith('{' + NS['m'] + '}'):
+            if name == 'eqArr':
+                rows = node.findall('./m:e', NS)
+                arrays.append({'path': path, 'top_level': node in list(math),
+                               'row_count': len(rows),
+                               'rows': [{'row': i, 'linear_text': visible_text(row),
+                                         'trailing_operator': bool(re.search(r'[=≠≤≥<>≈≔+−×÷]$', visible_text(row).rstrip()))}
+                                        for i, row in enumerate(rows, 1)]})
+            for slot in required.get(name, ()):
+                if not meaningful(node.find('./m:' + slot, NS)):
+                    gaps.append({'path': path, 'element': name, 'slot': slot})
+        if node.tag in {f'{{{NS["m"]}}}brk', f'{{{NS["w"]}}}br', f'{{{NS["w"]}}}tab'}:
+            breaks.append({'path': path, 'element': name})
+        if node.tag == f'{{{NS["m"]}}}r':
+            sty = node.find('./m:rPr/m:sty', NS)
+            style = sty.get(f'{{{NS["m"]}}}val') if sty is not None else None
+            # Conflicting direct hints vary by renderer. Never erase semantic bold.
+            for prop, styles in [('b', {'p', 'i'}), ('i', {'p', 'b'})]:
+                wp = node.find('./w:rPr/w:' + prop, NS)
+                if wp is not None and wp.get(f'{{{NS["w"]}}}val', '1') not in {'0', 'false', 'off'} and style in styles:
+                    conflicts.append({'path': path, 'text': visible_text(node),
+                                      'math_style': style, 'word_property': prop})
+        counters = {}
+        for child in node:
+            tag = child.tag.split('}')[-1]
+            counters[tag] = counters.get(tag, 0) + 1
+            walk(child, f'{path}/{tag}[{counters[tag]}]')
+    walk(math, 'oMath')
+    return {'equation_arrays': arrays, 'empty_required_slots': gaps,
+            'explicit_breaks_or_tabs': breaks, 'conflicting_run_properties': conflicts,
+            'boundary': 'Arrays can encode conditions, matrices or complete equations. These are review cues, not permission to flatten, invent operands, or certify visual fit.'}
+
+
+def paragraph_layout_evidence(paragraph):
+    props = paragraph.find('./w:pPr', NS)
+    def attributes(name):
+        node = props.find('./w:' + name, NS) if props is not None else None
+        return {k.split('}')[-1]: v for k, v in node.attrib.items()} if node is not None else None
+    def outside_math(node):
+        if node.tag in {f'{{{NS["m"]}}}oMath', f'{{{NS["w"]}}}del', f'{{{NS["w"]}}}moveFrom'}:
+            return ''
+        if node.tag == f'{{{NS["w"]}}}t':
+            return node.text or ''
+        return ''.join(outside_math(c) for c in node if c.tag != f'{{{NS["w"]}}}p')
+    return {'paragraph_style_explicit': attributes('pStyle'),
+            'alignment_explicit': attributes('jc'), 'indent_explicit': attributes('ind'),
+            'spacing_explicit': attributes('spacing'),
+            'math_only_text_candidate': not outside_math(paragraph).strip(' \t\r\n；;。.'),
+            'paragraph_properties_xml': ET.tostring(props, encoding='unicode') if props is not None else None,
+            'boundary': 'Direct properties only; resolve style inheritance, section/table width and renderer output before deciding fit or clipping.'}
+
+
 def math_evidence(math):
     """Record exact glyph/structure evidence, not a count of source formulas.
 
@@ -39,6 +112,7 @@ def math_evidence(math):
         runs.append({'run': index, 'text': text,
                      'fonts_explicit': {k.split('}')[-1]: v for k, v in fonts.attrib.items()} if fonts is not None else {},
                      'size_half_points_explicit': size.get(f'{{{NS["w"]}}}val') if size is not None else None,
+                     'word_run_properties_explicit': explicit_properties(props),
                      'math_run_properties_explicit': values})
     # Inspect every math text node, including malformed non-run text, once.
     for index, node in enumerate(math.iter(), 1):
@@ -57,6 +131,7 @@ def math_evidence(math):
         if node.attrib:
             properties.append({'element': name, 'attributes': {k.split('}')[-1]: v for k, v in node.attrib.items()}})
     return {'runs': runs, 'structure_elements': structures, 'math_properties': properties,
+            'layout': math_layout_evidence(math),
             'literal_whitespace': whitespace,
             'boundary': 'OMML objects include main equations, inline symbols and examples; classify against source before counting. Native operator spacing is not a literal space.'}
 
@@ -198,7 +273,8 @@ def inspect(path):
                 symbols=[{'font':n.get(f'{{{NS["w"]}}}font'),'char':n.get(f'{{{NS["w"]}}}char'),
                     'xml':ET.tostring(n,encoding='unicode')} for n in owned_nodes if n.tag == f'{{{NS["w"]}}}sym']
                 paragraphs.append({'p':index, 'text':visible_text(p, skip_nested_paragraphs=True), 'formulas':formula_ids, 'media':media_refs,
-                    'font_encoded_symbols':symbols})
+                    'font_encoded_symbols':symbols,
+                    'layout_evidence':paragraph_layout_evidence(p) if formula_ids else None})
             if part == 'word/document.xml':
                 attach_section_headers(root, paragraphs, rels, z)
             revisions = {kind:len(root.findall('.//w:'+kind, NS)) for kind in ['ins','del','moveFrom','moveTo']}
@@ -226,6 +302,16 @@ def precheck(result, kind):
         for p in body for match in re.finditer('所述', p['text'])]
     result['formula_count_status'] = 'unclassified_math_objects_not_source_formula_count'
     for formula in result['formulas']:
+        locator = f'{formula["part"]} P{formula["paragraph"]:04} {formula["id"]}'
+        layout = formula.get('math_evidence', {}).get('layout', {})
+        for array in layout.get('equation_arrays', []):
+            if array['top_level'] and any(row['trailing_operator'] for row in array['rows'][:-1]):
+                add('MATH_ARRAY_TRAILING_OPERATOR', 'Top-level equation array has a row ending at an operator. Check source semantics and reflow display-only breaks; preserve conditional and multi-equation structures.', locator + ' ' + array['path'])
+        for key, code in [('empty_required_slots', 'MATH_EMPTY_SLOT'),
+                          ('explicit_breaks_or_tabs', 'MATH_EXPLICIT_BREAK'),
+                          ('conflicting_run_properties', 'MATH_STYLE_CONFLICT')]:
+            if layout.get(key):
+                add(code, 'Math structure or direct formatting needs source and visual review; details in math_evidence.layout. Do not auto-correct symbols.', locator)
         if formula.get('math_evidence', {}).get('literal_whitespace'):
             add('MATH_LITERAL_WHITESPACE', 'Literal whitespace inside math text; remove layout padding without altering mathematical meaning. Native math spacing is not flagged.',
                 f'{formula["part"]} P{formula["paragraph"]:04} {formula["id"]}')
@@ -233,6 +319,12 @@ def precheck(result, kind):
         add('REVISIONS','Tracked changes present; choose intended version before drafting. No source edits performed.')
     for part in result['parts']:
         for p in part['paragraphs']:
+            layout = p.get('layout_evidence') or {}
+            if (layout.get('spacing_explicit') or {}).get('lineRule') == 'exact':
+                add('MATH_FIXED_LINE_HEIGHT', 'Exact line height may clip tall inline or display math; resolve inheritance and inspect actual glyph bounds.', f'{part["part"]} P{p["p"]:04}')
+            indent = layout.get('indent_explicit') or {}
+            if layout.get('math_only_text_candidate') and any(indent.get(k, '0') != '0' for k in ['firstLine', 'firstLineChars', 'hanging', 'hangingChars']):
+                add('MATH_DISPLAY_INDENT', 'Math-only paragraph carries an explicit first-line/hanging indent. Review display centering separately from prose.', f'{part["part"]} P{p["p"]:04}')
             if p['font_encoded_symbols']:
                 add('FONT_SYMBOL','Font-encoded symbols preserved as markers; verify displayed glyphs',f'{part["part"]} P{p["p"]:04}')
             for ref in p['media']:
