@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 12,
-  "updated_at": "2026-10-14T05:28:54Z",
+  "version": 13,
+  "updated_at": "2026-10-14T06:00:56Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -61,7 +61,7 @@
       "scope": "global",
       "section": "all",
       "level": "must",
-      "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。",
+      "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。 参考正确稿按所述的实际修饰范围识别完整对象，不把所述A的B机械当整个新名词；区分权项引用头、技术对象回指及说明书真实的行文指引。不得强制每次复现加所述，说明书下文指引不能为权项补前置。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
@@ -70,9 +70,17 @@
         {
           "source": "references/terminology-formula-user-requirement.txt",
           "locator": "2026-10-13 第1至5项"
+        },
+        {
+          "source": "user:2026-10-14-clean-reference-style",
+          "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+        },
+        {
+          "source": "references/reference-style-standard.md",
+          "locator": "正式净稿；所述；四处同步的图序"
         }
       ],
-      "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。",
+      "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。 核对reference_kind、head_span、原文位置与实际父链；原稿句式只是参考，不继承任何前置缺口。",
       "exceptions": []
     },
     {
@@ -133,14 +141,22 @@
       "scope": "global",
       "section": "figure",
       "level": "must",
-      "instruction": "附图说明按最终具体实施方式的图序填充。",
+      "instruction": "附图说明按最终具体实施方式的图序填充。 编号依据首次实质引图顺序，后续回指旧图沿用原号；说明按“图N为本发明的【本案图名】；”列出，最后一条句号。正文用“请参考图N，……”及原稿有据变体自然承接，解读依据当前项目，不抄旧数据或凑固定段数。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
           "locator": "第7行"
+        },
+        {
+          "source": "user:2026-10-14-clean-reference-style",
+          "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+        },
+        {
+          "source": "references/reference-style-standard.md",
+          "locator": "正式净稿；所述；四处同步的图序"
         }
       ],
-      "check": "首引顺序、说明列表、图号映射一致。",
+      "check": "首引顺序、说明列表、图号映射一致。 核对正文首引、附图说明、实际媒体身份及图下号四处一致，区分首引与重复引用。",
       "exceptions": []
     },
     {
@@ -188,14 +204,22 @@
       "scope": "global",
       "section": "figure",
       "level": "must",
-      "instruction": "正文下方的图片按附图说明顺序排列。",
+      "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
           "locator": "第9行"
+        },
+        {
+          "source": "user:2026-10-14-clean-reference-style",
+          "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+        },
+        {
+          "source": "references/reference-style-standard.md",
+          "locator": "正式净稿；所述；四处同步的图序"
         }
       ],
-      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。",
+      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。",
       "exceptions": []
     },
     {
@@ -971,7 +995,7 @@
       "scope": "global",
       "section": "all",
       "level": "must",
-      "instruction": "按三组历史定稿归纳话术和分角色样式，正文、项目标题、栏目、独立公式及正文数学片段分别设置；不复制旧稿模板残留、正文缩进到公式、过小固定行高或已发现的符号缺陷。内容和技术限定仅取本案来源，当前用户规定优先于例文。",
+      "instruction": "按三组历史定稿归纳话术和分角色样式，正文、项目标题、栏目、独立公式及正文数学片段分别设置；不复制旧稿模板残留、正文缩进到公式、过小固定行高或已发现的符号缺陷。内容和技术限定仅取本案来源，当前用户规定优先于例文。 以reference-style-standard.md核对正式净稿、分区和实际图序话术；不继承渲染造成的孤立图号或偶然分页。",
       "evidence": [
         {
           "source": "user:2026-10-14",
@@ -980,9 +1004,38 @@
         {
           "source": "references/formula-layout-standard.md",
           "locator": "实际问题与反例、格式基准与来源优先级"
+        },
+        {
+          "source": "user:2026-10-14-clean-reference-style",
+          "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+        },
+        {
+          "source": "references/reference-style-standard.md",
+          "locator": "正式净稿；所述；四处同步的图序"
         }
       ],
-      "check": "采用formula-layout-standard.md格式基准并记录项目覆盖；核对实际文字run/继承/网格/有效宽度，逐页检查分节、标题、段落、公式和解释。权项到发明内容的转换保留条件、否定词、对象和顺序，不以润色改范围。",
+      "check": "采用formula-layout-standard.md格式基准并记录项目覆盖；核对实际文字run/继承/网格/有效宽度，逐页检查分节、标题、段落、公式和解释。权项到发明内容的转换保留条件、否定词、对象和顺序，不以润色改范围。 颜色/主题继承和图片与编号同页并入现有页面验收，不增加重复模型复查。",
+      "exceptions": []
+    },
+    {
+      "id": "FORMAT-02",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "正式交付DOCX使用黑字净稿，不加红字解释、彩色修订说明、高亮审核提示或编辑批注；正常技术解释、公式参数说明和图文解读仍按原稿话术融入黑色正文，不能因禁红而删除。修改记录留工作目录，不把其他任务的红字补充模式移植到本技能。",
+      "check": "核验实际应用run、段落/字符样式与继承、主题色、修订显示及最终页面；未使用红色样式不误报为红字，未知颜色不算已证黑色。模型修正后新Astra/high独立验收，保持原有六项检查。",
+      "evidence": [
+        {
+          "source": "user:2026-10-14-clean-reference-style",
+          "locator": "用户明确不要红字解释并要求参考三份正确稿"
+        },
+        {
+          "source": "references/reference-style-standard.md",
+          "locator": "正式净稿与文字颜色"
+        }
+      ],
       "exceptions": []
     }
   ],
@@ -1952,6 +2005,158 @@
               {
                 "source": "references/cli-workers.md",
                 "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              }
+            ],
+            "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "previous_version": 12,
+      "updated_at": "2026-10-14T06:00:56Z",
+      "summary": "v4.8通用规范：三份正确稿的黑字净稿、所述实际修饰范围、自然引图与首次图序、文末图片和图下编号同页；保留技术解释、来源边界及独立验收。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "逐处识别所述紧随的完整技术名词；首次引入不加所述，只有本项该位置之前或合法父项链已引入同一对象才可回指。同句先引入后回指可以；同级项、摘要/说明书、后文或短词子串不能补权项前置。后续裸写也可，去引用头后的发明内容和实施方式独立复核。 参考正确稿按所述的实际修饰范围识别完整对象，不把所述A的B机械当整个新名词；区分权项引用头、技术对象回指及说明书真实的行文指引。不得强制每次复现加所述，说明书下文指引不能为权项补前置。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第1至5项"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              }
+            ],
+            "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。 核对reference_kind、head_span、原文位置与实际父链；原稿句式只是参考，不继承任何前置缺口。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-08",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "附图说明按最终具体实施方式的图序填充。 编号依据首次实质引图顺序，后续回指旧图沿用原号；说明按“图N为本发明的【本案图名】；”列出，最后一条句号。正文用“请参考图N，……”及原稿有据变体自然承接，解读依据当前项目，不抄旧数据或凑固定段数。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第7行"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              }
+            ],
+            "check": "首引顺序、说明列表、图号映射一致。 核对正文首引、附图说明、实际媒体身份及图下号四处一致，区分首引与重复引用。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-11",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第9行"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              }
+            ],
+            "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMAT-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "按三组历史定稿归纳话术和分角色样式，正文、项目标题、栏目、独立公式及正文数学片段分别设置；不复制旧稿模板残留、正文缩进到公式、过小固定行高或已发现的符号缺陷。内容和技术限定仅取本案来源，当前用户规定优先于例文。 以reference-style-standard.md核对正式净稿、分区和实际图序话术；不继承渲染造成的孤立图号或偶然分页。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14",
+                "locator": "要求仔细分析截图及以往案例话术、内容格式、公式与符号标准并通用更新技能"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "实际问题与反例、格式基准与来源优先级"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              }
+            ],
+            "check": "采用formula-layout-standard.md格式基准并记录项目覆盖；核对实际文字run/继承/网格/有效宽度，逐页检查分节、标题、段落、公式和解释。权项到发明内容的转换保留条件、否定词、对象和顺序，不以润色改范围。 颜色/主题继承和图片与编号同页并入现有页面验收，不增加重复模型复查。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "FORMAT-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "正式交付DOCX使用黑字净稿，不加红字解释、彩色修订说明、高亮审核提示或编辑批注；正常技术解释、公式参数说明和图文解读仍按原稿话术融入黑色正文，不能因禁红而删除。修改记录留工作目录，不把其他任务的红字补充模式移植到本技能。",
+            "check": "核验实际应用run、段落/字符样式与继承、主题色、修订显示及最终页面；未使用红色样式不误报为红字，未知颜色不算已证黑色。模型修正后新Astra/high独立验收，保持原有六项检查。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "用户明确不要红字解释并要求参考三份正确稿"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿与文字颜色"
               }
             ],
             "exceptions": []

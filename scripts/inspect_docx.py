@@ -226,11 +226,82 @@ def attach_section_headers(root, paragraphs, rels, z):
         start = end
 
 
+def color_reader(z):
+    """Resolve common applied Word font colors, not unused style declarations.
+
+    Conditional table formatting, drawing text and rendering remain visual checks.
+    Unknown themes/styles are review cues, never evidence that text is black.
+    """
+    w = '{' + NS['w'] + '}'
+    styles = ET.fromstring(z.read('word/styles.xml')) if 'word/styles.xml' in z.namelist() else ET.Element('styles')
+    catalog = {s.get(w+'styleId'): s for s in styles.findall('w:style', NS)}
+    defaults = {s.get(w+'type'): s.get(w+'styleId') for s in catalog.values() if s.get(w+'default') in {'1','true','on'}}
+    default_color = styles.find('./w:docDefaults/w:rPrDefault/w:rPr/w:color', NS)
+    theme = {}
+    theme_parts = [r['part'] for r in relationships(z, 'word/document.xml').values()
+                   if not r.get('external') and r.get('type', '').endswith('/theme')]
+    if len(theme_parts) == 1 and theme_parts[0] in z.namelist():
+        tree = ET.fromstring(z.read(theme_parts[0]))
+        for slot in tree.findall('./a:themeElements/a:clrScheme/*', NS):
+            if len(slot): theme[slot.tag.split('}')[-1]] = slot[0].get('val') if slot[0].tag.endswith('}srgbClr') else slot[0].get('lastClr')
+    aliases = {'dark1':'dk1','light1':'lt1','dark2':'dk2','light2':'lt2','hyperlink':'hlink','followedHyperlink':'folHlink'}
+    cache = {}
+    def style_color(key, trail=()):
+        if not key: return None, None
+        if key in cache: return cache[key]
+        if key in trail: return None, 'style_cycle:'+key
+        node = catalog.get(key)
+        if node is None: return None, 'missing_style:'+key
+        color = node.find('./w:rPr/w:color', NS)
+        parent = node.find('w:basedOn', NS)
+        answer = (color, None) if color is not None else style_color(parent.get(w+'val') if parent is not None else None, trail+(key,))
+        cache[key] = answer
+        return answer
+    def read(p, owned, part, number):
+        pstyle = p.find('./w:pPr/w:pStyle', NS)
+        pid = pstyle.get(w+'val') if pstyle is not None else defaults.get('paragraph')
+        rows = []
+        for index, run in enumerate((x for x in owned if x.tag in {w+'r', '{'+NS['m']+'}r'}), 1):
+            text = visible_text(run, skip_nested_paragraphs=True)
+            if not text.strip(): continue
+            style = run.find('./w:rPr/w:rStyle', NS)
+            sid = style.get(w+'val') if style is not None else defaults.get('character')
+            color, unresolved = default_color, []
+            origin = 'docDefaults' if color is not None else 'automatic'
+            for key in (pid, sid):
+                inherited, problem = style_color(key)
+                if problem: unresolved.append(problem)
+                if inherited is not None: color, origin, unresolved = inherited, 'style:'+key, []
+            direct = run.find('./w:rPr/w:color', NS)
+            if direct is not None: color, origin, unresolved = direct, 'direct', []
+            attrs = {k.split('}')[-1]:v for k,v in color.attrib.items()} if color is not None else {}
+            rgb = attrs.get('val', 'auto').upper()
+            if attrs.get('themeColor'):
+                key = aliases.get(attrs['themeColor'], attrs['themeColor'])
+                rgb = theme.get(key)
+                rgb = rgb.upper() if isinstance(rgb,str) else None
+                if rgb is None: unresolved.append('unresolved_theme_color')
+            if attrs.get('themeTint') or attrs.get('themeShade'):
+                unresolved.append('theme_tint_or_shade_requires_display_check')
+            if any(n.tag.endswith('}textFill') for n in run.iter()):
+                unresolved.append('text_fill_requires_display_check')
+            if rgb not in {'AUTO', None} and not re.fullmatch('[0-9A-F]{6}', rgb):
+                unresolved.append('invalid_rgb'); rgb = None
+            if unresolved or rgb not in {'000000','AUTO',None}:
+                rows.append({'part':part,'paragraph':number,'run':index,'text':text[:120],
+                             'origin':origin,'paragraph_style':pid,'character_style':sid,
+                             'color':attrs,'resolved_rgb':rgb,'unresolved':unresolved})
+        return rows
+    return read
+
+
 def inspect(path):
     result = {'input': str(path.resolve()), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
               'locator_convention': 'part + 1-based all w:p document order; not page numbers',
               'formula_warning': 'linear_text loses mathematical structure; use omml_xml and visual review',
-              'parts': [], 'formulas': [], 'media': [], 'embeddings': [], 'issues': []}
+              'parts': [], 'formulas': [], 'media': [], 'embeddings': [], 'issues': [],
+              'text_color_evidence': {'review_runs': [],
+                  'scope': 'Applied document-default, paragraph/character basedOn and direct Word/OMML run font colors. Unused styles ignored. Automatic colors, table conditional formatting, DrawingML/image text, highlighting and revision display still require final visual review.'}}
     with zipfile.ZipFile(path) as z:
         if sum(i.file_size for i in z.infolist()) > 512 * 1024 * 1024:
             raise ValueError('Uncompressed DOCX exceeds 512 MiB inspection limit')
@@ -239,6 +310,7 @@ def inspect(path):
             raise ValueError('Missing word/document.xml')
         if z.testzip() is not None:
             raise ValueError('DOCX ZIP CRC failure')
+        read_colors = color_reader(z)
         parts = [n for n in names if re.fullmatch(r'word/(document|header\d+|footer\d+|footnotes|endnotes|comments)\.xml', n)]
         parts.sort(key=lambda n: (n != 'word/document.xml', n))
         for part in parts:
@@ -247,6 +319,7 @@ def inspect(path):
             paragraphs = []
             for index, p in enumerate(root.findall('.//w:p', NS), 1):
                 owned_nodes = list(paragraph_owned_nodes(p))
+                result['text_color_evidence']['review_runs'].extend(read_colors(p, owned_nodes, part, index))
                 formula_ids = []
                 for math in (n for n in owned_nodes if n.tag == f'{{{NS["m"]}}}oMath'):
                     fid = f'F{len(result["formulas"])+1:04}'
@@ -301,6 +374,9 @@ def precheck(result, kind):
          'status': 'requires_complete_head_noun_and_legal_prior_basis_review'}
         for p in body for match in re.finditer('所述', p['text'])]
     result['formula_count_status'] = 'unclassified_math_objects_not_source_formula_count'
+    for row in result.get('text_color_evidence', {}).get('review_runs', []):
+        add('TEXT_COLOR_REVIEW', 'Applied nonblack or unresolved font color; final patent prose and explanations must use clean black text. Resolve inherited/theme formatting and verify display; do not delete technical content.',
+            f'{row["part"]} P{row["paragraph"]:04} run{row["run"]}')
     for formula in result['formulas']:
         locator = f'{formula["part"]} P{formula["paragraph"]:04} {formula["id"]}'
         layout = formula.get('math_evidence', {}).get('layout', {})
@@ -399,6 +475,16 @@ def precheck(result, kind):
                     if int(num) not in mentions: mentions.append(int(num))
     result['figures_detected']={'descriptions':descriptions,'captions':captions,'first_mentions':mentions,
         'limitation':'Compound references such as 图1至图3 and inline captions require semantic review.'}
+    result['figure_placement_evidence'] = {
+        'image_occurrences': [{'paragraph':p['p'], 'section_headers':p.get('section_headers', []),
+                               'media':p['media']} for p in body if p['media']],
+        'description_paragraphs': [{'paragraph':p['p'],'text':p['text']} for p in body
+                                   if start and end and start<p['p']<end],
+        'reference_paragraphs': [{'paragraph':p['p'],'text':p['text']} for p in body
+                                 if end and end<p['p']<first_caption_p and re.search(r'图\s*\d+', p['text'])],
+        'caption_paragraphs': [{'paragraph':p['p'],'text':p['text']} for p in body
+                               if end and p['p']>end and re.fullmatch(r'\s*图\s*\d+\s*', p['text'])],
+        'boundary': 'Relationship/document order is not visual page placement or semantic figure identity. Verify first-mention -> description -> final image -> caption mapping; distinguish abstract reuse and formula images; keep image and its own caption on the same page.'}
     if descriptions and descriptions!=list(range(1,len(descriptions)+1)):
         add('FIGURE_SEQUENCE','Description figure numbers are not consecutive.')
     if descriptions!=captions:
