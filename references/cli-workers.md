@@ -44,4 +44,4 @@ reserve先按状态和公平顺序排列候选，再校验到首个可派案即�
 
 2026-10-14在本机真实运行4个隔离的文件读写与计算任务，两个Sol/high、两个Astra/high，峰值4个CLI进程，均退出0且实际会话和各案结果匹配；总墙钟307.523秒。首次工具执行存在约5分钟等待和大量缓存输入，未证明整批专利产能或成本提高，不能宣称4倍速度。这是执行通道实测，不是4个专利项目的全流程验收。已完成探针不重复收费重跑，之后靠真实批次阶段时间评估吞吐。
 
-参考了用户提供的[software-case-batch技能](https://github.com/zhoudebao6-art/software-case-batch/blob/main/SKILL.md)中状态恢复、分案并行和已验证证据复用的思路；没有把其软件交付门槛移植为专利验收，也未修改该仓库。CLI接口依据[OpenAI非交互执行文档](https://developers.openai.com/codex/noninteractive)及本机CLI参数验证。
+外部参考只用于状态恢复、分案并行和已验证数据复用等提效思路，不加载外部技能全文或采用其业务规则、模板、模型分工及交付验收要求。现行通道按本技能冻结策略和专利验收规则执行；普通批次无需访问外部参考仓库。CLI接口依据[OpenAI非交互执行文档](https://developers.openai.com/codex/noninteractive)及本机CLI参数验证。
