@@ -262,7 +262,7 @@ def mutate(path, controller, operation):
         m['sequence'] += 1; b.atomic(path, m)
         return result
 
-def reserve(path, capacity, case_id=None, stage=None, controller='controller'):
+def reserve(path, capacity, case_id=None, stage=None, controller='controller', prepare=False):
     def apply(m):
         p = plan_manifest(m, capacity)
         if not p['ready']: raise BatchError(p.get('reason', p['action']))
@@ -279,6 +279,13 @@ def reserve(path, capacity, case_id=None, stage=None, controller='controller'):
         m['peak_reserved_slots'] = max(m.get('peak_reserved_slots', 0), sum(bool(row['active_attempt']) for row in m['projects']))
         m['last_reserved_stage'] = row['stage']
         a['context'] = context(m, c, a)
+        prepared = None
+        if prepare:
+            from prepare_handoff import prepare as prepare_data, SOURCE_ERRORS
+            try:
+                prepared, a['prepared_handoff'] = prepare_data(m, c, a)
+            except SOURCE_ERRORS as exc:
+                raise BatchError('Invalid DOCX source during preparation: ' + str(exc)) from exc
         b.atomic(folder / 'reservation.json', a)
         a['reservation_sha256'] = b.sha(folder / 'reservation.json')
         latest_review = next((r for r in reversed(c['receipts']) if r.get('stage') == 'review'), None)
@@ -299,6 +306,7 @@ def reserve(path, capacity, case_id=None, stage=None, controller='controller'):
                                    'primary_snapshot': next(s['snapshot_path'] for s in c['sources'] if s['original_path'] == c['primary_source']),
                                    'input_artifact': a['input_artifact'], 'input_artifact_sha256': a['input_artifact_sha256'],
                                    'review_mode': m['policy'].get('review_mode', 'review_only'),
+                                   'prepared': prepared,
                                    'latest_review': copy.deepcopy(latest_review),
                                    'receipt_path': str(folder / 'receipt.json'), 'dispatch_path': str(folder / 'dispatch.json'),
                                    'boundary': 'Read only source/rules/prior outputs; write only this attempt directory; never write manifest; render evidence does not substitute visual six-check acceptance'}}
@@ -308,6 +316,12 @@ def bind(path, case_id, attempt, dispatch, controller='controller'):
     def apply(m):
         c = case_by_id(m, case_id); a = attempt_by_id(c, attempt)
         if a['state'] != 'reserved': raise BatchError('Attempt already bound')
+        if a.get('prepared_handoff'):
+            from prepare_handoff import verify_prepared
+            try:
+                verify_prepared(m, c, a)
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                raise BatchError('Invalid prepared handoff: ' + str(exc)) from exc
         evp = file_path(dispatch, a['directory']); ev = b.read(evp)
         expected = dict(m['policy']['models'][a['stage']], fork_turns='none', task_name=a['task_name'])
         args, result = ev.get('arguments'), ev.get('result')
@@ -566,6 +580,7 @@ def main():
         s.add_argument('--compact', action='store_true', help='Short CLI reply; complete evidence stays in the manifest and receipt files')
         if command not in {'plan', 'summary'}: s.add_argument('--controller', required=True)
         if command in {'plan', 'reserve'}: s.add_argument('--capacity', type=int, required=True)
+        if command == 'reserve': s.add_argument('--prepare', action='store_true', help='Prepare verified case cache paths and active frozen rules before dispatch')
         if command in {'bind', 'record', 'cancel', 'defer'}: s.add_argument('--case', required=True)
         if command in {'bind', 'record', 'cancel'}: s.add_argument('--attempt', required=True)
         if command == 'bind': s.add_argument('--dispatch', required=True)
@@ -580,7 +595,7 @@ def main():
             result = b.scan(a.input); b.atomic(output, result)
         elif a.command == 'init': result = str(init(a.input, a.work_root, b.read(a.selection), a.desktop, a.controller))
         elif a.command == 'plan': result = plan(a.manifest, a.capacity)
-        elif a.command == 'reserve': result = reserve(a.manifest, a.capacity, controller=a.controller)
+        elif a.command == 'reserve': result = reserve(a.manifest, a.capacity, controller=a.controller, prepare=a.prepare)
         elif a.command == 'bind': result = bind(a.manifest, a.case, a.attempt, a.dispatch, a.controller)
         elif a.command == 'record':
             m = load_manifest(a.manifest); c = case_by_id(m, a.case); attempt = attempt_by_id(c, a.attempt)

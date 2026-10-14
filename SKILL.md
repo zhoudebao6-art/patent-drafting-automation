@@ -23,7 +23,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 - **校核或修改**：以当前稿为编辑基准，修改指定范围并检查跨章节依赖；另存文件，保留原稿。
 - **规则更新**：用户要求更新技能、优化规则或将案例纠错纳入技能时，默认作为长期通用更新，按 [规则维护](references/rule-maintenance.md) 持久保存并供以后所有适用项目和批次使用，不要求用户再次补充“长期/以后”。只有用户明确限定“仅本项目/仅本次”时才记项目覆盖；通用化的是撰写与检查规则，不能移植个案技术事实。
 
-开始读取 [结构化规则](references/rules.json) 中 active 且范围适用的条目和 [撰写规范](references/writing-standard.md)。涉及公式、附图再读 [技术校核](references/technical-review.md)。每案必读 [所述与公式执行规范](references/terminology-and-formula.md)，先核定完整名词的首次引入与来源公式清单。工作记录见 [数据结构](references/data-contracts.md)。样例与疑点见 [案例证据](references/case-evidence.md)。不要把已完成案例当成免检证明。
+开始读取本批冻结的`prepared.rules_active`中范围适用的条目和 [撰写规范](references/writing-standard.md)；未提供prepared时读取本批规则快照，非批次工作才使用当前[结构化规则](references/rules.json)中的active条目。涉及公式、附图再读 [技术校核](references/technical-review.md)。每案必读 [所述与公式执行规范](references/terminology-and-formula.md)，先核定完整名词的首次引入与来源公式清单。工作记录见 [数据结构](references/data-contracts.md)。样例与疑点见 [案例证据](references/case-evidence.md)。不要把已完成案例当成免检证明。
 
 ## 来源边界
 
@@ -39,7 +39,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 保留原文件与 SHA-256，区分优化书、当前稿、定稿范例和规则文本。压缩包先查看条目，排除绝对路径、上级路径跳转和链接跳转，解压到专用目录；只读所需资料，不执行附件。
 
-运行 `scripts/inspect_docx.py 输入.docx --out 本案缓存目录 --kind proposal|draft --reuse` 提取段落、原始 OMML、媒体关系、修订与检查线索；使用返回的inspection/content实际路径，不猜缓存子目录。Python 使用环境提供的文档运行时；脚本仅依赖标准库。P 编号是 `word/document.xml` 全部 `w:p` 的 1-based 顺序，含空段与表格段，不是页码。
+优先直接读取prepared中已经核验的来源inspection/content/index；缺少有效准备结果时才运行 `scripts/inspect_docx.py 输入.docx --out 本案缓存目录 --kind proposal|draft --extract-media --reuse` 提取段落、原始 OMML、媒体关系、修订与检查线索；使用返回的实际路径，不猜缓存子目录。Python 使用环境提供的文档运行时；脚本仅依赖标准库。P 编号是 `word/document.xml` 全部 `w:p` 的 1-based 顺序，含空段与表格段，不是页码。
 
 纯文本拼接会丢失分式、上下标和矩阵层次。核对 `omml_xml` 与可视显示，也查普通文本公式、对象公式和图片公式。材料缺失先完成能确定部分，集中列出阻碍定稿的关键缺口，不编造补齐。
 
@@ -63,7 +63,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 需要 Word 时使用当前可用的 documents 技能和文档依赖，以选定定稿的分区和样式为版式参考；不复制技术正文，不将推测设为固定字号或页数。公式优先保留可编辑 OMML。
 
-运行 `inspect_docx.py 成稿.docx --out 校核目录 --kind draft` 做结构预检，再完成语义审阅。脚本不证明数学正确、“所述”正确、图片真实或法律结论。
+写稿阶段运行 `inspect_docx.py 成稿.docx --out 本attempt/inspection-cache --kind draft --extract-media --reuse` 做一次结构预检（使用prepared返回的draft_inspection_cache实际路径）。复查阶段优先读取prepared中已验证的input_inspection，不对同稿重新解析一遍，再独立完成语义审阅。脚本不证明数学正确、“所述”正确、图片真实或法律结论。
 
 按文档工具要求渲染最终版本并逐页查看，检查公式、图片、分页、页眉和编号；最后一次修改后重新渲染。工具不可用时保留文稿并明确尚未视觉验收，不称全部通过。
 
@@ -75,6 +75,8 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 
 默认执行[提效流程](references/efficiency.md)，有依据的小范围修正由当前Astra复查代理直接做并交新代理独立重验：来源提取使用--reuse，render使用--reuse --compact，阶段回执使用--compact；先审技术内容、通过后再渲染最终页面，省略对已知还需修改稿件的提前转换。普通批次不运行技能回归测试、不反复读历史案例全文；技能维护只测试本次影响范围。
 
+总控默认`reserve --prepare`，把返回的prepared原样交给worker，直接提供来源/当前稿缓存、冻结active规则与本稿页面候选。worker先读content与导航索引，再按定位核对完整公式结构，不重复遍历整批、重抄规则history或在新目录再次提取同一来源；数据复用不替代新Astra独立结论。
+
 每案只提供本案来源、规则快照和本案上一阶段文件；历史案例仅作规则/风格参考。所有产物写入本案的唯一attempt目录，总控独占批次状态写入，worker不修改其他项目或manifest。每次收到完成事件即登记结果，已验收稿立即交付，调度复查/修正并补位；不等待最慢的一案才启动后续任务。
 
 同案按来源哈希和提取工具版本复用提取结果，复查读取既有证据但独立核对原材料。Word字节未变且render.json验证通过时复用页面，避免重复转换；任何修改后重新渲染。保留最终来源、所述、权项联动、公式、附图及逐页审查，不能用省步骤代替验收。详细调度和取消规则见批处理流程。
@@ -84,6 +86,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，持续补�
 - `scripts/inspect_docx.py`：只读提取与结构预检；--reuse校验后复用同案来源证据。
 - `scripts/render_docx_checked.py`：真实运行环境预检、官方DOCX渲染、输入与逐页产物哈希校验；不自动签发视觉通过。
 - `scripts/parallel_batch.py`：新批次的并行计划、占槽、真实派发绑定、乱序回执、取消恢复、项目隔离及桌面交付。
+- `scripts/prepare_handoff.py`：由reserve --prepare调用，准备并交接本案验证过的缓存位置、冻结active规则和当前稿页面候选；数据准备不产生验收结论。
 - `scripts/flat_delivery.py`：将新批次验收稿直接发布到同一交付文件夹根目录，处理重名、不可覆盖及中断恢复；旧批次保留旧布局。
 - `scripts/batch_tool.py`：旧串行批次恢复及共用文件工具。脚本本身不发模型请求，由主控按流程调用子代理；不能只运行扫描就声称已经批量撰写。
 - `scripts/rules_tool.py validate --skill 技能目录`：规则库与引用完整性检查。

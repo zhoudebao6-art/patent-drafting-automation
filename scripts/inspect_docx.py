@@ -490,6 +490,20 @@ def verified_cache(directory, identity):
     return result
 
 
+def cache_identity(input_path, kind, extract_media):
+    source = local_path(input_path)
+    return {'input': str(source), 'source_sha256': file_sha(source),
+            'extractor_sha256': file_sha(Path(__file__).resolve()),
+            'kind': kind, 'extract_media': bool(extract_media)}
+
+
+def cache_key(identity):
+    # Short directory names avoid Windows MAX_PATH failures under case/attempt.
+    # Full source/tool hashes in cache.json remain authoritative; a key collision
+    # can share a bucket but cannot pass verified_cache with another identity.
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:24]
+
+
 def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=False):
     """An explicit case-local cache stores structural evidence, never review approval."""
     source = local_path(input_path)
@@ -497,11 +511,10 @@ def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=
     if source.suffix.lower() != '.docx' or kind not in {'proposal', 'draft'}:
         raise ValueError('A DOCX and proposal/draft kind are required')
     extractor = Path(__file__).resolve()
-    identity = {'input': str(source), 'source_sha256': file_sha(source),
-                'extractor_sha256': file_sha(extractor), 'kind': kind, 'extract_media': bool(extract_media)}
+    identity = cache_identity(source, kind, extract_media)
     cache_reason = 'reuse_not_requested'
     if reuse:
-        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        key = cache_key(identity)
         bucket = local_path(output/key)
         bucket.mkdir(parents=True, exist_ok=True)
         candidates = sorted(bucket.glob('generation-*'))
@@ -515,7 +528,7 @@ def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=
             if file_sha(source) != identity['source_sha256'] or file_sha(extractor) != identity['extractor_sha256']:
                 raise ValueError('Source or extractor changed during cache verification')
             return summary
-        output = bucket/('generation-' + uuid.uuid4().hex)
+        output = bucket/('generation-' + uuid.uuid4().hex[:16])
         output.mkdir(exist_ok=False)
     else:
         output.mkdir(parents=True, exist_ok=True)

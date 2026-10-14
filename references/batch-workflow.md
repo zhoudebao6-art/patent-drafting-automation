@@ -16,26 +16,27 @@ selection由总控生成，source_files和primary_source相对于input，例如�
 ```text
 python scripts/parallel_batch.py scan --input 输入目录 --out 扫描.json
 python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目录 --selection 选择.json --controller 本批控制器标识
-python scripts/parallel_batch.py plan --manifest 批次清单 --capacity 实际worker总额度
 ```
 
 ## 滚动补位
 
 默认目标4个worker，最多8个在制项目，保留1个草稿推进机会。--capacity填写本批可使用的worker总额度，包含本批已占槽，不计总控和无关任务；不是当前空闲数。容量受真实工具额度约束，不能根据配置臆造名额。只有1个worker时如实顺序执行，不能声称真实多模型并行，也不能通过未授权的新聊天、全局设置或递归agent绕过额度。
 
-总控维护事件循环：启动时连续reserve并派发多个不同项目；每个worker完成即登记回执；本案最终验收通过就立即deliver，然后推进其他案复查/修正、重新plan并补位，不等待整批完成。有草稿与审查同时待办时兼顾两个方向，修正和重验及时推进，达到在制上限后先消化积压。满槽时等待完成事件，避免紧密轮询及固定长时间睡眠。单案缺资料或输入变化要具体记录，其他案继续。
+总控维护事件循环：启动时连续reserve并派发多个不同项目；每个worker完成即登记回执；本案最终验收通过就立即deliver，然后直接reserve推进复查/修正并补位，不等待整批完成。plan仅用于需要观察队列的情况，不在每次reserve前后重复调用。有草稿与审查同时待办时兼顾两个方向，修正和重验及时推进，达到在制上限后先消化积压。满槽时等待完成事件，避免紧密轮询及固定长时间睡眠。单案缺资料或输入变化要具体记录，其他案继续。
 
 每案内部最多一个活跃attempt。旧策略为draft→review→revise(需要时)→review；新review_fix_then_recheck策略允许review内一次有依据的修正返回revised，再由新Astra/high review独立重验，仍可在需要时使用独立revise路径。不同案可以同时处于不同阶段。各案按实际验收完成时间直接交付到同一文件夹根目录，交付台账保留原队列ID；仅重名文件附稳定案号。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
 
 ## 占槽和真实派发
 
 ```text
-python scripts/parallel_batch.py reserve --manifest 批次清单 --capacity 实际worker总额度 --controller 本批控制器标识
+python scripts/parallel_batch.py reserve --manifest 批次清单 --capacity 实际worker总额度 --controller 本批控制器标识 --prepare
 ```
 
 reserve持久保存占槽并返回case_id、attempt、directory、task_name、context、spawn_arguments及source_snapshots。严格使用返回的上下文及路径。使用真实collaboration.spawn_agent，参数取spawn_arguments再补message：draft=gpt-6.1-sol/high；review/revise=gpt-6-astra/high；fork_turns=none。成功后保存真实tool/context/arguments/result为本attempt的dispatch.json；reserve本身不代表模型已经运行。
 
 message包含本案来源快照及哈希、rules.snapshot.json、当前稿和哈希、attempt目录、阶段输出及上一轮问题。不得传入别案正文。worker不下派、不改共享规则或manifest，不写其他案目录。主控只编排，不能冒充指定模型写稿。
+
+规则版本11起默认使用--prepare：同一条reserve命令同时返回worker_context.prepared，包含本案验证后的来源inspection/content/index路径、精简的冻结active规则、当前稿结构缓存及允许范围内的render候选。总控原样传入prepared；不再要求worker从整批文件夹重新寻找缓存。准备失败不提交占槽/派发，保留分析产物并处理具体错误。prepared仅是数据交接，不是复查通过。普通worker先读content和index，再按公式ID/段落定位读取完整OMML与来源，不能以索引替代原结构；使用rules.active.json，不加载冻结库history。细节见[提效流程](efficiency.md)。
 
 ```text
 python scripts/parallel_batch.py bind --manifest 批次清单 --case 项目ID --attempt attempt_id --dispatch 本attempt/dispatch.json --controller 本批控制器标识
