@@ -58,7 +58,7 @@ context必须逐字段等于reserve返回值，包括batch/case/stage/attempt及
 
 ## 阶段回执
 
-draft写成本案DOCX及必要证据，完成一次结构预检。review先独立核对来源支持、所述、权项与发明内容、公式、附图；有阻碍通过的内容错误时，若新策略允许且修正依据明确，复查模型在本review内另存修订DOCX并返回revised；否则返回fix_required走独立revise，事实不足则needs_input。页面检查如实标not_run，省去已知待改稿的提前渲染。内容可通过时再渲染或复用当前稿页面，核对全部最终页面。revise由Sol/xhigh直接另存修订版，联动章节和图号；新Sol/xhigh worker重验内容后对最终稿渲染并逐页验收。连续两轮同问题无进展或缺关键技术事实时记录缺口，不无限空转。
+draft写成本案DOCX及必要证据，完成一次结构预检。review先独立核对来源支持、所述、权项与发明内容、公式、附图；版本28附图技术审查仅核流程图并依据本案内容修错，非流程图只保留原身份/图号/位置/显示检查，详细范围见technical-review.md；有阻碍通过的内容错误时，若新策略允许且修正依据明确，复查模型在本review内另存修订DOCX并返回revised；否则返回fix_required走独立revise，事实不足则needs_input。页面检查如实标not_run，省去已知待改稿的提前渲染。内容可通过时再渲染或复用当前稿页面，核对全部最终页面。revise由Sol/xhigh直接另存修订版，联动章节和图号；新Sol/xhigh worker重验内容后对最终稿渲染并逐页验收。连续两轮同问题无进展或缺关键技术事实时记录缺口，不无限空转。
 
 receipt含reserve完整context和stage/model/reasoning_effort/agent_id。写稿含artifact/artifact_sha256，输出在当前attempt内且不得使用原稿硬链接。审阅含reviewed_sha256/verdict/findings/checks。check键为source_support、antecedents、claims_alignment、formulas、figures、rendered_pages。pass要求全部passed且无未关闭发现。新策略review返回revised时，reviewed_sha256绑定改前输入，artifact/artifact_sha256绑定本review attempt的新独立DOCX，findings须非空，每项包含status=resolved或closed、非空location与correction_evidence；变更稿不会在同一回执中pass，必须由新的Sol/xhigh review重验。规则版本6起，worker必读[所述与公式执行规范](terminology-and-formula.md)：draft先登记完整术语首次引入及源公式清单；review/revise由Sol/xhigh逐处核对完整名词与本项/父链前置，逐式核对源N→稿N、零源不造式、完整符号与解释、无真实空白及历史格式。详细证据并入antecedents/formulas，不另设验收捷径；旧批次保持冻结规则。
 

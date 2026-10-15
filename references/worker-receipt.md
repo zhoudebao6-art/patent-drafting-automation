@@ -4,6 +4,8 @@
 
 在当前attempt中写 `decisions.json`，填写实际完成的 `verdict`、输出 `artifact` 绝对路径，以及复查实际执行的 `checks`、`findings`。通过复查时提供 `render.evidence` 的实际 `render.json` 绝对路径。需要的六项为 `source_support`、`antecedents`、`claims_alignment`、`formulas`、`figures`、`rendered_pages`；未执行写 `not_run`，有问题如实记录，不复制模板的passed。
 
+版本28的figures技术审查范围只含流程图，另保留全图原有身份/图号/位置/显示检查。非流程图技术项在现有图台账中写not_in_scope，不能把它填为checks.figures的新枚举；无流程图则在证据说明该子项不适用，原基本检查实际完成后才passed。流程图错误需据本案内容修复，未完成或来源不明不得pass；修正稿仍返回revised交独立重验。
+
 ```text
 python 本批skill-snapshot/scripts/worker_receipt.py --job 本attempt/cli-job.json --decisions 本attempt/decisions.json
 ```

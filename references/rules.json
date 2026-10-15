@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 27,
-  "updated_at": "2026-10-15T08:51:02Z",
+  "version": 28,
+  "updated_at": "2026-10-15T09:40:58Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -36,9 +36,13 @@
         {
           "source": "references/page-flow-user-requirement.txt",
           "locator": "2026-10-15两项合并通用要求"
+        },
+        {
+          "source": "user:2026-10-15-flowchart-only-general-repair",
+          "locator": "流程图有错按文件内容修正并通用生效；图版本同步"
         }
       ],
-      "check": "确认图意、来源、图像身份和状态。 分别核对摘要图外无编号、文末图下号完整及媒体身份不变。",
+      "check": "确认图意、来源、图像身份和状态。 分别核对摘要图外无编号、文末图下号完整及摘要与文末使用同一核定版本的图像。依据本案文字修图时，登记原图到修正图的哈希映射，不要求修正图与原图哈希相同。",
       "exceptions": []
     },
     {
@@ -241,9 +245,13 @@
         {
           "source": "references/page-flow-user-requirement.txt",
           "locator": "2026-10-15两项合并通用要求"
+        },
+        {
+          "source": "user:2026-10-15-flowchart-only-general-repair",
+          "locator": "流程图有错按文件内容修正并通用生效；图版本同步"
         }
       ],
-      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及媒体身份不变。",
+      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及摘要与文末使用同一核定版本的图像。依据本案文字修图时，登记原图到修正图的哈希映射，不要求修正图与原图哈希相同。",
       "exceptions": []
     },
     {
@@ -253,16 +261,21 @@
       "scope": "global",
       "section": "figure",
       "level": "must",
-      "instruction": "已确认错误的附图删除，具体实施方式中对应该图的内容全部删除并同步重排。",
+      "instruction": "流程图有错时优先依据本案文件中已核定的技术内容修正节点、箭头、顺序、分支、回路或输入输出，正确部分复用。不得默认删图及关联技术内容，不反改正确文字迁就错图，也不凭经验补造步骤或条件。同步替换文末图及摘要复用，保持图号与引图一致；修订后按原独立复查机制重验。此修图优先规则长期通用，替代旧错误附图默认删除要求。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
           "locator": "第9行"
+        },
+        {
+          "source": "user:2026-10-15-flowchart-only-general-repair",
+          "locator": "只判断流程图是否有错，错误时依据文件内容修改，做通用修复"
         }
       ],
-      "check": "检查专属图文依赖的全部删除位置与剩余方案支持。",
+      "check": "实际查看流程图及其对应的本案文字，逐处记录矛盾、依据定位、改前改后图像哈希和受影响引用。只重画需修正的图；来源冲突、流程不明或图像不可读时据实记录未解决问题，不能猜改、删掉证据或签通过。",
       "exceptions": [
-        "用户当前明确要求修图优先时，以本次要求为项目覆盖；无法验证不能直接判错。"
+        "只有用户明确要求删图或另有明确授权的删除范围才删除，并同步其专属依赖与图号；本次通用修复不构成自动删图授权。",
+        "流程图之外的图不开展技术正确性评判或重画；全部图片的身份、图号、放置、清晰可读及页内显示仍按原格式要求检查，公式图片仍按公式规则处理。"
       ]
     },
     {
@@ -562,11 +575,11 @@
     {
       "id": "QA-06",
       "status": "active",
-      "origin": "workflow",
+      "origin": "user",
       "scope": "global",
       "section": "figure",
       "level": "must",
-      "instruction": "摘要复用图、格式变体与独立图分开登记，不能以媒体文件数推断图数。",
+      "instruction": "图的技术正确性复查仅限流程图：依实际图意识别步骤及有向流转，不只依据图名。逐一对照本案文件核对节点术语、执行顺序、箭头起止和方向、分支条件及分支归属、循环与退出、必要输入输出、漏步和多余步骤。混合图只核对其中流程部分；正确流程图原样复用，错误按TXT-12修正。非流程图不为图审查新增数据复算、实验验证或重画。摘要复用图、格式变体与独立图分开登记，不能以媒体数推断图数。",
       "evidence": [
         {
           "source": "references/corpus/wearable-final.docx",
@@ -579,10 +592,17 @@
         {
           "source": "references/corpus/bolt-final.docx",
           "locator": "word/document.xml P0002; P0165"
+        },
+        {
+          "source": "user:2026-10-15-flowchart-only-general-repair",
+          "locator": "只判断流程图是否有错，错误时依据文件内容修改，做通用修复"
         }
       ],
-      "check": "按关系ID、内容和哈希核对。",
-      "exceptions": []
+      "check": "在现有figure_registry或evidence.json中按图登记类型及判断依据、审查范围、对应本案文字定位、状态与动作；实际看图，不以图号清单或缩略图代替。非流程图技术状态写not_in_scope，不写verified，也不因未做范围外审查阻塞交付。确实无流程图时注明该子项不适用，完成原有图身份和格式检查后可给figures通过；流程图未读取或缺依据仍为unverified。复用同次提取/现有六项审查，不新增模型阶段、独立台账或重复渲染。",
+      "exceptions": [
+        "公式图片仍须按公式规则核对，不得借非流程图范围排除公式检查。",
+        "只收窄图的技术正确性审查；文稿原有来源支持、公式、所述、权项联动和最终页面检查保留。不得把文稿来源检查扩成范围外图表研究。"
+      ]
     },
     {
       "id": "QA-07",
@@ -4473,6 +4493,140 @@
               }
             ],
             "check": "复用当前SHA的invention_evidence核对目的段、技术衔接原句及位置、全部权项和方案段落对应；普通技术差异不能用泛化finding豁免。内部合法所述保留，重新核对去头后的前置；确有正文技术跨权项引用或复杂对象时，现有claims_alignment按当前稿SHA、claim、双方段号、part/path、双方文字SHA及具体理由记录STYLE-02/claim_solution_mapping/closed，只关闭精确候选，不关闭固定句错误、普通删词或数学结构改变。不新增复查模型轮次，独立复查及最终页面验收保持。",
+            "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 28,
+      "previous_version": 27,
+      "updated_at": "2026-10-15T09:40:58Z",
+      "summary": "通用流程图范围及依据本案内容修图优先：非流程图不新增技术评判，保留基本格式和独立复查，取消默认删错图。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-12",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "流程图有错时优先依据本案文件中已核定的技术内容修正节点、箭头、顺序、分支、回路或输入输出，正确部分复用。不得默认删图及关联技术内容，不反改正确文字迁就错图，也不凭经验补造步骤或条件。同步替换文末图及摘要复用，保持图号与引图一致；修订后按原独立复查机制重验。此修图优先规则长期通用，替代旧错误附图默认删除要求。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第9行"
+              },
+              {
+                "source": "user:2026-10-15-flowchart-only-general-repair",
+                "locator": "只判断流程图是否有错，错误时依据文件内容修改，做通用修复"
+              }
+            ],
+            "check": "实际查看流程图及其对应的本案文字，逐处记录矛盾、依据定位、改前改后图像哈希和受影响引用。只重画需修正的图；来源冲突、流程不明或图像不可读时据实记录未解决问题，不能猜改、删掉证据或签通过。",
+            "exceptions": [
+              "只有用户明确要求删图或另有明确授权的删除范围才删除，并同步其专属依赖与图号；本次通用修复不构成自动删图授权。",
+              "流程图之外的图不开展技术正确性评判或重画；全部图片的身份、图号、放置、清晰可读及页内显示仍按原格式要求检查，公式图片仍按公式规则处理。"
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "QA-06",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "图的技术正确性复查仅限流程图：依实际图意识别步骤及有向流转，不只依据图名。逐一对照本案文件核对节点术语、执行顺序、箭头起止和方向、分支条件及分支归属、循环与退出、必要输入输出、漏步和多余步骤。混合图只核对其中流程部分；正确流程图原样复用，错误按TXT-12修正。非流程图不为图审查新增数据复算、实验验证或重画。摘要复用图、格式变体与独立图分开登记，不能以媒体数推断图数。",
+            "evidence": [
+              {
+                "source": "references/corpus/wearable-final.docx",
+                "locator": "word/document.xml P0002; P0143"
+              },
+              {
+                "source": "references/corpus/alloy-final.docx",
+                "locator": "word/document.xml P0002; P0152"
+              },
+              {
+                "source": "references/corpus/bolt-final.docx",
+                "locator": "word/document.xml P0002; P0165"
+              },
+              {
+                "source": "user:2026-10-15-flowchart-only-general-repair",
+                "locator": "只判断流程图是否有错，错误时依据文件内容修改，做通用修复"
+              }
+            ],
+            "check": "在现有figure_registry或evidence.json中按图登记类型及判断依据、审查范围、对应本案文字定位、状态与动作；实际看图，不以图号清单或缩略图代替。非流程图技术状态写not_in_scope，不写verified，也不因未做范围外审查阻塞交付。确实无流程图时注明该子项不适用，完成原有图身份和格式检查后可给figures通过；流程图未读取或缺依据仍为unverified。复用同次提取/现有六项审查，不新增模型阶段、独立台账或重复渲染。",
+            "exceptions": [
+              "公式图片仍须按公式规则核对，不得借非流程图范围排除公式检查。",
+              "只收窄图的技术正确性审查；文稿原有来源支持、公式、所述、权项联动和最终页面检查保留。不得把文稿来源检查扩成范围外图表研究。"
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "abstract_figure",
+            "level": "must",
+            "instruction": "摘要附图采用当前项目整体流程图，核对与说明书相同图的一致性。 摘要附图图外不添加图1、图一、其他图号或图名；图内真实技术标记保留。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/page-flow-user-requirement.txt",
+                "locator": "2026-10-15两项合并通用要求"
+              },
+              {
+                "source": "user:2026-10-15-flowchart-only-general-repair",
+                "locator": "流程图有错按文件内容修正并通用生效；图版本同步"
+              }
+            ],
+            "check": "确认图意、来源、图像身份和状态。 分别核对摘要图外无编号、文末图下号完整及摘要与文末使用同一核定版本的图像。依据本案文字修图时，登记原图到修正图的哈希映射，不要求修正图与原图哈希相同。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-11",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。 摘要附图复用图像但不生成外置图号或图名；单独居中的图N仅用于文末说明书附图，不能全稿删除图下号。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第9行"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              },
+              {
+                "source": "references/page-flow-user-requirement.txt",
+                "locator": "2026-10-15两项合并通用要求"
+              },
+              {
+                "source": "user:2026-10-15-flowchart-only-general-repair",
+                "locator": "流程图有错按文件内容修正并通用生效；图版本同步"
+              }
+            ],
+            "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及摘要与文末使用同一核定版本的图像。依据本案文字修图时，登记原图到修正图的哈希映射，不要求修正图与原图哈希相同。",
             "exceptions": []
           }
         }
