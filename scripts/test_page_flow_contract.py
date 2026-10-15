@@ -176,11 +176,12 @@ class FlowEvidenceTests(unittest.TestCase):
         handoff_file=self.root/'handoff.json';b.atomic(handoff_file,{'input_inspection':{'inspection':str(report_file)}})
         attempt={'prepared_handoff':{'path':str(handoff_file)},'input_artifact_sha256':report['sha256']}
         manifest={'policy':{'output_contract':contract.MODE,'layout_contract':contract.LAYOUT_MODE}}
-        with patch('prepare_handoff.verify_prepared'),patch.object(scan,'inspect',side_effect=AssertionError('duplicate parse')):
+        verified={'handoff':{'input_inspection':{'inspection':str(report_file)}},'input_report':report}
+        with patch('prepare_handoff.verify_prepared',return_value=verified),patch.object(scan,'inspect',side_effect=AssertionError('duplicate parse')):
             result=contract.verify(manifest,{'title':TITLE},attempt,{'findings':[]})
         self.assertEqual(result['layout_contract'],contract.LAYOUT_MODE)
         attempt['input_artifact_sha256']='wrong'
-        with patch('prepare_handoff.verify_prepared'),self.assertRaises(b.BatchError):
+        with patch('prepare_handoff.verify_prepared',return_value=verified),self.assertRaises(b.BatchError):
             contract.verify(manifest,{'title':TITLE},attempt,{'findings':[]})
 
     def test_layout_policy_needs_valid_flag_and_existing_sealed_contract(self):

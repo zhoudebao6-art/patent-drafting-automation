@@ -16,7 +16,7 @@ from pathlib import Path
 MODE = 'frozen_stage_packet_v1'
 CORE = ('writing-standard.md', 'claim-families-and-benefits.md', 'terminology-and-formula.md',
         'reference-style-standard.md', 'manual-format-and-wording.md')
-MATH = ('technical-review.md', 'formula-layout-standard.md')
+MATH = ('technical-review.md', 'formula-layout-standard.md', 'formula-detail-standard.md')
 STAGES = ('draft', 'review', 'revise')
 LEAN = 'lean_execution_v24'
 # Explicit controller routes only. Unknown/new/project rules stay with workers.

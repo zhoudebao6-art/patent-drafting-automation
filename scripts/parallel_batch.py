@@ -76,6 +76,10 @@ def validate_policy(p):
         raise BatchError('Invalid formula/prose contract')
     if p.get('formula_contract') and p.get('output_contract')!='wording_title_v18':
         raise BatchError('Formula/prose contract requires the frozen final output contract')
+    if p.get('spacing_contract') not in (None,'no_literal_spaces_v26'):
+        raise BatchError('Invalid content spacing contract')
+    if p.get('spacing_contract') and p.get('output_contract')!='wording_title_v18':
+        raise BatchError('Content spacing contract requires the frozen final output contract')
     if p.get('execution_optimization') not in (None, 'lean_execution_v24'):
         raise BatchError('Invalid execution optimization contract')
     if p.get('execution_optimization') and (p.get('worker_preparation') != 'frozen_stage_packet_v1'

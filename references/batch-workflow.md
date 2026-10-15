@@ -2,6 +2,8 @@
 
 # 多项目滚动并行
 
+v5.9新批次增加spacing_contract=no_literal_spaces_v26，使用同次封存预检拦截可见空格；完整符号解释与同组公式分行并入既有formulas/rendered_pages，不增加模型阶段。既有冻结批次不自动迁移。
+
 v5.8新批次增加post_review_optimization=single_closeout_v25，合并复检后的机械收尾；未变稿通过后直接交付，不重复启动模型或渲染。主控初次完整格式核验后绑定页面证据，发布前仍逐文件核字节；来源变化按案隔离，旧稿和旧冻结批次不迁移。具体强校验及恢复边界见[复检后收尾](fast-execution.md#复检后收尾-v58)。
 
 新批次的worker_preparation=frozen_stage_packet_v1：init一次冻结本技能规范、程序与阶段清单，prepared.pipeline传实际路径；队列及CLI命令自动路由到该快照。v5.7启用execution_optimization=lean_execution_v24，worker按stage_read_parts完整读取各不重叠块一次，公式/附图按需math_guide；适用规则原文保留、条件规范按索引读取。公共工具提供Word生成、只读证据查询和回执预校验，规则active及同案来源索引跨阶段复用。模型、六项审查、分案与即时交付不变。详见[快速执行](fast-execution.md)，旧无标志批次不自动迁移。

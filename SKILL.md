@@ -45,6 +45,8 @@ v5.8复检后只做一次收尾：本轮实际完成六项及全部最终页检�
 
 ## 少读、少写、少返工
 
+版本26起按[完整符号、分行与空格](references/formula-detail-standard.md)将同组完整等式逐行呈现，符号解释直接复用被解释量的完整数学片段，不省略上下标或向量字形；全稿可见内容不插空格。索引字母本身仍按普通符号角色处理，数学自然间距和人工段落格式保留。并入原预检及六项审查，不增加模型阶段。
+
 优先[快速执行](references/fast-execution.md)与[提效流程](references/efficiency.md)：单份冻结清单、公共排版和证据工具、一次结构预检、直接交接定位与缓存、内容稳定后最终渲染。检查合入现有六项，不另起一层重复审批。技能维护按本次改动测试，全部通过后停止重复运行。
 
 工具索引：stage_bundle.py冻结与编译；authoring_toolkit.py通用Word生成/客观核验；inspect_docx.py提取与结构预检；evidence_query.py只读定位；worker_receipt.py回执组装预校验；prepare_handoff.py缓存交接；render_docx_checked.py真实渲染与哈希；cli_pool.py派发和收稿；parallel_batch.py状态与交付；recover_cli_batch.py严格恢复符合条件的误拒初稿。具体参数读对应--help或规范，不自行猜路径。

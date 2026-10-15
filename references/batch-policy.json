@@ -53,5 +53,6 @@
   "layout_contract": "manual_flow_abstract_v22",
   "formula_contract": "source_math_prose_v23",
   "execution_optimization": "lean_execution_v24",
-  "post_review_optimization": "single_closeout_v25"
+  "post_review_optimization": "single_closeout_v25",
+  "spacing_contract": "no_literal_spaces_v26"
 }

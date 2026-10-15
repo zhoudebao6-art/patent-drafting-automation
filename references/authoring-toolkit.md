@@ -73,6 +73,12 @@
 
 ## 文字与保护名称
 
+v5.9的manual-v26-complete-symbols-no-spaces-v5提前拒绝可见文字与源数学中的字面空白，不自动粘连英文名称或改变公式。字段说明、来源路径等元数据不按可见正文处理。各正文/权项autoSpaceDE/DN关闭，页眉字距、首行缩进与数学自然间距保留。详见[完整符号、分行与空格](formula-detail-standard.md)。
+
+具体带索引量的解释使用`{"type":"source_symbol","formula_id":"f1","node_path":"./m:sSub[1]"}`，node_path按原式准确定位完整最外层符号，支持r、sSub、sSup、sSubSup、sPre、acc、bar、groupChr。路径每级必须有1起序号，只支持m命名空间的相对子路径；选入完整下标/修饰结构的内部片段会拒绝，不支持的附加修饰不能通过选取内部裸字母绕过。生成器复制原子树、保留源树SHA及片段路径，不重新键入下标；普通裸字母索引仍可用symbol_reference。来源分类与解释含义由复查模型核定。
+
+同一源oMath含多条完整等式时，在公式登记中显式提供equation_count，source_main_count按完整等式合计；不按OMML对象数认定主公式数。独立formula块可提供display_breaks，例如`[4]`表示在原oMath第4个非oMathPr顶层子节点之后换行。只支持完整关系之间、原独立逗号/分号节点之后的边界，原节点次序及数学内容不变；已是eqArr的公式直接保留，不再包一层。内部复杂条件不猜拆。source_symbol不增加主公式数。读回核对原来源SHA、原树SHA、显示树SHA、各行节点顺序、符号完整性和目标位置。
+
 `sections`固定依次为`abstract`、`abstract_figure`、`claims`、`description`、`figures`，每节只有`kind`和`blocks`。正文 block：
 
 ```json
@@ -120,9 +126,9 @@
 
 1. 源SHA和OMML树SHA都匹配才导入。序号是`word/document.xml`内全部`m:oMath`的1起序号，不是页面、正文段号或主公式编号。源输入发生变化须重新提取与核对，不能只改哈希绕过。
 2. `category`为`main_formula`、`source_example`、`symbol_reference`、`prose_example`、`prose_label`。后两类仅用于来源已有、经语义核定的普通数字算例或平面标签，不计主公式。每个来源中的每个OMML必须恰好登记一次；不可漏掉、用两个ID伪装同一源对象。主公式/来源算例及普通算例/标签各对应一个目标出现；符号引用可复用至少一次。目标表示可以是源数学对象或按核定身份输出的普通字符，不用OMML数核算主式N。
-3. `formula_policy.source_main_count`须与已核定`main_formula`数相等，成稿按该分类保持N→N。`oMath`本身不是天然的“完整主公式”单位：同一OMML中含多条独立公式等无法建立一对象一式映射的情况，应走原有手工保真路线，不能报成一个主式凑计数。
+3. `formula_policy.source_main_count`须与已核定各`main_formula`的`equation_count`合计相等，未指定时每项为1，成稿按分类保持N→N。`oMath`不是天然的完整主公式单位：同一对象含多条完整公式时明确计数；具备安全顶层边界时可使用`display_breaks`，原有合法`eqArr`可直接保留。仅计数无法核定或工具不支持的结构走原有手工保真路线，不能报成一个主式凑计数。
 4. `source_inventory_complete:true`是上游的明确声明，工具不代替模型检查文本、图像、OLE或上下文公式。`non_omml_formulas`当前只接受`none`；确有非OMML公式时禁止假报none，按原有手工路线处理。无公式须提供非空`no_formula_reason`。
-5. 对真正公式和结构记号深复制完整数学子树，保留字形、`m:scr/m:sty`、上下标、数组、空白与运算顺序，不设置全局`m:sty=p`，不压平`eqArr`，不把ℬ改成B；独立显示按正确稿把原m:oMath放在居中无首缩进的段内，并在对象外补一个普通中文分号；源顶层最后run已带分号则不重复，内部括号/下标的分号不视为段末。多来源的`mathPr`必须一致，原样带入。
+5. 对真正公式和结构记号深复制完整数学子树，保留字形、`m:scr/m:sty`、上下标、数组和运算顺序；字面空格须按版本26先核定并修正，不能盲删。不设置全局`m:sty=p`，不压平`eqArr`，不把ℬ改成B；独立显示在居中无首缩进段内，单式在对象外补普通中文分号，eqArr多行组在末行补显示分号，另存显示树SHA并保留原数学节点。源末行最后run已带分号则不重复，内部括号/下标分号不视为段末。多来源的`mathPr`必须一致，原样带入。
 6. 观测到依赖外部字符样式、段落样式/段落字体、主题或关系ID、修订的OMML会明确失败，不悄悄丢掉依赖；源数学文字显式非黑色也拒绝，不静默改色或产出红色净稿。源对象未显式指定的字体/大小仍需结合来源继承与最终显示核对；该工具不声称完全复现任意源文档的字体解析环境。缺字号不会擅自改写原OMML；本模板普通基准为14pt，必要的数学排版修正走原有复查模型流程并说明依据。
 
 主式、符号、类别及正文解释仍按`formula_registry`要求语义复核。树SHA是忽略XML前缀/属性次序及元素间缩进空白的结构哈希；保留数学文本（包括字面空白）、每个属性、节点次序与所有子结构，不等于原始XML字节哈希。

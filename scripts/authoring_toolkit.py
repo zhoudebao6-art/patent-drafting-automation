@@ -28,6 +28,7 @@ from lxml import etree as ET
 from PIL import Image
 
 import inspect_docx
+import math_fragments
 
 
 class AuthoringError(ValueError):
@@ -41,7 +42,7 @@ HEADERS = ('说明书摘要', '摘要附图', '权利要求书', '说明书', '�
 SHA = re.compile(r'^[0-9a-f]{64}$')
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,47}$')
 LIMIT = 64 * 1024 * 1024
-PROFILE = 'manual-v23-source-math-prose-v4'
+PROFILE = 'manual-v26-complete-symbols-no-spaces-v5'
 
 
 def fail(message):
@@ -96,6 +97,13 @@ def text_value(value, where):
         fail(where + ' must be nonempty text')
     if any(ord(c) < 32 for c in value) or any(0xD800 <= ord(c) <= 0xDFFF for c in value):
         fail(where + ': control characters, tabs and embedded line breaks are unsupported; use separate paragraphs')
+    return value
+
+
+def visible_value(value, where):
+    text_value(value,where)
+    if any(c.isspace() or c in {'\u200b','\ufeff'} for c in value):
+        fail(where + ': literal whitespace in visible content; rewrite prose without merging source names or changing math')
     return value
 
 
@@ -268,6 +276,11 @@ def explanation_intro(block):
 
 def formula_suffix(formula):
     children = [n for n in formula['node'] if n.tag != qn('m:oMathPr')]
+    # The final row of a genuine array is its display end. Internal parameter
+    # punctuation remains protected by the top-level-run test below.
+    while children and children[-1].tag == qn('m:eqArr'):
+        rows=children[-1].findall('m:e',NS)
+        children=list(rows[-1]) if rows else []
     # A punctuation character inside a delimiter or subscript is not the
     # end of the formula. Only a final top-level math run can already end it.
     text = ''
@@ -283,7 +296,7 @@ def formula_suffix(formula):
 
 
 def source_formula(row, sources):
-    fields(row, ('id', 'source_id', 'locator', 'tree_sha256', 'category'), where='formula')
+    fields(row, ('id', 'source_id', 'locator', 'tree_sha256', 'category'), ('equation_count',), where='formula')
     identifier(row['id'], 'formula.id')
     if row['source_id'] not in sources:
         fail('Unknown formula source: ' + str(row['source_id']))
@@ -304,6 +317,13 @@ def source_formula(row, sources):
         fail('Source OMML tree hash mismatch: ' + row['id'])
     if row['category'] not in {'main_formula', 'source_example', 'symbol_reference', 'prose_example', 'prose_label'}:
         fail('Explicit formula category required: ' + row['id'])
+    if 'equation_count' in row:
+        integer(row['equation_count'],'equation_count',1)
+        if row['category'] not in {'main_formula','source_example'}:
+            fail('Only actual complete source equations have equation_count')
+    for text in node.xpath('.//m:t/text() | .//w:t/text()',namespaces=NS):
+        if any(c.isspace() or c in {'\u200b','\ufeff'} for c in text):
+            fail('Source mathematical whitespace needs source-preserving normalization before import: '+row['id'])
     unsupported = node.xpath('.//w:rStyle | .//w:ins | .//w:del | .//w:moveFrom | .//w:moveTo', namespaces=NS)
     if unsupported or any(k.startswith('{' + NS['r'] + '}') or 'theme' in k.lower()
                           for n in node.iter() for k in n.attrib):
@@ -338,7 +358,7 @@ def validate(case_root, spec):
     if type(spec['schema_version']) is not int or spec['schema_version'] != 1:
         fail('Unsupported schema_version')
     identifier(spec['case_id'], 'case_id')
-    text_value(spec['project_title'], 'project_title')
+    visible_value(spec['project_title'], 'project_title')
     for key in ('sources', 'protected_names', 'formulas', 'figures', 'sections'):
         if not isinstance(spec[key], list):
             fail(key + ' must be an array')
@@ -379,7 +399,7 @@ def validate(case_root, spec):
     expected_keys = [(s['id'], i) for s in sources.values() for i in range(1, len(s['math']) + 1)]
     if Counter(source_keys) != Counter(expected_keys):
         fail('Every source oMath must have exactly one registry entry; do not silently drop or alias it')
-    main_count = sum(f['category'] == 'main_formula' for f in formulas.values())
+    main_count = sum(f.get('equation_count',1) for f in formulas.values() if f['category']=='main_formula')
     if main_count != policy['source_main_count']:
         fail('source_main_count differs from explicit main_formula classification')
     if not formulas:
@@ -400,7 +420,7 @@ def validate(case_root, spec):
         if row['id'] in figures or row['source_id'] not in sources:
             fail('Duplicate figure or unknown source')
         integer(row['number'], 'figure.number', 1)
-        text_value(row['title'], 'figure.title')
+        visible_value(row['title'], 'figure.title')
         sha_value(row['sha256'], 'figure.sha256')
         source = sources[row['source_id']]
         if source['parts'] is not None:
@@ -471,9 +491,25 @@ def validate(case_root, spec):
                     if not isinstance(run, dict):
                         fail('Run must be an object')
                     rtype = run.get('type')
+                    if rtype == 'source_symbol':
+                        fields(run,('type','formula_id','node_path'),where='source_symbol')
+                        parent=formulas.get(run['formula_id'])
+                        if parent is None or parent.get('source_fragment_path'):
+                            fail('Source symbol must refer to an original registered formula')
+                        try:node=math_fragments.symbol_fragment(parent['node'],run['node_path'])
+                        except ValueError as exc:fail(str(exc))
+                        fid='symbol_'+digest((run['formula_id']+'\0'+run['node_path']).encode())[:32]
+                        if fid in formulas and not formulas[fid].get('source_fragment_path'):
+                            fail('Derived symbol id collides with a registered formula')
+                        formulas[fid]=dict(parent,id=fid,category='symbol_reference',node=node,
+                            tree_sha256=tree_signature(node),plain_text=plain_source_text(node,'symbol_reference'),
+                            source_formula_id=parent['id'],source_tree_sha256=parent['tree_sha256'],
+                            source_fragment_path=run['node_path'])
+                        run.clear();run.update(type='formula',formula_id=fid)
+                        rtype='formula'
                     if rtype in {'text', 'symbol_reference'}:
                         fields(run, ('type', 'text'), ('formula_id', 'style') if rtype == 'symbol_reference' else (), 'run')
-                        string += text_value(run['text'], 'run.text')
+                        string += visible_value(run['text'], 'run.text')
                         if rtype == 'symbol_reference':
                             if len(run['text']) != 1 or not run['text'].isalpha() or ord(run['text']) > 0x3FF:
                                 fail('Plain symbol_reference is one ordinary Latin/Greek letter; use source OMML for structured/special glyphs')
@@ -532,14 +568,35 @@ def validate(case_root, spec):
                 if block['role'] == 'heading' and kind != 'description':
                     fail('Column headings belong to description')
             elif btype == 'formula':
-                fields(block, ('id', 'type', 'formula_id'), where='formula block')
+                fields(block, ('id', 'type', 'formula_id'), ('display_breaks',), where='formula block')
                 if kind in {'abstract_figure', 'figures'} or block['formula_id'] not in formulas:
                     fail('Unknown formula or formula in figure section')
                 if formulas[block['formula_id']]['category'] == 'symbol_reference':
                     fail('Symbol references belong in paragraph runs, not complete display formula blocks')
                 if formulas[block['formula_id']]['plain_text'] is not None:
                     fail('Plain symbols and prose examples belong in paragraph runs, not display formula blocks')
-                string = formula_suffix(formulas[block['formula_id']])
+                formula=formulas[block['formula_id']]
+                display_node=formula['node']
+                if 'display_breaks' in block:
+                    try:
+                        display_node=math_fragments.stacked_equations(formula['node'],block['display_breaks'],formula.get('equation_count',1))
+                    except ValueError as exc:fail(str(exc))
+                string=formula_suffix({'node':display_node})
+                display_children=[n for n in display_node if n.tag!=qn('m:oMathPr')]
+                if len(display_children)==1 and display_children[0].tag==qn('m:eqArr') and string:
+                    # A Word run after an array aligns to its vertical centre.
+                    # Place display punctuation at the end of the final row.
+                    display_node=deepcopy(display_node)
+                    rows=display_node.findall('m:eqArr/m:e',NS)
+                    if not rows:fail('Display equation array has no final row')
+                    mark=ET.SubElement(rows[-1],qn('m:r'))
+                    props=ET.SubElement(mark,qn('m:rPr'))
+                    ET.SubElement(props,qn('m:sty')).set(qn('m:val'),'p')
+                    ET.SubElement(mark,qn('m:t')).text=string
+                    string=''
+                if display_node is not formula['node']:
+                    block['display_node']=display_node
+                    block['display_tree_sha256']=tree_signature(block['display_node'])
                 formula_uses[block['formula_id']] += 1
             elif btype in {'figure', 'figure_description'}:
                 fields(block, ('id', 'type', 'figure_id'), where=btype)
@@ -631,7 +688,7 @@ def paragraph_format(p, role='body', section='description'):
     props.append(spacing)
     props.append(element('w:snapToGrid', val='1' if indented else '0'))
     for name in ('autoSpaceDE', 'autoSpaceDN'):
-        props.append(element('w:' + name, val='1' if section == 'claims' else '0'))
+        props.append(element('w:' + name, val='0'))
     # Ordinary prose must use the remaining page area and continue naturally.
     # Keep only an actual indivisible object or short heading together.
     props.append(element('w:keepLines', val=0 if role == 'body' else 1))
@@ -842,8 +899,8 @@ def render_document(context, path):
                 paragraph_format(p, 'formula', kind)
                 # The correct reference centers an inline math object in its
                 # own paragraph, keeping the following prose semicolon inline.
-                p._p.append(deepcopy(context['formulas'][block['formula_id']]['node']))
-                suffix = formula_suffix(context['formulas'][block['formula_id']])
+                p._p.append(deepcopy(block.get('display_node',context['formulas'][block['formula_id']]['node'])))
+                suffix = context['block_texts'][block['id']]
                 if suffix:
                     font(p.add_run(suffix))
             elif btype == 'figure_description':
@@ -1042,6 +1099,8 @@ def verify_document(context, path):
         require(attributes(p.find('w:pPr/w:ind', NS)) == wanted_ind, 'paragraph indentation changed: ' + block['id'])
         wanted_alignment = 'center' if role in {'project_title', 'formula', 'image'} else 'left'
         require(attributes(p.find('w:pPr/w:jc', NS)).get('val') == wanted_alignment, 'paragraph alignment changed')
+        for prop in ('autoSpaceDE','autoSpaceDN'):
+            require(attributes(p.find('w:pPr/w:'+prop,NS)).get('val')=='0','Automatic extra content spacing changed')
         for prop, value in {'keepLines': int(role != 'body'),
                             'keepNext': int(role in {'heading', 'project_title'} or
                                             (role == 'image' and section == 'figures')),
@@ -1099,7 +1158,7 @@ def verify_document(context, path):
                 else:
                     fail('Readback verification: unexpected paragraph object')
             if block['type'] == 'formula':
-                expected_tokens = [('math', context['formulas'][block['formula_id']]['tree_sha256'])]
+                expected_tokens = [('math', block.get('display_tree_sha256',context['formulas'][block['formula_id']]['tree_sha256']))]
                 if context['block_texts'][block['id']]:
                     expected_tokens.append(('text', context['block_texts'][block['id']]))
             elif 'runs' in block:
@@ -1116,6 +1175,9 @@ def verify_document(context, path):
                                             'source_file': context['sources'][f['source_id']]['file'],
                                             'source_sha256': context['sources'][f['source_id']]['sha256'],
                                             'source_locator': f['locator'], 'tree_sha256': f['tree_sha256'],
+                                            'source_formula_id':f.get('source_formula_id',f['id']),
+                                            'source_tree_sha256':f.get('source_tree_sha256',f['tree_sha256']),
+                                            'source_fragment_path':f.get('source_fragment_path'),
                                             'target_locator': locator, 'text': value})
                     else:
                         value = '图' + str(context['figures'][r['figure_id']]['number']) if r['type'] == 'figure_ref' else r['text']
@@ -1130,11 +1192,17 @@ def verify_document(context, path):
         require(len(math) == len(expected_formulas), 'formula occurrence count mismatch in ' + block['id'])
         for number, (node, formula_id) in enumerate(zip(math, expected_formulas), 1):
             formula = context['formulas'][formula_id]
-            require(tree_signature(node) == formula['tree_sha256'], 'source OMML content/structure changed: ' + formula_id)
+            expected_tree=block.get('display_tree_sha256',formula['tree_sha256']) if block['type']=='formula' else formula['tree_sha256']
+            require(tree_signature(node) == expected_tree, 'source OMML content/structure changed: ' + formula_id)
             object_rows.append({'kind': 'formula', 'id': formula_id, 'category': formula['category'],
                                 'source_file': context['sources'][formula['source_id']]['file'],
                                 'source_sha256': context['sources'][formula['source_id']]['sha256'],
                                 'source_locator': formula['locator'], 'tree_sha256': formula['tree_sha256'],
+                                'source_formula_id':formula.get('source_formula_id',formula_id),
+                                'source_tree_sha256':formula.get('source_tree_sha256',formula['tree_sha256']),
+                                'source_fragment_path':formula.get('source_fragment_path'),
+                                'display_tree_sha256':expected_tree,'display_breaks':block.get('display_breaks'),
+                                'equation_count':formula.get('equation_count',1) if formula['category'] in {'main_formula','source_example'} else 0,
                                 'target_locator': locator + f' oMath[{number}]'})
         expected_math_count += len(expected_formulas)
         if block['type'] != 'figure':
@@ -1174,7 +1242,7 @@ def verify_document(context, path):
             'blocks': block_rows, 'source_objects': object_rows,
             'counts': {'sections': 5, 'blocks': len(block_rows), 'omml_occurrences': expected_math_count,
                        'source_text_occurrences': sum(r['kind'] == 'source_text' for r in object_rows),
-                       'main_formula_occurrences': sum(r.get('category') == 'main_formula' for r in object_rows),
+                       'main_formula_occurrences': sum(r.get('equation_count',1) for r in object_rows if r.get('category')=='main_formula'),
                        'image_occurrences_including_abstract_reuse': expected_images},
             'semantic_review': 'not_run', 'visual_review': 'not_run',
             'boundary': 'Structural readback is not semantic approval. N-to-N uses the supplied classification, not an inferred count of mathematical relationships. Same-page controls require final rendering and visual review.'}

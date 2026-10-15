@@ -188,7 +188,8 @@ class FormulaProseTests(unittest.TestCase):
         handoff_path=self.root/'handoff.json';b.atomic(handoff_path,{'input_inspection':{'inspection':str(report_path)}})
         attempt={'prepared_handoff':{'path':str(handoff_path)},'input_artifact_sha256':r['sha256']}
         policy={'output_contract':contract.MODE}
-        with patch('prepare_handoff.verify_prepared'),patch.object(scan,'inspect',side_effect=AssertionError('second scan')):
+        verified={'handoff':{'input_inspection':{'inspection':str(report_path)}},'input_report':r}
+        with patch('prepare_handoff.verify_prepared',return_value=verified),patch.object(scan,'inspect',side_effect=AssertionError('second scan')):
             old=contract.verify({'policy':policy},{'title':'一种处理系统'},attempt,{'findings':[]})
             self.assertNotIn('formula_contract',old)
             self.assertEqual(old['scope'],'Objective title, located wording and enabled numbering/page-flow checks only; original six reviews and final-page acceptance remain required')

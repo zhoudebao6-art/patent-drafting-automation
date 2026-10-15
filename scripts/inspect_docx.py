@@ -33,6 +33,59 @@ def forbidden_punctuation(char):
                for c in char + unicodedata.normalize('NFKC',char))
 
 
+def literal_content_whitespace(char):
+    """Literal content padding, not mathematical operator or font spacing."""
+    return char.isspace() or char in {'\u200b', '\ufeff'}
+
+
+def content_spacing_hits(root, part):
+    """Scan each parsed part once, including nested text boxes without repeats.
+
+    Word field instructions and property trees are not displayed content. Field
+    results, current insertions, OMML text and DrawingML/chart labels are content.
+    Pictures, font-encoded glyphs and rendered/generated labels remain covered by
+    the existing independent source and final-page review.
+    """
+    w, m, a = (f'{{{NS[key]}}}' for key in ('w', 'm', 'a'))
+    chart_values = {'{http://schemas.openxmlformats.org/drawingml/2006/chart}v',
+                    '{http://schemas.microsoft.com/office/drawing/2014/chartex}v'}
+    paragraphs = {id(p): i for i, p in enumerate(root.findall('.//w:p', NS), 1)}
+    hits = []
+    def add(text, path, paragraph, representation, math):
+        for offset, char in enumerate(text):
+            if literal_content_whitespace(char):
+                hits.append({'part': part, 'paragraph': paragraph, 'path': path,
+                             'offset': offset, 'text': char, 'codepoint': f'U+{ord(char):04X}',
+                             'representation': representation, 'in_formula': math,
+                             'context': text[max(0, offset-20):offset+21]})
+    def walk(node, path, paragraph=None, math=False):
+        # Del/moveFrom can contain nested paragraphs. Their ordinal positions
+        # remain in the locator map, but their removed contents are not scanned.
+        if node.tag in {w+'del', w+'moveFrom', w+'pPr', w+'rPr', w+'tabs', w+'instrText'}:
+            return
+        paragraph = paragraphs.get(id(node), paragraph)
+        math = math or node.tag == m+'oMath'
+        if node.tag in {w+'t', m+'t', a+'t'}:
+            representation = 'math' if math else ('drawing_text' if node.tag == a+'t' else 'text')
+            add(node.text or '', path, paragraph, representation, math)
+        elif part.startswith('word/charts/') and node.tag in chart_values:
+            add(node.text or '', path, paragraph, 'chart_text', math)
+        elif node.tag == f'{{{NS["v"]}}}textpath':
+            add(node.get('string', ''), path, paragraph, 'vml_text', math)
+        elif node.tag == a+'buChar':
+            add(node.get('char', ''), path, paragraph, 'drawing_bullet', math)
+        elif node.tag == w+'tab':
+            # w:tab inside w:pPr/w:tabs was excluded with the property subtree.
+            add('\t', path, paragraph, 'text_tab', math)
+        counts = {}
+        for child in node:
+            name = child.tag.split('}')[-1]
+            counts[name] = counts.get(name, 0) + 1
+            walk(child, f'{path}/{name}[{counts[name]}]', paragraph, math)
+    walk(root, root.tag.split('}')[-1])
+    return hits
+
+
 def punctuation_evidence(root, part):
     """Locate real characters and implicit math fences without rewriting source.
 
@@ -472,6 +525,9 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
             end=math_node.find('./m:dPr/m:endChr',NS)
             glyph=')' if end is None else end.get(m+'val','')
             if glyph:return glyph[-1:]
+        elif math_node.tag==m+'eqArr':
+            rows=math_node.findall('m:e',NS)
+            return terminal_glyph(rows[-1]) if rows else ''
         elif math_node.tag not in {m+'oMath',m+'e'}:
             return '\ufffc'
         for child in reversed(list(math_node)):
@@ -743,6 +799,9 @@ def inspect(path):
               'locator_convention': 'part + 1-based all w:p document order; not page numbers',
               'formula_warning': 'linear_text loses mathematical structure; use omml_xml and visual review',
               'parts': [], 'formulas': [], 'media': [], 'embeddings': [], 'issues': [],
+              'content_spacing_evidence': {'schema_version':1,'artifact_sha256':None,
+                  'complete':False,'extraction_complete':False,'hits':[],
+                  'scope':'Literal Unicode whitespace plus U+200B/U+FEFF in current w:t/m:t/a:t, chart cache text, VML text and actual w:tab content across body, tables, text boxes, headers/footers and extra drawing parts. Excludes deleted/moved-from revisions, field instructions, properties/tab-stop definitions, XML indentation, character tracking and natural math spacing. Offsets are per located text node; no automatic stripping or word concatenation. Images, encoded glyphs and generated labels retain the existing source and final-page review.'},
               'formula_prose_evidence': {'schema_version':1,'artifact_sha256':None,
                   'extraction_complete':False,'complete':False,'explanation_lead_hits':[],
                   'standalone_formula_semicolon_hits':[],'bare_symbol_omml_candidates':[],'plain_label_omml_candidates':[],
@@ -754,6 +813,7 @@ def inspect(path):
               'text_color_evidence': {'review_runs': [],
                   'scope': 'Applied document-default, paragraph/character basedOn and direct Word/OMML run font colors. Unused styles ignored. Automatic colors, table conditional formatting, DrawingML/image text, highlighting and revision display still require final visual review.'}}
     result['formula_prose_evidence']['artifact_sha256']=result['sha256']
+    result['content_spacing_evidence']['artifact_sha256']=result['sha256']
     with zipfile.ZipFile(path) as z:
         if sum(i.file_size for i in z.infolist()) > 512 * 1024 * 1024:
             raise ValueError('Uncompressed DOCX exceeds 512 MiB inspection limit')
@@ -784,6 +844,7 @@ def inspect(path):
         parts.sort(key=lambda n: (n != 'word/document.xml', n))
         for part in parts:
             root = ET.fromstring(z.read(part))
+            result['content_spacing_evidence']['hits'].extend(content_spacing_hits(root, part))
             punctuation=punctuation_evidence(root,part)
             for key in punctuation:result['punctuation_evidence'][key].extend(punctuation[key])
             rels = relationships(z, part)
@@ -850,8 +911,10 @@ def inspect(path):
                      (re.fullmatch(r'word/(charts|diagrams)/.+\.xml',n) or
                       re.fullmatch(r'word/.+\.vml',n))]
         for name in extra_parts:
-            punctuation=punctuation_evidence(ET.fromstring(z.read(name)),name)
+            root=ET.fromstring(z.read(name))
+            punctuation=punctuation_evidence(root,name)
             for key in punctuation:result['punctuation_evidence'][key].extend(punctuation[key])
+            result['content_spacing_evidence']['hits'].extend(content_spacing_hits(root,name))
         if 'word/numbering.xml' in names:
             for index,level in enumerate(numbering_root.findall('.//w:lvlText',NS),1):
                 text=level.get(f'{{{NS["w"]}}}val','')
@@ -859,6 +922,8 @@ def inspect(path):
                     result['punctuation_evidence']['review_candidates'].append({'part':'word/numbering.xml',
                         'path':f'lvlText[{index}]','text':text,'reason':'numbering_definition_requires_applied_display_review_not_all_definitions_are_used'})
         result['punctuation_evidence']['literal_scan_complete']=True
+        result['content_spacing_evidence']['extraction_complete']=True
+        result['content_spacing_evidence']['complete']=True
         result['formula_prose_evidence']['extraction_complete']=True
         result['formula_prose_evidence']['complete']=True
         for name in names:
@@ -1136,6 +1201,9 @@ def precheck(result, kind):
     for hit in result.get('punctuation_evidence',{}).get('preferred_wording_hits',[]):
         add('PREFERRED_WORDING_REVIEW','Rewrite this exact phrase to '+hit['replacement']+' while preserving surrounding technical nouns, conditions and formula identity; no blind replacement.',
             f'{hit["part"]} {hit["path"]} offset {hit["offset"]}')
+    for hit in result.get('content_spacing_evidence',{}).get('hits',[]):
+        add('CONTENT_LITERAL_WHITESPACE', 'Rule v26 final content must not contain literal spaces or padding. Rewrite multiword prose/code from its source or use the correct structure; never blindly concatenate names, alter formula constants or strip the entire XML. Natural math spacing and paragraph/style dimensions are not literal content.',
+            f'{hit["part"]} {hit["path"]} offset {hit["offset"]} {hit["codepoint"]}')
     for part in result['parts']:
         if part['part']=='word/document.xml': continue
         for p in part['paragraphs']:

@@ -11,6 +11,7 @@ PROSE_MODE = 'clean_prose_v19'
 BENEFIT_MODE = 'numbered_benefits_v21'
 LAYOUT_MODE = 'manual_flow_abstract_v22'
 FORMULA_MODE = 'source_math_prose_v23'
+SPACING_MODE = 'no_literal_spaces_v26'
 KNOWN_YIYI = re.compile(r'一一(?:地)?(?:对应|相应|匹配|映射|配对|关联|绑定|核对|对齐|连接|比较|列出|验证|校验|检查|处理|进行|执行|标记|登记|记录|确认|说明)')
 
 
@@ -28,7 +29,7 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False):
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -167,6 +168,22 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         if unresolved_reviews:
             where=', '.join(f'{h["part"]} {h["path"]}:{h["reason"]}' for h in unresolved_reviews[:6])
             raise b.BatchError('Final formula/prose review needs a current source-bound located finding: '+where)
+    if strict_spacing:
+        spacing=report.get('content_spacing_evidence')
+        digest=report.get('sha256')
+        if (not isinstance(spacing,dict) or type(spacing.get('schema_version')) is not int or
+                spacing.get('schema_version')!=1 or spacing.get('complete') is not True or
+                spacing.get('extraction_complete') is not True or
+                not isinstance(digest,str) or not re.fullmatch(r'[0-9a-fA-F]{64}',digest) or
+                spacing.get('artifact_sha256')!=digest or not isinstance(spacing.get('hits'),list) or
+                not isinstance(spacing.get('scope'),str) or not spacing['scope'].strip()):
+            raise b.BatchError('Final content spacing inspection is missing, incomplete or bound to another artifact')
+        # A source_formula finding does not waive a literal-space violation.
+        # Evidence bytes are sealed by verify_prepared; no second DOCX parse.
+        if spacing['hits']:
+            where=', '.join(f'{h.get("part","?")} {h.get("path","?")} offset {h.get("offset","?")}:{h.get("codepoint","?")}'
+                            if isinstance(h,dict) else 'malformed spacing hit' for h in spacing['hits'][:6])
+            raise b.BatchError('Final content spacing contract not satisfied: '+where)
     result={'mode':MODE,'artifact_sha256':report['sha256'],'document_title':expected_title,
             'delivery_filename':filename(expected_title),'title_paragraph':title['paragraph'],
             'scope':'Objective title, located wording and enabled numbering/page-flow checks only; original six reviews and final-page acceptance remain required'}
@@ -176,6 +193,9 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     if strict_formulas:
         result['formula_contract']=FORMULA_MODE
         result['scope']='Objective title, located wording and enabled numbering/page-flow/formula-prose checks only; original six reviews and final-page acceptance remain required'
+    if strict_spacing:
+        result['spacing_contract']=SPACING_MODE
+        result['scope']='Objective title, located wording and enabled numbering/page-flow/formula-prose/literal-spacing checks only; original six reviews and final-page acceptance remain required'
     return result
 
 
@@ -198,4 +218,5 @@ def verify(m,case,attempt,receipt):
                  m['policy'].get('prose_contract')==PROSE_MODE, [s['sha256'] for s in case.get('sources',[])],
                  m['policy'].get('benefit_contract')==BENEFIT_MODE,
                  m['policy'].get('layout_contract')==LAYOUT_MODE,
-                 m['policy'].get('formula_contract')==FORMULA_MODE)
+                 m['policy'].get('formula_contract')==FORMULA_MODE,
+                 m['policy'].get('spacing_contract')==SPACING_MODE)
