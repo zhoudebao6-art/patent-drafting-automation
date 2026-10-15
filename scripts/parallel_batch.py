@@ -12,6 +12,7 @@ POLICY = Path(__file__).resolve().parent.parent / 'references' / 'batch-policy.j
 RULES = Path(__file__).resolve().parent.parent / 'references' / 'rules.json'
 NEXT = {'pending': 'draft', 'drafted': 'review', 'revised': 'review', 'fix_required': 'revise'}
 TERMINAL = b.TERMINAL
+IMMEDIATE_STAGES = 'overlapped_pipeline_v29'
 
 
 class NoReadyWork(BatchError):
@@ -93,6 +94,10 @@ def validate_policy(p):
         raise BatchError('Invalid post-review optimization contract')
     if p.get('post_review_optimization') and p.get('execution_optimization') != 'lean_execution_v24':
         raise BatchError('Single closeout requires lean execution')
+    if p.get('stage_scheduling') not in (None, IMMEDIATE_STAGES):
+        raise BatchError('Invalid stage scheduling policy')
+    if p.get('stage_scheduling') and p['delivery'].get('timing') != 'after_each_acceptance':
+        raise BatchError('Immediate stages require per-case delivery')
 
 @contextmanager
 def locked(path, timeout=10):
@@ -291,6 +296,12 @@ def capacity_value(m, capacity):
 def plan_manifest(m, capacity, first_only=False):
     capacity_value(m, capacity)
     active = [c for c in m['projects'] if c['active_attempt']]
+    immediate = m['policy'].get('stage_scheduling') == IMMEDIATE_STAGES
+    accepted = [c['id'] for c in m['projects'] if c['status'] == 'accepted' and not c['active_attempt']]
+    if immediate and accepted:
+        return {'action': 'deliver', 'reason': 'Publish accepted cases before reserving another stage',
+                'active_workers': len(active), 'capacity': capacity, 'ready': [], 'blocked': [],
+                'accepted_case_ids': accepted}
     if len(active) >= capacity:
         return {'action': 'wait', 'reason': 'All actual worker slots occupied', 'active_workers': len(active), 'capacity': capacity, 'ready': [], 'blocked': []}
     in_flight = sum(c['status'] not in TERMINAL and (c['status'] != 'pending' or c['active_attempt'] is not None) for c in m['projects'])
@@ -315,9 +326,19 @@ def plan_manifest(m, capacity, first_only=False):
     free = capacity - len(active)
     # One worker alternates available draft and follow-up work. Larger pools
     # reserve the last free position for drafting, while draining reviews first.
-    prefer_draft = bool(drafts) and active_drafts < m['policy']['concurrency']['min_draft_slots'] and (
-        (capacity == 1 and m.get('last_reserved_stage') != 'draft') or
-        (capacity > 1 and free <= m['policy']['concurrency']['min_draft_slots'] - active_drafts))
+    if immediate:
+        # Two work-conserving lanes: fill ready review/repair work to its share,
+        # then keep drafting in parallel. A lane with no ready work lends its
+        # slots; never preempt running attempts. With one slot finish the case.
+        draft_target = max(1, capacity // 2)
+        review_target = capacity - draft_target
+        active_followups = len(active) - active_drafts
+        prefer_draft = (capacity > 1 and bool(drafts) and active_drafts < draft_target
+                        and active_followups >= review_target)
+    else:
+        prefer_draft = bool(drafts) and active_drafts < m['policy']['concurrency']['min_draft_slots'] and (
+            (capacity == 1 and m.get('last_reserved_stage') != 'draft') or
+            (capacity > 1 and free <= m['policy']['concurrency']['min_draft_slots'] - active_drafts))
     ordered = (drafts + followups) if prefer_draft else (followups + drafts)
     ready = []
     for row in ordered:

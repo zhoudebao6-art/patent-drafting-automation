@@ -71,16 +71,29 @@ class QueueFixture:
         return value
 
     def write_docx(self, path, token):
-        doc = Document()
-        flow = doc.styles['Normal'].paragraph_format
-        flow.keep_together = flow.keep_with_next = flow.page_break_before = flow.widow_control = False
-        for text in ('说明书摘要', '本发明提供记录处理。', '摘要附图', '权利要求书',
-                     '1.一种处理系统，其特征在于，依照权利要求限定的记录处理。',
-                     '说明书', '一种处理系统', '技术领域', '本发明涉及记录处理。',
-                     '发明内容', '本发明提供记录处理。', '与现有技术相比，本发明的有益效果在于：',
-                     '1.通过保留记录支持回查。', '附图说明', '具体实施方式', '保存对应记录。', token, '说明书附图'):
-            doc.add_paragraph(text)
-        doc.save(path)
+        # Keep the model-routing fixture compliant with current content/layout
+        # defaults using the same shared authoring helper, not a parallel template.
+        import json
+        import shutil
+        import authoring_toolkit as toolkit
+        from test_authoring_toolkit import minimal_spec
+        path = Path(path)
+        spec = minimal_spec()
+        spec.update(project_title='一种处理系统', protected_names=[], invention_from_claims=True)
+        spec['sections'][0]['blocks'][0]['text']='本发明提供记录处理。'
+        spec['sections'][2]['blocks']=[dict(id='claim1',type='paragraph',role='body',
+            text='1.一种处理系统，其特征在于，所述处理系统包括记录模块，所述记录模块用于接收记录，所述记录供回查使用。')]
+        lines=[('project_title','一种处理系统'),('heading','技术领域'),('body','本发明涉及记录处理。'),
+               ('heading','发明内容'),('body','与现有技术相比，本发明的有益效果在于：'),
+               ('body','1.通过保留记录支持回查。'),('heading','附图说明'),
+               ('heading','具体实施方式'),('body','保存对应记录。'),('body',token)]
+        spec['sections'][3]['blocks']=[dict(id='section'+str(i),type='paragraph',role=role,text=text)
+                                      for i,(role,text) in enumerate(lines)]
+        with tempfile.TemporaryDirectory(dir=path.parent) as temp:
+            root=Path(temp)
+            (root/'spec.json').write_text(json.dumps(spec,ensure_ascii=False),encoding='utf-8')
+            toolkit.build(root,'spec.json','generated')
+            shutil.copyfile(root/'generated/draft.docx',path)
 
     def record(self, reserved, verdict=None):
         verdict = verdict or ('pass' if reserved['attempt']['stage'] == 'review' else 'complete')
@@ -94,7 +107,7 @@ class QueueFixture:
     def revised_receipt(self, reserved):
         attempt = reserved['attempt']
         artifact = Path(attempt['directory']) / 'revised.docx'
-        self.write_docx(artifact, 'corrected ' + attempt['id'])
+        self.write_docx(artifact, 'corrected_' + attempt['id'])
         return dict(NEW_MODELS['review'], context=attempt['context'], stage='review',
                     agent_id='/root/' + attempt['task_name'], verdict='revised',
                     reviewed_sha256=attempt['input_artifact_sha256'], artifact=str(artifact),

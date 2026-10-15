@@ -19,6 +19,8 @@ description: 按用户指定文件夹滚动并行撰写专利文件，使用GPT-
 
 ## 主控批量执行
 
+版本29按撰写区和复查修改区同时推进：单件初稿收取后立即交接复查队列，撰写区同时继续其他案；通过一件立即交付桌面同一文件夹，不等整批。默认4个实际槽位目标2写加2复查，空区可借槽，review/revise/重验共用复查区；同案attempt隔离、不能互写或一案两阶段同时运行。满槽等下一可用名额；仅1槽才按同案连续阶段顺序执行，不能假称并行。
+
 1. 按[批处理流程](references/batch-workflow.md)识别来源、冻结队列，模型策略见[batch-policy.json](references/batch-policy.json)。新批次使用parallel_batch.py；旧serial批次用batch_tool.py及其[历史流程](references/batch-workflow-serial.md)。不静默迁移运行中的案。
 2. 每批按[运行环境](references/runtime.md)预检一次。仅首次、配置变动或新故障做小样；普通批次不跑技能回归、不查GitHub、不通读历史案例。DOCX工作遵守可用documents技能。
 3. 新批次init一次复制本技能规范与执行工具，编译单份阶段清单。后续队列/CLI命令自动进入本批冻结版本；阶段交接只验证和复用，不逐案重新编译。实现与边界见[快速执行](references/fast-execution.md)。

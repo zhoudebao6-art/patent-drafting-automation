@@ -21,7 +21,7 @@ class CliPoolTests(unittest.TestCase):
         b.atomic(self.batch/'policy.snapshot.json', m['policy']); b.atomic(self.manifest, m)
         (self.batch/'cli-pool').mkdir(exist_ok=True)
 
-    def fixture_cli(self, r, bind=True):
+    def fixture_cli(self, r, bind=True, verdict=None):
         a = r['attempt']; root = Path(a['directory'])
         model = {k: r['spawn_arguments'][k] for k in ('model', 'reasoning_effort')}
         (root/'prompt.txt').write_bytes(b'fixture input')
@@ -33,14 +33,15 @@ class CliPoolTests(unittest.TestCase):
         if bind:
             with patch.object(ce, 'process_identity', return_value=identity):
                 p.bind(self.manifest, r['case_id'], a['id'], root/'dispatch.json')
-        receipt = self.receipt(r); receipt['agent_id'] = ev['agent_id']
+        receipt = self.receipt(r) if verdict is None else self.receipt(r, verdict)
+        receipt['agent_id'] = ev['agent_id']
         ident = str(uuid.uuid4())
         events = [{'type': 'thread.started', 'thread_id': ident},
                   {'type': 'turn.started'},
                   {'type': 'item.completed', 'item': {'type': 'agent_message', 'text': json.dumps(receipt)}},
                   {'type': 'turn.completed'}]
         session = [{'type': 'session_meta', 'payload': {'id': ident, 'source': 'exec', 'cwd': str(root)}},
-                   {'type': 'turn_context', 'payload': {'model': model['model'], 'effort': 'high', 'cwd': str(root),
+                   {'type': 'turn_context', 'payload': {'model': model['model'], 'effort': model['reasoning_effort'], 'cwd': str(root),
                                                       'sandbox_policy': {'type': 'workspace-write'}}},
                    {'type': 'response_item', 'payload': {'type': 'message', 'role': 'user', 'content': [
                        {'type': 'input_text', 'text': 'fixture input'}]}}]

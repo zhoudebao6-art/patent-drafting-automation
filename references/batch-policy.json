@@ -55,5 +55,6 @@
   "execution_optimization": "lean_execution_v24",
   "post_review_optimization": "single_closeout_v25",
   "spacing_contract": "no_literal_spaces_v26",
-  "invention_contract": "claims_mirror_v27"
+  "invention_contract": "claims_mirror_v27",
+  "stage_scheduling": "overlapped_pipeline_v29"
 }

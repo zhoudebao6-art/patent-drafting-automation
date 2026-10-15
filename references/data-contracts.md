@@ -32,6 +32,8 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 
 ## 批次记录
 
+版本29新批次策略stage_scheduling=overlapped_pipeline_v29绑定在原policy快照内，必须配合after_each_acceptance。撰写区为draft，复查修改区为review/revise及独立review；各自使用本案原有独立attempt工作目录，不复制整案到第二公共目录。已有阶段、来源、模型和哈希字段即为隔离依据，不新增worker回执必填字段。队列plan在accepted且无活跃attempt时先返回action=deliver及accepted_case_ids，ready为空，手工控制器先交付再占槽。缺少标记的旧批次保持原调度和收稿行为。
+
 `batch-policy.json` 是批处理可执行配置，与rules.json中的BATCH规则同步维护；具体编排见batch-workflow.md。每次init在工作目录建立批次清单，冻结输入目录、输入文件哈希、项目ID及顺序、桌面路径、模型策略和时间。每案保存当前阶段、稿件路径/哈希、阶段回执、真实派发证据、审阅问题和交付状态。输入来源、实际派发、最终文件三类证据不能互相替代。
 
 派发记录是主控从真实工具调用保存的 `{tool, arguments, result, context}`，context为本批次的 `{batch_id, case_id, stage}`，用于避免把其他项目/阶段的派发记录误用。阶段身份为 `{stage, agent_id, model, reasoning_effort, dispatch_evidence}`；draft/revise加artifact，review加reviewed_sha256、verdict、findings及checks。具体字段校验由batch_tool.py负责；状态和哈希检查不等于数学或法律正确性鉴证。

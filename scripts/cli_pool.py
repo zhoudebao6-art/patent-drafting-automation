@@ -279,7 +279,7 @@ def release_failed(manifest, c, a, reason, controller):
     queue.defer(manifest, c['id'], 'failed', reason, controller)
 
 
-def collect(manifest, controller, *, state=None, suppress_delivery=False):
+def collect(manifest, controller, *, state=None, suppress_delivery=False, drain=False):
     """Collect each exited worker once; never accept an early receipt from a live CLI."""
     changed = False; stop_launching = False
     m = queue.load_manifest(manifest) if state is None else state
@@ -364,6 +364,13 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False):
                     else:
                         event(manifest, 'delivered', case_id=c['id'], destination=str(destination))
             changed = True
+            if (m['policy'].get('stage_scheduling') == queue.IMMEDIATE_STAGES
+                    and not stop_launching and not suppress_delivery and not drain):
+                # One complete record/publication boundary releases a slot.
+                # Return to run now, rather than validating every other exit
+                # before dispatching this case's next stage. Bind-only paths
+                # above never reach here; known pool failures still drain.
+                break
         except (ValueError, OSError, KeyError, TypeError, queue.BatchError) as exc:
             # Unknown ownership/exit is not a failed, releasable worker. Keep its
             # slot, stop new paid launches, and continue collecting other cases.
@@ -389,6 +396,7 @@ def run(manifest, controller, workers=4, executable=None):
     # original short-lived lock and all existing acceptance/delivery verification.
     with queue.locked(pool/'owner.json', timeout=0):
         halted = False
+        drain_before_stop = False
         blocking_reasons = []
         history_audit_failed = False
         # Restart is a new trust boundary. Audit published history once before
@@ -405,8 +413,13 @@ def run(manifest, controller, workers=4, executable=None):
         event(manifest, 'pool_started', workers=workers, executable=executable)
         while True:
             m = queue.load_manifest(manifest)
+            drained_this_iteration = drain_before_stop or history_audit_failed or (
+                halted and m['policy'].get('stage_scheduling') == queue.IMMEDIATE_STAGES)
+            drain_before_stop = False
             if history_audit_failed:
                 changed, failure = collect(manifest, controller, state=m, suppress_delivery=True)
+            elif drained_this_iteration:
+                changed, failure = collect(manifest, controller, state=m, drain=True)
             else:
                 changed, failure = collect(manifest, controller, state=m)
             halted = halted or failure
@@ -448,7 +461,17 @@ def run(manifest, controller, workers=4, executable=None):
                           stage=reserved['attempt']['stage'], active_cli_slots=active+1)
                     continue  # Fill every free slot before waiting for a worker.
             waiting = any(r['next_action'] == 'wait_cli' for r in snapshot['cases'])
-            if not active or (halted and not waiting) or any(r['next_action'] == 'wait_external_worker' for r in snapshot['cases']):
+            stopping = (not active or (halted and not waiting)
+                        or any(r['next_action'] == 'wait_external_worker' for r in snapshot['cases']))
+            if (stopping and not drained_this_iteration
+                    and m['policy'].get('stage_scheduling') == queue.IMMEDIATE_STAGES
+                    and any(r['next_action'] == 'verify_and_collect' for r in snapshot['cases'])):
+                # status may discover an interrupted peer after the single-case
+                # yield. Drain once before stopping; unresolved evidence after
+                # that drain must not spin indefinitely or release its slot.
+                drain_before_stop = True
+                continue
+            if stopping:
                 result = status(manifest)
                 result['halted'] = halted
                 result['blocking_reasons'] = blocking_reasons

@@ -15,7 +15,7 @@ python scripts/cli_pool.py status --manifest 批次manifest.json
 
 `run`是实际执行命令，会消费当前CLI登录账户的模型额度。用户无需手动逐案输入命令；总控保持运行并观察完成/交付事件。需要指定版本时追加`--executable 原生codex.exe绝对路径`。自动探测PATH中的原生exe或本机`LOCALAPPDATA/OpenAI/Codex/bin/*/codex.exe`的最新文件；不经cmd包装器或shell拼接启动。
 
-默认目标4个worker，受冻结target_workers、在制项目上限、实际账户额度及机器资源限制；新CLI与已有本批collaboration活动attempt共用占槽，不能重复计算容量。app子代理槽和独立CLI是不同执行通道，2个app名额并不自动证明可用4个CLI；本机已完成4路实测，其他环境要据实验证。一个槽空出即收稿、验收成功即交付，然后推进待复查/修正或下一案，不等待一组全部完成。
+默认目标4个worker，受冻结target_workers、在制项目上限、实际账户额度及机器资源限制；新CLI与已有本批collaboration活动attempt共用占槽，不能重复计算容量。app子代理槽和独立CLI是不同执行通道，2个app名额并不自动证明可用4个CLI；本机已完成4路实测，其他环境要据实验证。版本29双区同时运行：默认4槽为2写加2复查修改，复查暂时无待办可借给撰写，反向同理。每件初稿收完就调度复查队列，另一撰写任务继续；复查已满时等下一可用复查槽，撰写区仍补下一案。单件收稿和必要交付完成后立即返回run补位，不等待本轮其他完成稿逐个核验；bind-only不提前返回，已知池级故障、已halted轮及历史审计失败继续drain。验收成功当场交付桌面，不等待其他案；原先的原稿/新稿哈希及独立重验门禁保留。
 
 启动时一次非模型预检核验Windows、CLI必要参数和登录状态；这不等于文档工具验收。仅环境首次配置或变动时需要小样，不逐案做付费探针。渲染环境沿用runtime.md；模型与文档工具都不可用时如实报告，不写虚假成功。CLI执行使用workspace-write，完整保留宿主安全约束和用户配置，不注入ignore-rules、忽略配置、full-access或bypass参数。
 
