@@ -89,6 +89,74 @@ class CliEvidenceTests(unittest.TestCase):
             self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
                              {'session_id': self.session_id, 'receipt': self.receipt})
 
+    def test_collection_scope_shares_parsing_but_not_mutable_results(self):
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None), \
+             patch.object(ce, '_verify_completion_full', wraps=ce._verify_completion_full) as full:
+            with ce.completion_scope(self.attempt, self.dispatch):
+                first = ce.verify_completion(self.attempt, self.dispatch)
+                first['receipt']['verdict'] = 'changed by caller'
+                self.assertEqual(ce.verify_completion(self.attempt, self.dispatch)['receipt'], self.receipt)
+            self.assertEqual(full.call_count, 1)
+            with ce.completion_scope(self.attempt, self.dispatch):
+                ce.verify_completion(self.attempt, self.dispatch)
+            self.assertEqual(full.call_count, 2)
+            ce.verify_completion(self.attempt, self.dispatch)
+            self.assertEqual(full.call_count, 3)
+
+    def test_collection_scope_rejects_changed_sealed_bytes_and_file_identity(self):
+        for name in (*ce.COMPLETION_FILES, 'cli-completion.json'):
+            for replace in (False, True):
+                self.seal()
+                path = self.root / name
+                with self.subTest(name=name, replace=replace), \
+                     patch.object(ce, 'process_identity', return_value=None), \
+                     ce.completion_scope(self.attempt, self.dispatch):
+                    ce.verify_completion(self.attempt, self.dispatch)
+                    data = path.read_bytes()
+                    if replace:
+                        temporary = self.root / 'replacement.tmp'
+                        temporary.write_bytes(data)
+                        os.replace(temporary, path)
+                    else:
+                        path.write_bytes(data + b' ')
+                    with self.assertRaises(ValueError):
+                        ce.verify_completion(self.attempt, self.dispatch)
+                    path.write_bytes(data)
+
+    def test_collection_scope_rejects_resealed_changes_and_wrong_provenance(self):
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None), \
+             ce.completion_scope(self.attempt, self.dispatch):
+            ce.verify_completion(self.attempt, self.dispatch)
+            for key, value in [('id', 'other'), ('context', {'case_id': 'other'}),
+                               ('input_artifact_sha256', 'changed')]:
+                attempt = dict(self.attempt, **{key: value})
+                with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'scope provenance'):
+                    ce.verify_completion(attempt, self.dispatch)
+            dispatch = copy.deepcopy(self.dispatch)
+            dispatch['arguments']['reasoning_effort'] = 'xhigh'
+            with self.assertRaisesRegex(ValueError, 'scope provenance'):
+                ce.verify_completion(self.attempt, dispatch)
+            self.events[-1]['usage'] = {'input_tokens': 2}
+            self.seal()
+            with self.assertRaisesRegex(ValueError, 'seal changed'):
+                ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_collection_scope_rechecks_live_process_and_clears_on_exception(self):
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None), \
+             patch.object(ce, '_verify_completion_full', wraps=ce._verify_completion_full) as full:
+            with self.assertRaisesRegex(RuntimeError, 'interrupt'):
+                with ce.completion_scope(self.attempt, self.dispatch):
+                    ce.verify_completion(self.attempt, self.dispatch)
+                    with patch.object(ce, 'process_identity', return_value=self.identity):
+                        with self.assertRaisesRegex(ValueError, 'still live'):
+                            ce.verify_completion(self.attempt, self.dispatch)
+                    raise RuntimeError('interrupt')
+            ce.verify_completion(self.attempt, self.dispatch)
+            self.assertEqual(full.call_count, 2)
+
     def retry_event(self, message=None):
         return {'type': 'error', 'message': message if message is not None else
                 'Reconnecting... 2/5 (stream disconnected before completion: transport interrupted)'}

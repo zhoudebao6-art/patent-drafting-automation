@@ -184,13 +184,14 @@ def verify(m,case,attempt,receipt):
     import prepare_handoff as handoff
     # Hash-bound existing evidence; no second ZIP parse and no new model call.
     try:
-        handoff.verify_prepared(m,case,attempt)
+        verified = handoff.verify_prepared(m,case,attempt)
     except (ValueError, OSError, KeyError) as exc:
         raise b.BatchError('Final wording/title evidence is invalid: '+str(exc)) from exc
-    prepared=b.read(attempt['prepared_handoff']['path'])
-    summary=prepared['input_inspection']
-    if not summary: raise b.BatchError('Final wording/title inspection is missing')
-    report=b.read(summary['inspection'])
+    if not verified or not verified['handoff']['input_inspection']:
+        raise b.BatchError('Final wording/title inspection is missing')
+    # Reuse the exact JSON object just parsed and verified in this invocation.
+    # No persisted pass cache: all paths, bytes and semantic checks still run.
+    report=verified['input_report']
     if report.get('sha256') != attempt['input_artifact_sha256']:
         raise b.BatchError('Final wording/title report refers to another artifact')
     return check(report,case['title'],receipt.get('findings',[]),

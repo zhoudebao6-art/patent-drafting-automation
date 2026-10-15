@@ -52,16 +52,22 @@ def preflight(config):
     import pdf2image  # noqa: F401
     return paths
 
-def verify_render(output_dir, input_path):
-    """Validate immutable render evidence; does not claim visual acceptance."""
+def verify_render(output_dir, input_path, *, check_format=True, expected_evidence_sha256=None):
+    """Validate render bytes. Only controller-bound prior validation may skip
+    repeated decoding; the public CLI and initial acceptance always decode.
+    Neither path claims visual acceptance.
+    """
     root = Path(output_dir).resolve()
-    evidence = read(root/'render.json')
+    evidence_path = root/'render.json'
+    raw = evidence_path.read_bytes()
+    consumed_sha256 = hashlib.sha256(raw).hexdigest()
+    if expected_evidence_sha256 is not None and consumed_sha256 != expected_evidence_sha256:
+        raise RenderError('Consumed render evidence differs from accepted SHA')
+    evidence = json.loads(raw.decode('utf-8-sig'))
     if evidence.get('status') != 'rendered_pending_visual_review':
         raise RenderError('Render did not complete')
     if evidence.get('input_sha256') != sha(input_path):
         raise RenderError('Render belongs to different DOCX bytes')
-    from PIL import Image
-    from pypdf import PdfReader
     entries = [evidence['pdf'], *evidence['pages']]
     if not evidence['pages']:
         raise RenderError('No rendered pages')
@@ -69,13 +75,19 @@ def verify_render(output_dir, input_path):
         p = root/row['file']
         if p.resolve().parent != root or not p.is_file() or sha(p) != row['sha256']:
             raise RenderError('Missing or changed rendered artifact')
-    if len(PdfReader(root/evidence['pdf']['file']).pages) != len(evidence['pages']):
-        raise RenderError('PDF and page image counts differ')
     for i, row in enumerate(evidence['pages'], 1):
         if row['file'] != f'page-{i}.png':
             raise RenderError('Rendered page sequence is incomplete')
-        with Image.open(root/row['file']) as im:
-            im.verify()
+    if check_format:
+        from PIL import Image
+        from pypdf import PdfReader
+        if len(PdfReader(root/evidence['pdf']['file']).pages) != len(evidence['pages']):
+            raise RenderError('PDF and page image counts differ')
+        for row in evidence['pages']:
+            with Image.open(root/row['file']) as im:
+                im.verify()
+    if sha(evidence_path) != consumed_sha256:
+        raise RenderError('Render evidence changed during verification')
     return evidence
 
 def font_identity(config):

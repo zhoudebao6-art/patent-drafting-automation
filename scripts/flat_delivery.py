@@ -221,6 +221,13 @@ def recover_published_cases(m, verify):
     return recovered
 
 
+class QuarantinedInput(b.BatchError):
+    """Controller has persisted this case's changed-input quarantine."""
+    def __init__(self, case_id):
+        self.case_id=case_id
+        super().__init__('Original input changed; case quarantined before publication')
+
+
 def deliver(path, m, verify, *, force_history_audit=False):
     selected = [c for c in m['projects'] if c['status'] in {'accepted', 'delivered'}]
     closed = all(c['status'] in b.TERMINAL and not c.get('active_attempt') for c in m['projects'])
@@ -255,7 +262,16 @@ def deliver(path, m, verify, *, force_history_audit=False):
     final = copy.deepcopy(m)
     for c in final['projects']:
         if c['status'] not in {'accepted', 'delivered'} or c.get('active_attempt'): continue
-        entry = publish_case(m, c, dest, verify)
+        try:
+            entry = publish_case(m, c, dest, verify)
+        except QuarantinedInput as exc:
+            original=next(row for row in m['projects'] if row['id']==c['id'])
+            if (m['policy'].get('post_review_optimization')!='single_closeout_v25'
+                    or exc.case_id!=c['id'] or original['status']!='needs_input'
+                    or original['receipts'][-1].get('event')!='controller_input_change'):
+                raise
+            c.clear();c.update(copy.deepcopy(original))
+            continue
         old = final['delivery_items'].get(c['id'])
         if old is not None and old != entry: raise b.BatchError('Published case identity changed')
         final['delivery_items'][c['id']] = entry

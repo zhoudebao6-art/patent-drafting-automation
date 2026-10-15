@@ -81,6 +81,10 @@ def validate_policy(p):
     if p.get('execution_optimization') and (p.get('worker_preparation') != 'frozen_stage_packet_v1'
                                            or p['delivery'].get('layout') != 'flat_final_files'):
         raise BatchError('Lean execution requires frozen preparation and flat delivery')
+    if p.get('post_review_optimization') not in (None, 'single_closeout_v25'):
+        raise BatchError('Invalid post-review optimization contract')
+    if p.get('post_review_optimization') and p.get('execution_optimization') != 'lean_execution_v24':
+        raise BatchError('Single closeout requires lean execution')
 
 @contextmanager
 def locked(path, timeout=10):
@@ -423,7 +427,13 @@ def bind(path, case_id, attempt, dispatch, controller='controller'):
         return copy.deepcopy(a)
     return mutate(path, controller, apply)
 
-def verify_render(m, c, a, render):
+def render_validation(m, c, a, render):
+    return {'schema_version': 1, 'context': context(m,c,a), 'input': a['input_artifact'],
+            'render': copy.deepcopy(render), 'renderer_sha256': b.sha(renderer.__file__),
+            'controller_sha256': b.sha(__file__)}
+
+
+def verify_render(m, c, a, render, *, validation=None):
     if not isinstance(render, dict) or render.get('artifact_sha256') != a['input_artifact_sha256']:
         raise BatchError('Render must bind the current reviewed artifact SHA')
     if not isinstance(render.get('evidence'), str) or not isinstance(render.get('evidence_sha256'), str):
@@ -442,7 +452,15 @@ def verify_render(m, c, a, render):
         p = file_path(evidence_path.parent / f['file'], evidence_path.parent)
         if p.parent != evidence_path.parent: raise BatchError('Render file must be directly in render directory')
     try:
-        renderer.verify_render(evidence_path.parent, a['input_artifact'])
+        if validation is not None:
+            if (m['policy'].get('post_review_optimization') != 'single_closeout_v25'
+                    or validation != render_validation(m,c,a,render)):
+                raise BatchError('Controller render validation binding changed')
+            renderer.verify_render(evidence_path.parent, a['input_artifact'], check_format=False,
+                                   expected_evidence_sha256=render['evidence_sha256'])
+        else:
+            renderer.verify_render(evidence_path.parent, a['input_artifact'],
+                                   expected_evidence_sha256=render['evidence_sha256'])
     except (ValueError, OSError, KeyError, TypeError) as e:
         raise BatchError('Canonical render verification failed: ' + str(e)) from e
     return copy.deepcopy(render)
@@ -481,6 +499,9 @@ def record(path, case_id, attempt, receipt, controller='controller'):
             from worker_receipt import precheck_receipt
             precheck_receipt(m, c, a, receipt)
         r = copy.deepcopy(receipt); verdict = r.get('verdict')
+        # This is controller evidence, never a worker-supplied shortcut.
+        if m['policy'].get('post_review_optimization') == 'single_closeout_v25':
+            r.pop('render_validation', None)
         if verdict in {'failed', 'needs_input'}:
             if not isinstance(r.get('reason'), str) or not r['reason'].strip(): raise BatchError('Concrete failure reason required')
             c['status'] = verdict
@@ -504,6 +525,8 @@ def record(path, case_id, attempt, receipt, controller='controller'):
                 if any(r['checks'].get(k) != 'passed' for k in b.CHECKS) or any(not isinstance(f, dict) or f.get('status') not in {'resolved', 'closed'} for f in r['findings']):
                     raise BatchError('Incomplete six-check acceptance or unresolved finding')
                 r['render'] = verify_render(m, c, a, r.get('render'))
+                if m['policy'].get('post_review_optimization') == 'single_closeout_v25':
+                    r['render_validation'] = render_validation(m,c,a,r['render'])
                 if m['policy'].get('output_contract'):
                     import output_contract
                     r['document_contract'] = output_contract.verify(m,c,a,r)
@@ -587,6 +610,8 @@ def deliver(path, controller='controller', *, audit_history=False):
                 original = case_by_id(m, c['id'])
                 if c['status'] == 'accepted' and quarantine_changed_input(m, original):
                     b.atomic(path, m)
+                    if m['policy'].get('post_review_optimization') == 'single_closeout_v25':
+                        raise flat.QuarantinedInput(c['id'])
                     raise BatchError('Input changed during delivery; case quarantined; retry delivers remaining cases')
                 verify_case(m, c)
                 if c.get('active_attempt'): raise BatchError('Accepted case has active attempt')
@@ -594,7 +619,9 @@ def deliver(path, controller='controller', *, audit_history=False):
                     raise BatchError('Artifact changed after acceptance')
                 r = c['receipts'][-1]
                 a = next(x for x in c['attempts'] if x['id'] == r['context']['attempt'])
-                verify_render(m, c, a, r.get('render'))
+                validation = (r.get('render_validation') if c['status']=='accepted'
+                              and m['policy'].get('post_review_optimization')=='single_closeout_v25' else None)
+                verify_render(m, c, a, r.get('render'), validation=validation)
                 if m['policy'].get('output_contract'):
                     import output_contract
                     if output_contract.verify(m,c,a,r) != r.get('document_contract'):
@@ -608,8 +635,9 @@ def deliver(path, controller='controller', *, audit_history=False):
                     event.update(original_inputs_changed=True, reason=str(exc))
                 m.setdefault('delivery_recovery_events', []).append(event)
             quarantined = False
-            for c in m['projects']:
-                if c['status'] == 'accepted': quarantined = quarantine_changed_input(m, c) or quarantined
+            if m['policy'].get('post_review_optimization') != 'single_closeout_v25':
+                for c in m['projects']:
+                    if c['status'] == 'accepted': quarantined = quarantine_changed_input(m, c) or quarantined
             if quarantined or recovered: b.atomic(path, m)
             if audit_history and flat.enabled(m):
                 return publisher.deliver(path, m, verify, force_history_audit=True)

@@ -1,5 +1,6 @@
 """Bounded, recoverable Codex CLI workers; only the controller changes the queue."""
 from pathlib import Path
+from contextlib import ExitStack
 import argparse
 import json
 import os
@@ -289,11 +290,15 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False):
         if a.get('transport') != 'codex_cli':
             continue
         root = Path(a['directory'])
+        completion_scope = ExitStack()
         try:
             dispatch = root/'dispatch.json'; completed = root/'cli-completion.json'; exited = root/'cli-exit.json'
             if not dispatch.exists():
                 continue
             ev = b.read(dispatch)
+            if (m['policy'].get('post_review_optimization') == 'single_closeout_v25'
+                    and a['state'] == 'reserved'):
+                completion_scope.enter_context(evidence.completion_scope(a, ev))
             if a['state'] == 'reserved' and (observe_identity(ev['result']) or completed.exists()):
                 try:
                     queue.bind(manifest, c['id'], a['id'], dispatch, controller)
@@ -344,7 +349,20 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False):
                       session_id=next(x['cli_session_id'] for x in case['attempts'] if x['id'] == a['id']))
                 if case['status'] == 'accepted' and not suppress_delivery:
                     destination = queue.deliver(manifest, controller)
-                    event(manifest, 'delivered', case_id=c['id'], destination=str(destination))
+                    if m['policy'].get('post_review_optimization') == 'single_closeout_v25':
+                        # Publication can now isolate this case and continue. A
+                        # changed-state reload is necessary before reporting it.
+                        published = queue.case_by_id(queue.load_manifest(manifest), c['id'])
+                        if published['status'] == 'delivered':
+                            event(manifest, 'delivered', case_id=c['id'], destination=str(destination))
+                        elif (published['status'] == 'needs_input' and published['receipts']
+                              and published['receipts'][-1].get('event') == 'controller_input_change'):
+                            event(manifest, 'delivery_input_changed', case_id=c['id'],
+                                  reason=published['receipts'][-1]['reason'], status='needs_input')
+                        else:
+                            raise queue.BatchError('Unexpected case status after publication')
+                    else:
+                        event(manifest, 'delivered', case_id=c['id'], destination=str(destination))
             changed = True
         except (ValueError, OSError, KeyError, TypeError, queue.BatchError) as exc:
             # Unknown ownership/exit is not a failed, releasable worker. Keep its
@@ -355,6 +373,8 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False):
             if not marker.exists():
                 write_new(marker, {'reason': reason})
                 event(manifest, 'worker_needs_attention', case_id=c['id'], reason=reason)
+        finally:
+            completion_scope.close()
     return changed, stop_launching
 
 

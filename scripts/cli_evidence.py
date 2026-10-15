@@ -5,6 +5,9 @@ completion records must be captured and sealed by the sole batch controller.
 """
 import ctypes
 from ctypes import wintypes
+from contextlib import contextmanager
+from contextvars import ContextVar
+import copy
 import hashlib
 import json
 import os
@@ -20,6 +23,30 @@ COMPLETION_FILES = ('events.jsonl', 'worker-final.json', 'session.jsonl', 'promp
 CONNECTION_RETRY = re.compile(
     r'Reconnecting\.\.\. ([1-9][0-9]*)/([1-9][0-9]*) '
     r'\(stream disconnected before completion: [^\r\n]+\)')
+_COMPLETION_SCOPE = ContextVar('cli_completion_scope', default=None)
+
+
+def _completion_binding(attempt, dispatch):
+    # State/binding fields legitimately change between bind and record; execution
+    # provenance, the frozen model arguments and the complete dispatch may not.
+    fields = ('id', 'directory', 'context', 'stage', 'input_artifact',
+              'input_artifact_sha256', 'transport')
+    data = {'attempt': {key: attempt.get(key) for key in fields}, 'dispatch': dispatch}
+    return json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+
+
+@contextmanager
+def completion_scope(attempt, dispatch):
+    """Reuse parsing only inside one controller collection of this exact worker.
+
+    The scope contains no acceptance conclusion. Every use still checks actual
+    execution files and process identity, and the token is discarded on exit.
+    """
+    token = _COMPLETION_SCOPE.set({'binding': _completion_binding(attempt, dispatch), 'proof': None})
+    try:
+        yield
+    finally:
+        _COMPLETION_SCOPE.reset(token)
 
 
 def _require(condition, message):
@@ -190,7 +217,56 @@ def _require_stopped(identity):
              'Original CLI process is still live; keep its worker slot')
 
 
+def _proof_file(root, name):
+    """Read a regular sealed file and retain its actual filesystem identity."""
+    path = _file(root, name)
+    with path.open('rb') as stream:
+        value = os.fstat(stream.fileno())
+        identity = (value.st_dev, value.st_ino)
+        _require(bool(identity[1]), 'Stable CLI evidence file identity required')
+        data = stream.read()
+    current = _file(root, name).stat()
+    _require((current.st_dev, current.st_ino) == identity,
+             'CLI evidence file replaced during verification: ' + name)
+    return data, identity
+
+
+def _recheck_completion(attempt, dispatch, proof):
+    root, identity = _dispatch_record(dispatch, attempt, dispatch.get('arguments'))
+    _require_stopped(identity)
+    seal, seal_identity = _proof_file(root, 'cli-completion.json')
+    _require(seal == proof['seal'] and seal_identity == proof['identities']['cli-completion.json'],
+             'CLI completion seal changed within collection')
+    # Keep both byte-integrity passes from the full verifier; only JSON/session
+    # parsing is shared. Replacement with identical bytes also invalidates proof.
+    for _ in range(2):
+        for name in COMPLETION_FILES:
+            data, file_identity = _proof_file(root, name)
+            _require(_sha(data) == proof['hashes'][name]
+                     and file_identity == proof['identities'][name],
+                     'CLI evidence changed within collection: ' + name)
+    seal, seal_identity = _proof_file(root, 'cli-completion.json')
+    _require(seal == proof['seal'] and seal_identity == proof['identities']['cli-completion.json'],
+             'CLI completion seal changed within collection')
+    _require_stopped(identity)
+    return copy.deepcopy(proof['result'])
+
+
 def verify_completion(attempt, dispatch):
+    """Verify execution on every call; optionally share parsing in one collect."""
+    scope = _COMPLETION_SCOPE.get()
+    if scope is not None:
+        _require(scope['binding'] == _completion_binding(attempt, dispatch),
+                 'CLI completion scope provenance changed')
+        if scope['proof'] is not None:
+            return _recheck_completion(attempt, dispatch, scope['proof'])
+    proof = _verify_completion_full(attempt, dispatch, capture_identity=scope is not None)
+    if scope is not None:
+        scope['proof'] = proof
+    return copy.deepcopy(proof['result'])
+
+
+def _verify_completion_full(attempt, dispatch, *, capture_identity=False):
     """Bind successful exit, raw CLI events, real session context and final JSON."""
     root, identity = _dispatch_record(dispatch, attempt, dispatch.get('arguments'))
     meta_bytes = _file(root, 'cli-completion.json').read_bytes()
@@ -293,13 +369,23 @@ def verify_completion(attempt, dispatch):
             user_inputs.append(''.join(p['text'] for p in content))
     _require(prompt in user_inputs, 'Actual CLI user input does not match the frozen prompt')
     # Re-read hashes to reject evidence rewritten during validation.
+    identities = {}
     for name in COMPLETION_FILES:
-        _require(_sha(_file(root, name).read_bytes()) == meta['files'][name],
+        if capture_identity:
+            current, identities[name] = _proof_file(root, name)
+        else:
+            current = _file(root, name).read_bytes()
+        _require(_sha(current) == meta['files'][name],
                  'CLI evidence changed during verification: ' + name)
-    _require(_file(root, 'cli-completion.json').read_bytes() == meta_bytes,
+    if capture_identity:
+        current, identities['cli-completion.json'] = _proof_file(root, 'cli-completion.json')
+    else:
+        current = _file(root, 'cli-completion.json').read_bytes()
+    _require(current == meta_bytes,
              'CLI completion seal changed during verification')
     _require_stopped(identity)
-    return {'session_id': session_id, 'receipt': receipt}
+    return {'result': {'session_id': session_id, 'receipt': receipt},
+            'seal': meta_bytes, 'hashes': dict(meta['files']), 'identities': identities}
 
 
 def verify_stop(ev, attempt, dispatch):

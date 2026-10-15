@@ -87,7 +87,8 @@ class OutputContractTests(unittest.TestCase):
         report=self.report();report_file=self.root/'inspection.json';b.atomic(report_file,report)
         handoff_file=self.root/'handoff.json';b.atomic(handoff_file,{'input_inspection':{'inspection':str(report_file)}})
         attempt={'prepared_handoff':{'path':str(handoff_file)},'input_artifact_sha256':report['sha256']}
-        with patch('prepare_handoff.verify_prepared') as seal,patch.object(inspector,'inspect',side_effect=AssertionError('duplicate parse')):
+        verified={'handoff':{'input_inspection':{'inspection':str(report_file)}},'input_report':report}
+        with patch('prepare_handoff.verify_prepared',return_value=verified) as seal,patch.object(inspector,'inspect',side_effect=AssertionError('duplicate parse')):
             result=contract.verify({'policy':{'output_contract':contract.MODE}},{'title':'一种处理系统'},attempt,{'findings':[]})
         seal.assert_called_once()
         self.assertEqual(result['artifact_sha256'],report['sha256'])

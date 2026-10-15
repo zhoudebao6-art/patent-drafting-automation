@@ -183,10 +183,11 @@ def verify_inspection(summary, source, expected_sha, kind, allowed_roots):
         raise ValueError('Prepared inspection paths changed')
     if inspector.file_sha(inspector.local_path(directory/'cache.json')) != summary['cache_evidence_sha256']:
         raise ValueError('Prepared cache metadata changed')
-    inspector.verified_cache(directory, identity)
+    report = inspector.verified_cache(directory, identity)
     if (inspector.file_sha(source) != expected_sha
             or inspector.file_sha(inspector.__file__) != identity['extractor_sha256']):
         raise ValueError('Prepared source or extractor changed during binding')
+    return report
 
 
 def verify_prepared(m, case, attempt):
@@ -232,11 +233,13 @@ def verify_prepared(m, case, attempt):
         elif (inspector.local_path(summary['input']) != path or inspector.file_sha(path) != source['sha256']
               or summary['sha256'] != source['sha256'] or summary['status'] != 'read_original_non_docx'):
             raise ValueError('Prepared non-DOCX source changed')
+    input_report = None
     if attempt.get('input_artifact'):
         artifact = inspector.local_path(attempt['input_artifact'])
         if not artifact.is_relative_to(case_root/'stages'):
             raise ValueError('Prepared artifact belongs to a foreign case')
-        verify_inspection(data['input_inspection'], artifact, attempt['input_artifact_sha256'], 'draft',
-                          [artifact.parent/'inspection-cache', Path(attempt['directory'])/'inspection-cache'])
+        input_report = verify_inspection(data['input_inspection'], artifact, attempt['input_artifact_sha256'], 'draft',
+                                         [artifact.parent/'inspection-cache', Path(attempt['directory'])/'inspection-cache'])
     elif data['input_inspection'] is not None:
         raise ValueError('Unexpected prepared input inspection')
+    return {'handoff': data, 'input_report': input_report}

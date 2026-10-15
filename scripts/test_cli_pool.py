@@ -132,6 +132,116 @@ class CliPoolTests(unittest.TestCase):
         self.assertTrue(changed); self.assertFalse(halted)
         self.assertEqual(verify.call_count,1)
 
+    def closeout_fixture(self):
+        from test_lean_execution import LeanTests
+        fixture = LeanTests(); fixture.setUp(); self.addCleanup(fixture.doCleanups)
+        policy = b.read(p.POLICY)
+        policy['post_review_optimization'] = 'single_closeout_v25'
+        b.atomic(p.POLICY, policy)
+        selection = {'projects': [{'title': '项目1', 'source_files': ['1.docx'], 'primary_source': '1.docx'}]}
+        fixture.manifest = p.init(fixture.src, fixture.root/'closeout-work', selection, fixture.root/'desktop')
+        fixture.batch = fixture.manifest.parent
+        (fixture.batch/'cli-pool').mkdir(exist_ok=True)
+        return fixture
+
+    def test_unbound_completion_parses_twice_without_new_frozen_policy(self):
+        self.enable_cli(); r = p.reserve(self.manifest, 4, transport='codex_cli')
+        self.fixture_cli(r, bind=False)
+        with patch.object(ce, 'process_identity', return_value=None), \
+             patch.object(ce, '_verify_completion_full', wraps=ce._verify_completion_full) as full, \
+             patch.object(pool, 'emit'):
+            changed, halted = pool.collect(self.manifest, 'controller')
+        self.assertTrue(changed); self.assertFalse(halted)
+        self.assertEqual(full.call_count, 2)
+
+    def test_new_policy_unbound_completion_parses_once_and_records_real_result(self):
+        fixture = self.closeout_fixture()
+        r = p.reserve(fixture.manifest, 4, transport='codex_cli')
+        self.fixture_cli.__func__(fixture, r, bind=False)
+        with patch.object(ce, 'process_identity', return_value=None), \
+             patch.object(ce, '_verify_completion_full', wraps=ce._verify_completion_full) as full, \
+             patch.object(ce, '_recheck_completion', wraps=ce._recheck_completion) as recheck, \
+             patch.object(pool, 'emit'):
+            changed, halted = pool.collect(fixture.manifest, 'controller')
+        self.assertTrue(changed); self.assertFalse(halted)
+        self.assertEqual((full.call_count, recheck.call_count), (1, 1))
+        self.assertEqual(p.load_manifest(fixture.manifest)['projects'][0]['status'], 'drafted')
+
+    def test_new_policy_change_after_bind_halts_and_does_not_record(self):
+        for replace in (False, True):
+            with self.subTest(replace=replace):
+                fixture = self.closeout_fixture()
+                r = p.reserve(fixture.manifest, 4, transport='codex_cli')
+                self.fixture_cli.__func__(fixture, r, bind=False)
+                original = p.bind
+                def change(*args, **kwargs):
+                    result = original(*args, **kwargs)
+                    path = Path(r['attempt']['directory'])/'events.jsonl'
+                    data = path.read_bytes()
+                    if replace:
+                        import os
+                        temporary = path.with_suffix('.replacement')
+                        temporary.write_bytes(data); os.replace(temporary, path)
+                    else:
+                        path.write_bytes(data + b' ')
+                    return result
+                with patch.object(ce, 'process_identity', return_value=None), \
+                     patch.object(p, 'bind', side_effect=change), patch.object(pool, 'emit'):
+                    changed, halted = pool.collect(fixture.manifest, 'controller')
+                self.assertTrue(changed); self.assertTrue(halted)
+                case = p.load_manifest(fixture.manifest)['projects'][0]
+                self.assertEqual(case['status'], 'failed')
+                self.assertFalse(any(row.get('stage') == 'draft' for row in case['receipts']))
+                self.assertEqual(case['attempts'][0]['state'], 'cancelled')
+                rejection = b.read(Path(r['attempt']['directory'])/'cli-rejection.json')
+                self.assertEqual(rejection['scope'], 'pool')
+
+    def test_delivery_event_matches_actual_outcome_after_source_change(self):
+        import flat_delivery as flat
+        for changed_source in (False,True):
+            with self.subTest(changed_source=changed_source):
+                fixture=self.closeout_fixture();fixture.record(fixture.reserve(1))
+                review=p.reserve(fixture.manifest,1,transport='codex_cli')
+                receipt=fixture.receipt
+                with patch.object(fixture,'receipt',side_effect=lambda job:receipt(job,'pass')):
+                    self.fixture_cli.__func__(fixture,review,bind=False)
+                original=flat.shutil.copyfileobj
+                def copy(src,dest):
+                    original(src,dest)
+                    if changed_source:(fixture.src/'1.docx').write_bytes(b'changed during publication')
+                with patch.object(ce,'process_identity',return_value=None), \
+                     patch.object(flat.shutil,'copyfileobj',side_effect=copy), \
+                     patch.object(pool,'event') as event,patch.object(pool,'emit'):
+                    changed,halted=pool.collect(fixture.manifest,'controller')
+                self.assertTrue(changed);self.assertFalse(halted)
+                events=[call.args[1] for call in event.call_args_list]
+                case=p.load_manifest(fixture.manifest)['projects'][0]
+                files=list((fixture.root/'desktop').rglob('*.docx'))
+                if changed_source:
+                    self.assertEqual(case['status'],'needs_input');self.assertFalse(files)
+                    self.assertIn('delivery_input_changed',events);self.assertNotIn('delivered',events)
+                else:
+                    self.assertEqual(case['status'],'delivered');self.assertEqual(len(files),1)
+                    self.assertIn('delivered',events);self.assertNotIn('delivery_input_changed',events)
+
+    def test_new_policy_does_not_share_completion_across_collect_calls(self):
+        fixture = self.closeout_fixture()
+        r = p.reserve(fixture.manifest, 4, transport='codex_cli')
+        self.fixture_cli.__func__(fixture, r, bind=False)
+        original = pool.event
+        def interrupt(manifest, kind, **kwargs):
+            if kind == 'bound': raise RuntimeError('simulated controller interruption')
+            return original(manifest, kind, **kwargs)
+        with patch.object(ce, 'process_identity', return_value=None), \
+             patch.object(ce, '_verify_completion_full', wraps=ce._verify_completion_full) as full, \
+             patch.object(pool, 'emit'):
+            with patch.object(pool, 'event', side_effect=interrupt):
+                with self.assertRaisesRegex(RuntimeError, 'controller interruption'):
+                    pool.collect(fixture.manifest, 'controller')
+            changed, halted = pool.collect(fixture.manifest, 'controller')
+        self.assertTrue(changed); self.assertFalse(halted)
+        self.assertEqual(full.call_count, 2)
+
     def test_bad_unbound_completion_does_not_prevent_collecting_other_case(self):
         self.enable_cli()
         bad = p.reserve(self.manifest, 4, transport='codex_cli')
