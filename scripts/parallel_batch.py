@@ -60,6 +60,10 @@ def validate_policy(p):
     if p.get('output_contract') and (p.get('worker_preparation')!='frozen_stage_packet_v1' or
                                     p['delivery'].get('layout')!='flat_final_files'):
         raise BatchError('Output contract requires frozen preparation and flat delivery')
+    if p.get('prose_contract') not in (None,'clean_prose_v19'):
+        raise BatchError('Invalid quotation/bracket contract')
+    if p.get('prose_contract') and p.get('output_contract')!='wording_title_v18':
+        raise BatchError('Quotation/bracket contract requires the frozen final output contract')
 
 @contextmanager
 def locked(path, timeout=10):

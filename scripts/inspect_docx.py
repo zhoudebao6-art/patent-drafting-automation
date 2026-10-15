@@ -5,6 +5,7 @@ import json
 import posixpath
 import re
 import stat
+import unicodedata
 import uuid
 import zipfile
 from pathlib import Path
@@ -18,6 +19,131 @@ NS = {
     'v': 'urn:schemas-microsoft-com:vml',
     'o': 'urn:schemas-microsoft-com:office:office',
 }
+
+# Displayed characters only: XML punctuation and diagnostic markers are not prose.
+PUNCTUATION_EXTRA = frozenset('\"\'＂＇❛❜❝❞❟❠🙶🙷🙸' + ''.join(chr(n) for a,b in
+    [(0x239B,0x23AD),(0x23B0,0x23B1),(0x23B4,0x23B6),(0x23DC,0x23E1)] for n in range(a,b+1)))
+PREFERRED_WORDING={'可选的':'优选的','配置为':'用于','正文中':'文中','正文':'文中','源文件':'文中','一一对应':'都相对应'}
+PREFERRED_PATTERN=re.compile('|'.join(map(re.escape,PREFERRED_WORDING)))
+
+
+def forbidden_punctuation(char):
+    # Compatibility-enclosed forms such as ⑴ visibly contain parentheses too.
+    return any(c in PUNCTUATION_EXTRA or unicodedata.category(c) in {'Ps','Pe','Pi','Pf'}
+               for c in char + unicodedata.normalize('NFKC',char))
+
+
+def punctuation_evidence(root, part):
+    """Locate real characters and implicit math fences without rewriting source.
+
+    Prime and comparison operators are not quotation/bracket punctuation. Font
+    encoded glyphs, fields, pictures and generated numbering still need review.
+    """
+    hits=[]; formula_hits=[]; candidates=[]; texts={}
+    paragraphs={id(p):i for i,p in enumerate(root.findall('.//w:p',NS),1)}
+    text_tags={f'{{{NS[n]}}}t' for n in ('w','m','a')}
+    cns='http://schemas.openxmlformats.org/drawingml/2006/chart'
+    def add(text,location,force=False):
+        for offset,ch in enumerate(text):
+            if forbidden_punctuation(ch) or (force and ch in '<>'):
+                target=formula_hits if location['in_formula'] else hits
+                target.append(dict(location,offset=offset,text=ch,codepoint=f'U+{ord(ch):04X}',
+                                 context=text[max(0,offset-16):offset+17]))
+    def walk(node,path,p=0,math=False,group=None):
+        if node.tag in {f'{{{NS["w"]}}}del',f'{{{NS["w"]}}}moveFrom'}:return
+        if node.tag==f'{{{NS["m"]}}}oMath' and not math and group is not None:
+            # Do not join plain words on opposite sides of a preserved formula.
+            texts.setdefault((p,group),[]).append('\ufffc')
+        if not math and group is not None:
+            if node.tag in {f'{{{NS["w"]}}}{n}' for n in ('tab','br','cr')} | {f'{{{NS["a"]}}}br'}:
+                texts.setdefault((p,group),[]).append(' ')
+            elif node.tag in {f'{{{NS["w"]}}}sym',f'{{{NS["a"]}}}blip',f'{{{NS["o"]}}}OLEObject',f'{{{NS["v"]}}}imagedata'}:
+                texts.setdefault((p,group),[]).append('\ufffc')
+        p=paragraphs.get(id(node),p);math=math or node.tag==f'{{{NS["m"]}}}oMath'
+        if node.tag in {f'{{{NS["w"]}}}p',f'{{{NS["a"]}}}p'}:group=path
+        loc={'part':part,'paragraph':p,'path':path,'representation':'math' if math else 'text','in_formula':math}
+        if node.tag in text_tags or (part.startswith('word/charts/') and node.tag==f'{{{cns}}}v'):
+            add(node.text or '',loc)
+            if not math:
+                key=(p,group or path);texts.setdefault(key,[]).append(node.text or '')
+            if not math and any(ch in (node.text or '') for ch in '<>'):
+                candidates.append(dict(loc,reason='ascii_angle_use_requires_semantic_review'))
+        if node.tag==f'{{{NS["v"]}}}textpath':
+            add(node.get('string',''),dict(loc,representation='vml_text'))
+            texts.setdefault((p,path),[]).append(node.get('string',''))
+        if node.tag==f'{{{NS["a"]}}}buChar':
+            add(node.get('char',''),dict(loc,representation='drawing_bullet'))
+        if node.tag==f'{{{NS["m"]}}}d':
+            # Absent properties default to parentheses; an explicit empty
+            # property is an invisible delimiter, including a missing val.
+            for name,default in [('begChr','('),('endChr',')')]:
+                prop=node.find('./m:dPr/m:'+name,NS)
+                value=default if prop is None else prop.get(f'{{{NS["m"]}}}val','')
+                add(value,dict(loc,path=path+'/dPr/'+name,representation='math_delimiter'),True)
+        if node.tag==f'{{{NS["m"]}}}groupChr':
+            prop=node.find('./m:groupChrPr/m:chr',NS)
+            value='⏟' if prop is None else prop.get(f'{{{NS["m"]}}}val','')
+            add(value,dict(loc,path=path+'/groupChrPr/chr',representation='math_group_character'),True)
+        # Other visible mathematical character properties can also carry fences.
+        if node.tag in {f'{{{NS["m"]}}}chr',f'{{{NS["m"]}}}sepChr'}:
+            add(node.get(f'{{{NS["m"]}}}val',''),dict(loc,representation='math_character'))
+        if node.tag in {f'{{{NS["w"]}}}sym',f'{{{NS["w"]}}}fldChar',f'{{{NS["w"]}}}fldSimple',
+                        f'{{{NS["w"]}}}numPr',f'{{{NS["a"]}}}blip',f'{{{NS["o"]}}}OLEObject'}:
+            candidates.append(dict(loc,reason='generated_or_nonliteral_content_requires_existing_visual_review'))
+        counts={}
+        for child in node:
+            tag=child.tag.split('}')[-1];counts[tag]=counts.get(tag,0)+1
+            walk(child,f'{path}/{tag}[{counts[tag]}]',p,math,group)
+    walk(root,root.tag.split('}')[-1])
+    wording=[]
+    for (p,path),chunks in texts.items():
+        text=''.join(chunks)
+        for match in PREFERRED_PATTERN.finditer(text):
+            wording.append({'part':part,'paragraph':p,'path':path,'offset':match.start(),'text':match[0],
+                            'replacement':PREFERRED_WORDING[match[0]],'context':text[max(0,match.start()-24):match.end()+32],
+                            'offset_projection':'plain_text_with_OMML_boundary_placeholder'})
+    return {'hits':hits,'formula_protected_candidates':formula_hits,'review_candidates':candidates,'preferred_wording_hits':wording}
+
+
+def numbered_punctuation(paragraph, numbering, styles):
+    """Resolve directly applied or paragraph-style inherited list label fences.
+
+    Linked numbering styles and renderer-specific labels remain visual evidence;
+    unused list definitions must never become automatic document violations.
+    """
+    if numbering is None:return []
+    style_map=styles
+    vals={};props=paragraph.find('./w:pPr',NS);seen=set()
+    st=props.find('./w:pStyle',NS) if props is not None else None
+    style_id=st.get(f'{{{NS["w"]}}}val') if st is not None else next((k for k,s in style_map.items()
+        if s.get(f'{{{NS["w"]}}}type')=='paragraph' and s.get(f'{{{NS["w"]}}}default')=='1'),None)
+    chain=[props]
+    while style_id and style_id not in seen:
+        seen.add(style_id);style=style_map.get(style_id)
+        if style is None:break
+        chain.append(style.find('./w:pPr',NS));base=style.find('./w:basedOn',NS)
+        style_id=base.get(f'{{{NS["w"]}}}val') if base is not None else None
+    for prop in chain:
+        if prop is None:continue
+        for key in ('numId','ilvl'):
+            n=prop.find('./w:numPr/w:'+key,NS)
+            if n is not None and key not in vals:vals[key]=n.get(f'{{{NS["w"]}}}val')
+    num_id=vals.get('numId');level=vals.get('ilvl','0')
+    if not num_id or num_id=='0':return []
+    num=next((n for n in numbering.findall('./w:num',NS) if n.get(f'{{{NS["w"]}}}numId')==num_id),None)
+    if num is None:return []
+    lvl=next((n.find('./w:lvl',NS) for n in num.findall('./w:lvlOverride',NS)
+              if n.get(f'{{{NS["w"]}}}ilvl')==level and n.find('./w:lvl',NS) is not None),None)
+    if lvl is None:
+        aid=num.find('./w:abstractNumId',NS)
+        abstract=next((n for n in numbering.findall('./w:abstractNum',NS)
+                       if aid is not None and n.get(f'{{{NS["w"]}}}abstractNumId')==aid.get(f'{{{NS["w"]}}}val')),None)
+        if abstract is not None:lvl=next((n for n in abstract.findall('./w:lvl',NS) if n.get(f'{{{NS["w"]}}}ilvl')==level),None)
+    label=lvl.find('./w:lvlText',NS) if lvl is not None else None
+    text=label.get(f'{{{NS["w"]}}}val','') if label is not None else ''
+    return [{'path':f'numbering/num[{num_id}]/level[{level}]/lvlText','offset':i,'text':c,
+             'codepoint':f'U+{ord(c):04X}','context':text,'representation':'applied_numbering'}
+            for i,c in enumerate(text) if forbidden_punctuation(c)]
 
 
 def explicit_properties(node):
@@ -220,7 +346,9 @@ def document_contract_evidence(body):
     description = [p for p in body if (start is not None and p['p'] >= start and (end is None or p['p'] < end)) or
                    re.sub(r'\s+', '', p.get('default_header','')) == '说明书']
     hits = lambda paragraphs,pattern: [
-        {'part':'word/document.xml','paragraph':p['p'],'offset':m.start(),'text':m[0], 'context':p['text'][max(0,m.start()-24):m.end()+32]}
+        {'part':'word/document.xml','paragraph':p['p'],'path':f'paragraph[{p["p"]}]/visible_text',
+         'offset':m.start(),'text':m[0], 'context':p['text'][max(0,m.start()-24):m.end()+32],
+         'formula_protected_candidate':any(s['start']<=m.start() and s['end']>=m.end() for s in p.get('formula_text_spans',[]))}
         for p in paragraphs for m in re.finditer(pattern,p['text'])]
     return {'schema_version':1, 'title':title, 'description_scope_resolved':bool(description),
             'global_word_hits':hits(body,'从而|一一'),
@@ -251,6 +379,21 @@ def paragraph_owned_nodes(paragraph):
     for child in paragraph:
         if child.tag != f'{{{NS["w"]}}}p':
             yield from paragraph_owned_nodes(child)
+
+
+def formula_text_spans(paragraph):
+    """Map native formula ranges into the existing accepted visible-text view."""
+    spans=[];position=0
+    def walk(node):
+        nonlocal position
+        if node.tag in {f'{{{NS["w"]}}}del',f'{{{NS["w"]}}}moveFrom'}:return
+        if node.tag==f'{{{NS["m"]}}}oMath':
+            start=position;position+=len(visible_text(node,True));spans.append({'start':start,'end':position});return
+        if node.tag in {f'{{{NS["w"]}}}{n}' for n in ('t','tab','br','sym')} | {f'{{{NS["m"]}}}t'}:
+            position+=len(visible_text(node,True));return
+        for child in node:
+            if child.tag!=f'{{{NS["w"]}}}p':walk(child)
+    walk(paragraph);return spans
 
 
 def parse_parent_references(head, expansion_limit=1000):
@@ -393,6 +536,9 @@ def inspect(path):
               'locator_convention': 'part + 1-based all w:p document order; not page numbers',
               'formula_warning': 'linear_text loses mathematical structure; use omml_xml and visual review',
               'parts': [], 'formulas': [], 'media': [], 'embeddings': [], 'issues': [],
+              'punctuation_evidence': {'schema_version':2,'literal_scan_complete':False,'hits':[],
+                  'formula_protected_candidates':[],'preferred_wording_hits':[],'review_candidates':[],
+                  'scope':'Prose characters are candidates; OMML punctuation is protected pending original source/formula mapping review. Text/image/OLE formulas, numbering, fields, glyphs and angle characters require existing semantic and final-page review.'},
               'text_color_evidence': {'review_runs': [],
                   'scope': 'Applied document-default, paragraph/character basedOn and direct Word/OMML run font colors. Unused styles ignored. Automatic colors, table conditional formatting, DrawingML/image text, highlighting and revision display still require final visual review.'}}
     with zipfile.ZipFile(path) as z:
@@ -404,10 +550,13 @@ def inspect(path):
         if z.testzip() is not None:
             raise ValueError('DOCX ZIP CRC failure')
         read_colors = color_reader(z)
+        numbering_root=ET.fromstring(z.read('word/numbering.xml')) if 'word/numbering.xml' in names else None
+        applied_styles={}
         # Keep compact style definitions so paragraph/header inheritance can be
         # resolved without reopening the ZIP. This is not an effective-style verdict.
         if 'word/styles.xml' in names:
             styles_root = ET.fromstring(z.read('word/styles.xml'))
+            applied_styles={s.get(f'{{{NS["w"]}}}styleId'):s for s in styles_root.findall('./w:style',NS)}
             default = styles_root.find('./w:docDefaults', NS)
             result['style_evidence'] = {
                 'doc_defaults_xml': ET.tostring(default, encoding='unicode') if default is not None else None,
@@ -421,10 +570,14 @@ def inspect(path):
         parts.sort(key=lambda n: (n != 'word/document.xml', n))
         for part in parts:
             root = ET.fromstring(z.read(part))
+            punctuation=punctuation_evidence(root,part)
+            for key in punctuation:result['punctuation_evidence'][key].extend(punctuation[key])
             rels = relationships(z, part)
             paragraphs = []
             direct_paragraphs = {id(p) for p in root.findall('./w:body/w:p', NS)} if part == 'word/document.xml' else set()
             for index, p in enumerate(root.findall('.//w:p', NS), 1):
+                result['punctuation_evidence']['hits'].extend(dict(h,part=part,paragraph=index)
+                    for h in numbered_punctuation(p,numbering_root,applied_styles))
                 owned_nodes = list(paragraph_owned_nodes(p))
                 result['text_color_evidence']['review_runs'].extend(read_colors(p, owned_nodes, part, index))
                 formula_ids = []
@@ -454,6 +607,7 @@ def inspect(path):
                 symbols=[{'font':n.get(f'{{{NS["w"]}}}font'),'char':n.get(f'{{{NS["w"]}}}char'),
                     'xml':ET.tostring(n,encoding='unicode')} for n in owned_nodes if n.tag == f'{{{NS["w"]}}}sym']
                 paragraphs.append({'p':index, 'text':visible_text(p, skip_nested_paragraphs=True), 'formulas':formula_ids, 'media':media_refs,
+                    'formula_text_spans':formula_text_spans(p),
                     'body_direct':id(p) in direct_paragraphs,
                     'font_encoded_symbols':symbols,
                     'word_run_formats':word_run_formats(p),
@@ -463,6 +617,21 @@ def inspect(path):
             revisions = {kind:len(root.findall('.//w:'+kind, NS)) for kind in ['ins','del','moveFrom','moveTo']}
             result['parts'].append({'part':part,'paragraphs':paragraphs,'relationships':rels,'revisions':revisions,
                 'section_properties':[ET.tostring(s,encoding='unicode') for s in root.findall('.//w:sectPr',NS)]})
+        # DrawingML/chart text can live outside Word paragraph parts. Do not
+        # inspect relationships, field instructions or XML syntax as prose.
+        extra_parts=[n for n in names if n not in parts and
+                     (re.fullmatch(r'word/(charts|diagrams)/.+\.xml',n) or
+                      re.fullmatch(r'word/.+\.vml',n))]
+        for name in extra_parts:
+            punctuation=punctuation_evidence(ET.fromstring(z.read(name)),name)
+            for key in punctuation:result['punctuation_evidence'][key].extend(punctuation[key])
+        if 'word/numbering.xml' in names:
+            for index,level in enumerate(numbering_root.findall('.//w:lvlText',NS),1):
+                text=level.get(f'{{{NS["w"]}}}val','')
+                if any(forbidden_punctuation(ch) for ch in text):
+                    result['punctuation_evidence']['review_candidates'].append({'part':'word/numbering.xml',
+                        'path':f'lvlText[{index}]','text':text,'reason':'numbering_definition_requires_applied_display_review_not_all_definitions_are_used'})
+        result['punctuation_evidence']['literal_scan_complete']=True
         for name in names:
             if name.startswith('word/media/') and not name.endswith('/'):
                 data = z.read(name)
@@ -580,12 +749,20 @@ def precheck(result, kind):
     result['claims_detected']=claims
     result['wording_evidence']=wording_evidence(body, claims)
     result['document_contract_evidence']=document_contract_evidence(body)
+    for hit in result.get('punctuation_evidence',{}).get('hits',[]):
+        add('QUOTE_BRACKET_REVIEW','Final v19 prose must not contain quotation marks or brackets. Preserve formula content exactly; source-backed text formula spans require position-bound independent review, not automatic deletion.',
+            f'{hit["part"]} {hit["path"]} {hit["codepoint"]}')
+    for hit in result.get('punctuation_evidence',{}).get('preferred_wording_hits',[]):
+        add('PREFERRED_WORDING_REVIEW','Rewrite this exact phrase to '+hit['replacement']+' while preserving surrounding technical nouns, conditions and formula identity; no blind replacement.',
+            f'{hit["part"]} {hit["path"]} offset {hit["offset"]}')
     for part in result['parts']:
         if part['part']=='word/document.xml': continue
         for p in part['paragraphs']:
             for hit in re.finditer('从而|一一',p['text']):
                 result['document_contract_evidence']['global_word_hits'].append({
-                    'part':part['part'],'paragraph':p['p'],'offset':hit.start(),'text':hit[0],
+                    'part':part['part'],'paragraph':p['p'],'path':f'paragraph[{p["p"]}]/visible_text',
+                    'offset':hit.start(),'text':hit[0],
+                    'formula_protected_candidate':any(s['start']<=hit.start() and s['end']>=hit.end() for s in p.get('formula_text_spans',[])),
                     'context':p['text'][max(0,hit.start()-24):hit.end()+32]})
     if result['wording_evidence']['occurrences']:
         add('WORDING_SCOPE_REVIEW','Review located wording candidates against claim-only restrictions, protected names/titles and whole-body replacements; never perform blind character replacement.')

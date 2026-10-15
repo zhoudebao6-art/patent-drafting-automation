@@ -46,5 +46,6 @@
   },
   "review_mode": "review_fix_then_recheck",
   "worker_preparation": "frozen_stage_packet_v1",
-  "output_contract": "wording_title_v18"
+  "output_contract": "wording_title_v18",
+  "prose_contract": "clean_prose_v19"
 }

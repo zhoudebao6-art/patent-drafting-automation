@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 18,
-  "updated_at": "2026-10-15T01:54:33Z",
+  "version": 19,
+  "updated_at": "2026-10-15T02:23:04Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -1217,7 +1217,7 @@
       "scope": "global",
       "section": "all",
       "level": "must",
-      "instruction": "最终文稿各章节不使用从而，也不使用一一对应、一一相应及类似的一一修饰词。按句意改写连接与对应关系，保持原有因果、条件、否定、唯一性及数量约束；不能把必要双向唯一关系简单删成宽泛对应，也不能补造源文没有的限制。",
+      "instruction": "最终文稿各章节不使用从而，也不使用一一对应、一一相应及类似的一一修饰词。按句意改写连接与对应关系，保持原有因果、条件、否定、唯一性及数量约束；不能把必要双向唯一关系简单删成宽泛对应，也不能补造源文没有的限制。 用户在版本19明确一一对应的优先话术为都相对应；只换话术，来源的唯一性、互斥或双向关联约束仍须完整保留，不全局执行一一替换都相。",
       "check": "按接受修订后的跨run全文定位从而与一一，核对表格、文本框及图中文字。从而与明确的一一修饰表达不得保留；统一与一套相接等非修饰词字符碰合须按当前位置记录WORDING-04/not_modifier关闭依据，不能误删字或借此豁免一一对应。合入claims_alignment，不增加模型轮次。",
       "exceptions": [],
       "evidence": [
@@ -1228,6 +1228,14 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+        },
+        {
+          "source": "references/prose-user-requirement.txt",
+          "locator": "2026-10-15全部要求及最后的公式保护澄清"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "版本19新增：普通文字净化与公式保护"
         }
       ]
     },
@@ -1270,6 +1278,52 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+        }
+      ]
+    },
+    {
+      "id": "WORDING-06",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "正式DOCX中公式以外的文字不使用引号和括号，包括标题、各章、表格、文本框、页眉页脚、自动编号和图中普通文字。识别中文、英文、全角、角形等引号及圆方花尖等括号；引用、插入说明、编号改成不带这些符号的完整叙述，保持技术条件和名词。用户最后明确公式不受本条删除或改写：公式本体、上下标、函数参数、区间、集合、矩阵、运算分组中的原有引号和括号保持原式，不改数量、含义或符号。",
+      "check": "在既有一次提取中分开登记普通文字命中与原生OMML公式保护候选；不能把普通文字包进OMML规避。公式身份仍须逐条来源/成稿双向映射及原六项审查。普通文字形式的公式只按同稿SHA、部件、路径、段号、字符偏移与本案来源SHA/定位及公式台账ID逐处保护，不豁免同段其他文字；图中公式和OLE按原来源及最终显示核对。动态域、编号、字体编码和图片不能据零字符命中判通过。此检查并入既有formulas、claims_alignment和rendered_pages，不新增模型轮次或重复DOCX解析。",
+      "exceptions": [
+        "本案来源核实的公式本体及其必要符号完整保留，不因引号或括号被删除或改造。该例外不覆盖公式外围的普通引语、说明或序号括号。"
+      ],
+      "evidence": [
+        {
+          "source": "references/prose-user-requirement.txt",
+          "locator": "2026-10-15全部要求及最后的公式保护澄清"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "版本19新增：普通文字净化与公式保护"
+        }
+      ]
+    },
+    {
+      "id": "WORDING-07",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "正式文稿的话术按用户指定映射改写：可选的改为优选的，配置为改为用于，正文中及正文改为文中，源文件改为文中，一一对应改为都相对应。先匹配长短语，不能产生文中中、都相相应。只调整指定话术及必要连接语法，不改里面的完整技术名词、主体动作、参数、条件、否定及其他技术内容；不改公式。",
+      "check": "跨run定位精确短语并核对改后语法和原意。配置参数/配置文件/选择等不是目标，不作子串扩散替换；源文件内部字段、原始路径和材料不属于成稿改词对象。对本案已有定义的完整技术名词，按来源绑定的术语台账和具体字符位置核对保护，不借整段或泛称名词豁免普通话术。优先改变外围表述而保持技术名词；无法兼容时记录具体冲突，不盲改或伪称完成。保留原有唯一/双向唯一等关联约束，不仅把一一删成普通对应。",
+      "exceptions": [
+        "来源已定义且不得改动的完整技术名词保持原名称，以同稿精确位置、源SHA/定位和术语台账ID核定；其他普通话术仍按映射执行。"
+      ],
+      "evidence": [
+        {
+          "source": "references/prose-user-requirement.txt",
+          "locator": "2026-10-15全部要求及最后的公式保护澄清"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "版本19新增：普通文字净化与公式保护"
         }
       ]
     }
@@ -3044,6 +3098,98 @@
             ],
             "check": "采用formula-layout-standard.md格式基准并记录项目覆盖；核对实际文字run/继承/网格/有效宽度，逐页检查分节、标题、段落、公式和解释。权项到发明内容的转换保留条件、否定词、对象和顺序，不以润色改范围。 颜色/主题继承和图片与编号同页并入现有页面验收，不增加重复模型复查。 核对实际run覆盖、样式继承、first/default/even页眉、titlePg、PAGE真实域及最后全部页面；人工未显式指定的正文行距不得猜成固定行高。 核对页脚段落结构与最终线到页底的距离、左右端点、粗细、页码及横线不重叠；本次人工横线结构覆盖旧模板中冲突的页脚单段实现。",
             "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 19,
+      "previous_version": 18,
+      "updated_at": "2026-10-15T02:23:04Z",
+      "summary": "通用禁用公式外的引号括号，保持公式原样，并纳入指定话术映射与技术名词保护。",
+      "changes": [
+        {
+          "action": "add",
+          "rule": {
+            "id": "WORDING-06",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "正式DOCX中公式以外的文字不使用引号和括号，包括标题、各章、表格、文本框、页眉页脚、自动编号和图中普通文字。识别中文、英文、全角、角形等引号及圆方花尖等括号；引用、插入说明、编号改成不带这些符号的完整叙述，保持技术条件和名词。用户最后明确公式不受本条删除或改写：公式本体、上下标、函数参数、区间、集合、矩阵、运算分组中的原有引号和括号保持原式，不改数量、含义或符号。",
+            "check": "在既有一次提取中分开登记普通文字命中与原生OMML公式保护候选；不能把普通文字包进OMML规避。公式身份仍须逐条来源/成稿双向映射及原六项审查。普通文字形式的公式只按同稿SHA、部件、路径、段号、字符偏移与本案来源SHA/定位及公式台账ID逐处保护，不豁免同段其他文字；图中公式和OLE按原来源及最终显示核对。动态域、编号、字体编码和图片不能据零字符命中判通过。此检查并入既有formulas、claims_alignment和rendered_pages，不新增模型轮次或重复DOCX解析。",
+            "exceptions": [
+              "本案来源核实的公式本体及其必要符号完整保留，不因引号或括号被删除或改造。该例外不覆盖公式外围的普通引语、说明或序号括号。"
+            ],
+            "evidence": [
+              {
+                "source": "references/prose-user-requirement.txt",
+                "locator": "2026-10-15全部要求及最后的公式保护澄清"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本19新增：普通文字净化与公式保护"
+              }
+            ]
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "WORDING-07",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "正式文稿的话术按用户指定映射改写：可选的改为优选的，配置为改为用于，正文中及正文改为文中，源文件改为文中，一一对应改为都相对应。先匹配长短语，不能产生文中中、都相相应。只调整指定话术及必要连接语法，不改里面的完整技术名词、主体动作、参数、条件、否定及其他技术内容；不改公式。",
+            "check": "跨run定位精确短语并核对改后语法和原意。配置参数/配置文件/选择等不是目标，不作子串扩散替换；源文件内部字段、原始路径和材料不属于成稿改词对象。对本案已有定义的完整技术名词，按来源绑定的术语台账和具体字符位置核对保护，不借整段或泛称名词豁免普通话术。优先改变外围表述而保持技术名词；无法兼容时记录具体冲突，不盲改或伪称完成。保留原有唯一/双向唯一等关联约束，不仅把一一删成普通对应。",
+            "exceptions": [
+              "来源已定义且不得改动的完整技术名词保持原名称，以同稿精确位置、源SHA/定位和术语台账ID核定；其他普通话术仍按映射执行。"
+            ],
+            "evidence": [
+              {
+                "source": "references/prose-user-requirement.txt",
+                "locator": "2026-10-15全部要求及最后的公式保护澄清"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本19新增：普通文字净化与公式保护"
+              }
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "WORDING-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "最终文稿各章节不使用从而，也不使用一一对应、一一相应及类似的一一修饰词。按句意改写连接与对应关系，保持原有因果、条件、否定、唯一性及数量约束；不能把必要双向唯一关系简单删成宽泛对应，也不能补造源文没有的限制。 用户在版本19明确一一对应的优先话术为都相对应；只换话术，来源的唯一性、互斥或双向关联约束仍须完整保留，不全局执行一一替换都相。",
+            "check": "按接受修订后的跨run全文定位从而与一一，核对表格、文本框及图中文字。从而与明确的一一修饰表达不得保留；统一与一套相接等非修饰词字符碰合须按当前位置记录WORDING-04/not_modifier关闭依据，不能误删字或借此豁免一一对应。合入claims_alignment，不增加模型轮次。",
+            "exceptions": [],
+            "evidence": [
+              {
+                "source": "references/footer-wording-user-requirement.txt",
+                "locator": "2026-10-15全文"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+              },
+              {
+                "source": "references/prose-user-requirement.txt",
+                "locator": "2026-10-15全部要求及最后的公式保护澄清"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本19新增：普通文字净化与公式保护"
+              }
+            ]
           }
         }
       ]
