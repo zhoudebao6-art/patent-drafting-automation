@@ -44,7 +44,7 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 
 以上旧批次回执格式只用于冻结的serial_per_project。新rolling_parallel批次使用parallel_batch.py，以CLI返回为精确契约。
 
-manifest包含控制器标识、策略/规则哈希、项目来源快照、每案状态、attempt历史和活动占槽。每案cases/<id>/sources保存独立来源快照，cases/<id>/stages/<attempt_id>保存阶段产物。项目名可以相同，ID及目录不可混用。
+manifest包含控制器标识、策略/规则哈希、项目来源快照、每案状态、attempt历史和活动占槽。每案cases/<id>/sources保存独立来源快照，cases/<id>/stages/<attempt_id>保存阶段产物。内部ID及目录不可混用；旧批次可用相同项目名，新wording_title_v18平铺批次须先解决正式名称重名。
 
 reserve返回完整context、spawn_arguments、worker_context及receipt_template。context绑定batch_id/case_id/stage/attempt、source_digest、rules_sha256及input_artifact_sha256，dispatch和receipt逐字段保持一致。不要从另案或上轮拷贝后只改显示名称。
 
@@ -54,7 +54,7 @@ worker_context给出该案来源、当前稿件、规则快照、上一轮审查
 
 pass回执render={artifact_sha256,evidence,evidence_sha256}指向本案官方render.json；其PDF、连续PNG及输入哈希由render_docx_checked.verify_render校验，实际逐页查看结果仍写入checks及详细证据。写稿artifact和dispatch/receipt应位于当前attempt目录；引用已存在的本案当前稿仅用于review输入。
 
-总控为唯一状态写入者，锁保护事务读改写。reserved不等于已成功调用模型，bound不等于已完成；取消仅释放已确认不会继续写入的worker，保留attempt历史，拒绝迟到记录。单案一个活跃阶段，跨案可以乱序完成，验收一案交付一案，交付台账保留队列ID，不等待前序未完成案；新批次的成稿直接同层交付，重名时以案号消歧。
+总控为唯一状态写入者，锁保护事务读改写。reserved不等于已成功调用模型，bound不等于已完成；取消仅释放已确认不会继续写入的worker，保留attempt历史，拒绝迟到记录。单案一个活跃阶段，跨案可以乱序完成，验收一案交付一案，交付台账保留队列ID，不等待前序未完成案；新批次的成稿直接同层交付；版本18起正式名称与文内主标题逐字一致，重名先解决，旧快照仍按原案号契约。
 
 并行批次另记录controller_input_change事件：保持冻结快照和worker原回执，移除该案当前通过标志，转needs_input。summary中的peak_reserved_slots/peak_bound_workers是账面占槽/已绑定派发峰值，不是独立的模型同时执行证明。
 
@@ -68,7 +68,7 @@ delivery.timing=after_each_acceptance表示每案验收通过后立即调用deli
 
 ## 同一文件夹直接交付
 
-规则版本8起，新批次delivery={folder_prefix:专利撰写完成,layout:flat_final_files,timing:after_each_acceptance}。此布局记录delivery_mode=flat_final_files_v1；所有验收DOCX直接位于delivery_path根目录，relative_path为单个文件名，不包含“已完成”或项目子目录。名称按冻结全队列预分配并持久保存；通常为项目名称.docx，同名、大小写或清洗冲突时加稳定案号，不能按完工先后任意重命名。
+规则版本8起，新批次delivery={folder_prefix:专利撰写完成,layout:flat_final_files,timing:after_each_acceptance}。此布局记录delivery_mode=flat_final_files_v1；所有验收DOCX直接位于delivery_path根目录，relative_path为单个文件名，不包含“已完成”或项目子目录。名称按冻结全队列预分配并持久保存；旧无output_contract模式通常为项目名称.docx，冲突用稳定案号。版本18起output_contract=wording_title_v18要求正式名称逐字一致，不清洗/截短/附案号；同名或非法文件名须明确解决。不能按完工先后任意重命名。
 
 桌面仅展示成稿；只保留一个隐藏的目录归属标记，批次清单、逐案发布记录、中断恢复信息和待处理说明位于批次工作目录的flat-delivery/中。新发布的复制阶段使用桌面同卷、核验批次归属的隐藏事务临时区，再原子改名到成稿根目录；进程中断的临时痕迹可能保留在该隐藏区，不属于交付成稿，也不能盲删未知文件。任何已发布文件的名称、归属和验收哈希均须一致；文件被修改、缺失或目标被其他内容占用时保留现场并报告，不能覆盖。复制或状态提交中断后依据真实发布证据恢复，不能把存在同名文件当作验收通过。未通过稿不发布；全部案一次交付与逐案追加使用相同布局。旧无layout快照保持原契约。
 
@@ -85,3 +85,9 @@ delivery.timing=after_each_acceptance表示每案验收通过后立即调用deli
 真实dispatch={tool:codex.exec,context,arguments:{argv,cwd,model,reasoning_effort},result:{pid,created,executable},prompt_sha256,agent_id:cli:<attempt_id>}。argv必须是规定的workspace-write命令；PID绑定Windows创建FILETIME。cli-completion.json必须含exit_code=0、pid、created，以及events.jsonl、worker-final.json、session.jsonl、prompt.txt、cli-exit.json五文件哈希。实际会话身份、模型/high、cwd/sandbox、原始prompt、最终assistant回复和退出码均需匹配；最终回执不能由总控补写模型的审查结论。
 
 CLI退出证明tool=codex.exec.exit，绑定原context/pid/created，含真实整数returncode及confirmed_stopped=true；校验原进程已停止。坏日志或未知身份不是退出证明，不释放不确定槽位。CLI有效完成后的record仍执行原来源/文件/六项/页面门禁，CLI启动/退出证据不替代业务验收。细节见[CLI执行](cli-workers.md)。
+
+## v18成稿文字与名称检查
+
+新策略output_contract=wording_title_v18仅配合frozen_stage_packet_v1和flat_final_files。每案正式名称冻结在selection.title；初始化检查Windows文件名合法性及全队列重名，不静默清洗、截短或加案号。最终inspection的document_contract_evidence记录直属正式标题、说明书范围、global_word_hits及description_word_hits，命中包含part/paragraph/offset/text/context。其他OOXML部件的可提取文字也纳入全稿禁词，图片文字仍由模型和页面检查核对。
+
+最终pass从本attempt封存的input_inspection读取同SHA报告，生成receipt.document_contract={mode,artifact_sha256,document_title,delivery_filename,title_paragraph,scope}；交付前复核并比对该记录。缓存身份、正文正式标题或禁词不符均拒绝；不重新解压解析稿件，也不增加模型阶段。WORDING-04非修饰词的closed finding按part/paragraph/offset绑定当前稿，不能豁免明确的一一修饰表达。此客观检查不替代六项语义/页面审查。无此模式的旧冻结批次继续旧契约。

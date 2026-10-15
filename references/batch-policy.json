@@ -45,5 +45,6 @@
     "min_draft_slots": 1
   },
   "review_mode": "review_fix_then_recheck",
-  "worker_preparation": "frozen_stage_packet_v1"
+  "worker_preparation": "frozen_stage_packet_v1",
+  "output_contract": "wording_title_v18"
 }

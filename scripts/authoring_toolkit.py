@@ -41,7 +41,7 @@ HEADERS = ('说明书摘要', '摘要附图', '权利要求书', '说明书', '�
 SHA = re.compile(r'^[0-9a-f]{64}$')
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,47}$')
 LIMIT = 64 * 1024 * 1024
-PROFILE = 'manual-v16-explicit-v1'
+PROFILE = 'manual-v18-explicit-v2'
 
 
 def fail(message):
@@ -565,12 +565,20 @@ def configure_section(section, index):
     footer = section.footer.paragraphs[0]
     footer.clear()
     paragraph_format(footer, 'footer')
-    if index >= 3:
-        # A 9 pt PAGE-only carrier keeps the +9.6 pt rule below the glyphs.
-        # Inherited body/shape line metrics otherwise put the rule on the digit.
+    if index != 1:
+        # The manual footer is a stack of paragraphs.  Its height is part of
+        # the anchor geometry; collapsing it to one line puts the rule at the
+        # paper edge even when pgMar/footer and the anchor offset are correct.
         carrier_spacing = footer._p.get_or_add_pPr().find(qn('w:spacing'))
-        carrier_spacing.set(qn('w:line'), '180')
+        carrier_spacing.set(qn('w:line'), '200')
         carrier_spacing.set(qn('w:lineRule'), 'exact')
+        if index < 3:
+            carrier_rpr = element('w:rPr')
+            carrier_rpr.append(element('w:rFonts', ascii='黑体', hAnsi='黑体', eastAsia='黑体', cs='黑体'))
+            carrier_rpr.append(element('w:sz', val=18))
+            carrier_rpr.append(element('w:szCs', val=18))
+            footer._p.get_or_add_pPr().append(carrier_rpr)
+    if index >= 3:
         begin = element('w:fldChar', fldCharType='begin', dirty='true')
         code = element('w:instrText')
         code.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
@@ -585,7 +593,32 @@ def configure_section(section, index):
             run._r.append(child)
         footer._p.get_or_add_pPr().append(deepcopy(run._r.get_or_add_rPr()))
     if index != 1:
-        line_shape(footer, 2001 + index, 9.6 if index >= 3 else -3, 1 if index < 3 else 0)
+        line_shape(footer, 2001 + index, 9.6 if index >= 3 else -3, 1)
+        font(footer.runs[-1], name='黑体', size=10, spacing=90)
+        if index >= 3:
+            spacer = section.footer.add_paragraph(style='Footer')
+            paragraph_format(spacer, 'footer')
+            spacing = spacer._p.get_or_add_pPr().find(qn('w:spacing'))
+            spacing.set(qn('w:line'), '200')
+            spacing.set(qn('w:lineRule'), 'exact')
+        tail = section.footer.add_paragraph(style='Footer')
+        paragraph_format(tail, 'footer')
+        # Explicitly resolve the reference's 9 pt Footer -> Normal font chain,
+        # rather than inheriting this generator's 14 pt body or Hei metrics.
+        tail_props = tail._p.get_or_add_pPr()
+        if index < 3:
+            # Resolve the reference's empty-line layout explicitly.  A generated
+            # document's different Normal/style chain otherwise adds ~2 pt to
+            # this blank paragraph, even when the footer XML is copied intact.
+            tail_spacing = tail_props.find(qn('w:spacing'))
+            tail_spacing.set(qn('w:line'), '207')
+            tail_spacing.set(qn('w:lineRule'), 'exact')
+        tail_rpr = element('w:rPr')
+        tail_rpr.append(element('w:rFonts', ascii='Times New Roman', hAnsi='Times New Roman',
+                                eastAsia='宋体', cs='Times New Roman'))
+        tail_rpr.append(element('w:sz', val=18))
+        tail_rpr.append(element('w:szCs', val=18))
+        tail_props.append(tail_rpr)
 
 
 def mark(p, bookmark, marker_id):
@@ -705,6 +738,14 @@ def verify_document(context, path):
     require((tree_signature(actual_math_pr) if actual_math_pr is not None else None) ==
             (tree_signature(wanted_math_pr) if wanted_math_pr is not None else None), 'source mathPr context changed')
     require(settings.find('w:evenAndOddHeaders', NS) is None, 'unexpected even-page header mode')
+    styles = xml(parts['word/styles.xml'], 'word/styles.xml')
+    footer_style = styles.find('w:style[@w:styleId="Footer"]', NS)
+    require(footer_style is not None and
+            attributes(footer_style.find('w:rPr/w:sz', NS)).get('val') == '18' and
+            attributes(footer_style.find('w:rPr/w:rFonts', NS)).get('ascii') == '黑体' and
+            attributes(footer_style.find('w:pPr/w:spacing', NS)).get('line') == '240' and
+            attributes(footer_style.find('w:pPr/w:spacing', NS)).get('lineRule') == 'auto',
+            'footer inherited style metrics changed')
     sections = doc.xpath('.//w:sectPr', namespaces=NS)
     require(len(sections) == 5, 'expected five sections')
     section_evidence = []
@@ -731,7 +772,7 @@ def verify_document(context, path):
             require(footer.xpath('.//w:fldChar/@w:fldCharType', namespaces=NS) == ['begin', 'separate', 'end'],
                     'PAGE field structure changed')
             require(attributes(footer.find('.//w:pPr/w:rPr/w:sz', NS)).get('val') == '18', 'footer paragraph mark size changed')
-            require(attributes(footer.find('.//w:pPr/w:spacing', NS)) == {'before': '0', 'after': '0', 'line': '180', 'lineRule': 'exact'},
+            require(attributes(footer.find('.//w:pPr/w:spacing', NS)) == {'before': '0', 'after': '0', 'line': '200', 'lineRule': 'exact'},
                     'PAGE-only carrier line metrics changed')
             carriers = footer.xpath('.//w:r[w:fldChar or w:instrText or w:t]', namespaces=NS)
             require(len(carriers) == 5, 'PAGE carrier count changed')
@@ -744,6 +785,36 @@ def verify_document(context, path):
         require(attributes(section.find('w:pgNumType', NS)) == ({'start': '1'} if i >= 3 else {}), 'page restart changed')
         require(len(header.xpath('.//wp:anchor', namespaces=NS)) == (0 if i == 2 else 1), 'header line count changed')
         require(len(footer.xpath('.//wp:anchor', namespaces=NS)) == (0 if i == 1 else 1), 'footer line count changed')
+        footer_paragraphs = footer.findall('w:p', NS)
+        require(len(footer_paragraphs) == (1 if i == 1 else 2 if i < 3 else 3),
+                'footer paragraph stack changed')
+        if i != 1:
+            line_run = footer_paragraphs[0].find('w:r[w:drawing]', NS)
+            require(line_run is not None and
+                    attributes(line_run.find('w:rPr/w:sz', NS)).get('val') == '20' and
+                    attributes(line_run.find('w:rPr/w:rFonts', NS)).get('eastAsia') == '黑体',
+                    'footer line run metrics changed')
+            require(attributes(footer_paragraphs[0].find('w:pPr/w:spacing', NS)) ==
+                    {'before': '0', 'after': '0', 'line': '200', 'lineRule': 'exact'},
+                    'footer line carrier metrics changed')
+            require(attributes(footer_paragraphs[0].find('w:pPr/w:rPr/w:sz', NS)).get('val') == '18',
+                    'footer line paragraph mark size changed')
+            for spacer in footer_paragraphs[1:]:
+                require(len(spacer) == 1 and spacer[0].tag == qn('w:pPr'), 'footer spacer is not empty')
+                require(attributes(spacer.find('w:pPr/w:snapToGrid', NS)).get('val') == '0',
+                        'footer spacer grid changed')
+            if i >= 3:
+                require(attributes(footer_paragraphs[1].find('w:pPr/w:spacing', NS)) ==
+                        {'before': '0', 'after': '0', 'line': '200', 'lineRule': 'exact'},
+                        'footer spacer line metrics changed')
+            tail = footer_paragraphs[-1]
+            require(attributes(tail.find('w:pPr/w:spacing', NS)) ==
+                    ({'before': '0', 'after': '0', 'line': '207', 'lineRule': 'exact'} if i < 3 else {'before': '0', 'after': '0'}),
+                    'footer tail line metrics changed')
+            require(attributes(tail.find('w:pPr/w:rPr/w:rFonts', NS)) ==
+                    {'ascii': 'Times New Roman', 'hAnsi': 'Times New Roman', 'eastAsia': '宋体', 'cs': 'Times New Roman'} and
+                    attributes(tail.find('w:pPr/w:rPr/w:sz', NS)).get('val') == '18',
+                    'footer tail font metrics changed')
         hr = header.find('.//w:r[w:t]', NS)
         require(hr is not None, 'missing header text run')
         props = hr.find('w:rPr', NS)
@@ -755,7 +826,7 @@ def verify_document(context, path):
         border = header.find('.//w:pPr/w:pBdr/w:bottom', NS)
         require(attributes(border) == ({'val': 'single', 'sz': '6', 'space': '1', 'color': '000000'} if i == 2 else {}),
                 'claim header border changed')
-        for container, y, x in ((header, 26.3, 0), (footer, 9.6 if i >= 3 else -3, 1 if i < 3 else 0)):
+        for container, y, x in ((header, 26.3, 0), (footer, 9.6 if i >= 3 else -3, 1)):
             for anchor in container.xpath('.//wp:anchor', namespaces=NS):
                 require(anchor.find('wp:positionH', NS).get('relativeFrom') == 'column' and
                         anchor.find('wp:positionV', NS).get('relativeFrom') == 'paragraph', 'line reference frame changed')

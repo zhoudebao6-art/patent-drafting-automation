@@ -55,6 +55,11 @@ def validate_policy(p):
         raise BatchError('Invalid dispatch transports')
     if p.get('worker_preparation') not in (None, 'frozen_stage_packet_v1'):
         raise BatchError('Invalid worker preparation mode')
+    if p.get('output_contract') not in (None,'wording_title_v18'):
+        raise BatchError('Invalid output contract')
+    if p.get('output_contract') and (p.get('worker_preparation')!='frozen_stage_packet_v1' or
+                                    p['delivery'].get('layout')!='flat_final_files'):
+        raise BatchError('Output contract requires frozen preparation and flat delivery')
 
 @contextmanager
 def locked(path, timeout=10):
@@ -126,6 +131,9 @@ def init(root, work, selection, desktop=None, controller='controller'):
         primaries.add(key)
         rows.append({'id': f'{i:03d}', 'title': title, 'primary_source': str(primary), 'sources': sources,
                      'status': 'pending', 'attempts': [], 'receipts': [], 'active_attempt': None})
+    if policy.get('output_contract'):
+        import flat_delivery
+        flat_delivery.names({'policy':policy,'projects':rows})
     batch_id = time.strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:10]
     batch = work / batch_id; batch.mkdir(parents=True, exist_ok=False)
     (batch / 'rules.snapshot.json').write_bytes(rules_bytes)
@@ -472,6 +480,9 @@ def record(path, case_id, attempt, receipt, controller='controller'):
                 if any(r['checks'].get(k) != 'passed' for k in b.CHECKS) or any(not isinstance(f, dict) or f.get('status') not in {'resolved', 'closed'} for f in r['findings']):
                     raise BatchError('Incomplete six-check acceptance or unresolved finding')
                 r['render'] = verify_render(m, c, a, r.get('render'))
+                if m['policy'].get('output_contract'):
+                    import output_contract
+                    r['document_contract'] = output_contract.verify(m,c,a,r)
                 c.update(status='accepted', passed_review_sha256=actual)
             elif verdict == 'revised':
                 if m['policy'].get('review_mode', 'review_only') != 'review_fix_then_recheck':
@@ -560,6 +571,10 @@ def deliver(path, controller='controller'):
                 r = c['receipts'][-1]
                 a = next(x for x in c['attempts'] if x['id'] == r['context']['attempt'])
                 verify_render(m, c, a, r.get('render'))
+                if m['policy'].get('output_contract'):
+                    import output_contract
+                    if output_contract.verify(m,c,a,r) != r.get('document_contract'):
+                        raise BatchError('Final document title/wording contract changed after acceptance')
             recovered = publisher.recover_published_cases(m, verify)
             for c in recovered:
                 event = {'event': 'controller_delivery_recovery', 'case_id': c['id'],

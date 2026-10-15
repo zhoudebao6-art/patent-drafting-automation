@@ -32,6 +32,12 @@ def name_key(name):
 
 def names(m):
     """Resolve all batch names before any case finishes, independent of order."""
+    import output_contract
+    if output_contract.enabled(m):
+        result={c['id']:output_contract.filename(c['title']) for c in m['projects']}
+        if len(result)!=len(m['projects']) or len({name_key(n) for n in result.values()})!=len(result):
+            raise b.BatchError('Duplicate official titles cannot share one flat folder without changing names; resolve this selection before drafting')
+        return result
     originals = {c['id']: b.safe(c['title']) + '.docx' for c in m['projects']}
     if len(originals) != len(m['projects']): raise b.BatchError('Duplicate case identity')
     groups = {}

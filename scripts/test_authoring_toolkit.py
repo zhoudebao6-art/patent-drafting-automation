@@ -137,6 +137,48 @@ class ToolkitTests(unittest.TestCase):
         self.assertFalse(symbol.bold)
         self.assertEqual(symbol._r.find('w:rPr/w:vertAlign', toolkit.NS).get(toolkit.qn('w:val')), 'baseline')
 
+    def test_footer_reference_stack_survives_and_rejects_collapsed_or_shifted_geometry(self):
+        self.build()
+        original = self.root / 'v1' / 'draft.docx'
+        context = toolkit.validate(self.root, self.spec)
+        with zipfile.ZipFile(original) as archive:
+            for i, expected_count in enumerate((2, 1, 2, 3, 3), 1):
+                footer = ET.fromstring(archive.read(f'word/footer{i}.xml'))
+                self.assertEqual(len(footer.findall('w:p', toolkit.NS)), expected_count)
+                for anchor in footer.xpath('.//wp:anchor', namespaces=toolkit.NS):
+                    self.assertEqual(anchor.find('wp:positionH/wp:posOffset', toolkit.NS).text, '12700')
+        for mutation in ('collapse', 'spacer_height', 'tail_font', 'line_x', 'line_y', 'distance', 'footer_style', 'abstract_tail'):
+            candidate = self.root / (mutation + '.docx')
+            candidate.write_bytes(original.read_bytes())
+            def change(parts):
+                footer = ET.fromstring(parts['word/footer4.xml'])
+                paragraphs = footer.findall('w:p', toolkit.NS)
+                if mutation == 'collapse':
+                    footer.remove(paragraphs[-1])
+                elif mutation == 'spacer_height':
+                    paragraphs[1].find('w:pPr/w:spacing', toolkit.NS).set(toolkit.qn('w:line'), '180')
+                elif mutation == 'tail_font':
+                    paragraphs[-1].find('w:pPr/w:rPr/w:sz', toolkit.NS).set(toolkit.qn('w:val'), '28')
+                elif mutation.startswith('line_'):
+                    axis = 'H' if mutation == 'line_x' else 'V'
+                    footer.find(f'.//wp:position{axis}/wp:posOffset', toolkit.NS).text = '0'
+                elif mutation == 'footer_style':
+                    styles = ET.fromstring(parts['word/styles.xml'])
+                    styles.find('w:style[@w:styleId="Footer"]/w:rPr/w:sz', toolkit.NS).set(toolkit.qn('w:val'), '28')
+                    parts['word/styles.xml'] = ET.tostring(styles)
+                elif mutation == 'abstract_tail':
+                    abstract = ET.fromstring(parts['word/footer1.xml'])
+                    abstract.findall('w:p', toolkit.NS)[-1].find('w:pPr/w:spacing', toolkit.NS).set(toolkit.qn('w:line'), '240')
+                    parts['word/footer1.xml'] = ET.tostring(abstract)
+                else:
+                    doc = ET.fromstring(parts['word/document.xml'])
+                    doc.findall('.//w:sectPr', toolkit.NS)[3].find('w:pgMar', toolkit.NS).set(toolkit.qn('w:footer'), '227')
+                    parts['word/document.xml'] = ET.tostring(doc)
+                parts['word/footer4.xml'] = ET.tostring(footer)
+            self.rewrite_docx(candidate, change)
+            with self.subTest(mutation=mutation), self.assertRaises(toolkit.AuthoringError):
+                toolkit.verify_document(context, candidate)
+
     def test_source_script_bold_subscript_superscript_and_unicode_survive(self):
         source = self.add_math()
         source_sha = toolkit.sha(source)

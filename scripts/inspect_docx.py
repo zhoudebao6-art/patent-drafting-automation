@@ -176,6 +176,11 @@ def wording_evidence(body, claims):
     for p in body:
         text = p['text']
         claim = claim_by_p.get(p['p'])
+        for m in re.finditer('从而|一一', text):
+            rows.append({'paragraph': p['p'], 'offset': m.start(), 'text': m[0],
+                         'context': text[max(0,m.start()-24):m.end()+32], 'claim': claim,
+                         'category': 'global_causal_connector' if m[0]=='从而' else 'global_yiyi_modifier_candidate',
+                         'replacement': None, 'status': 'rephrase_preserving_causality_and_cardinality_not_blind_deletion'})
         for m in re.finditer('本技术项目|本方案|本方法|本申请|装置|组件|引擎', text):
             token = m[0]
             rows.append({'paragraph': p['p'], 'offset': m.start(), 'text': token,
@@ -192,8 +197,35 @@ def wording_evidence(body, claims):
                              'category': 'claim_near' if token.startswith('邻近') else 'claim_qualifier_or_enumeration',
                              'replacement': '相邻' if token.startswith('邻近') else None,
                              'status': 'semantic_classification_required_not_character_deletion'})
+    contract = document_contract_evidence(body)
+    rows.extend(dict(hit, claim=None, category='description_claim_word', replacement=None,
+                     status='rewrite_as_description_preserving_source') for hit in contract['description_word_hits'])
     return {'occurrences': rows,
             'boundary': 'Claims-only neighbor/comparative qualifier/open enumeration rules do not apply elsewhere. Module terms require protected names/titles to remain unchanged. This is read-only candidate evidence; 等于/相等/等级 and 比较 are not automatically deleted. Check images/fields not represented as ordinary text separately.'}
+
+
+def document_contract_evidence(body):
+    """Read-only title and scoped wording evidence; no semantic acceptance."""
+    direct = [p for p in body if p.get('body_direct', True)]
+    fields = [n for n,p in enumerate(direct) if p['text'].strip() == '技术领域']
+    title = None
+    if len(fields) == 1:
+        prior = next((p for p in reversed(direct[:fields[0]]) if p['text'].strip()), None)
+        if prior and prior['text'].strip() not in {'说明书','权利要求书','说明书摘要','摘要附图','说明书附图'}:
+            title = {'text': prior['text'].strip(), 'paragraph': prior['p'],
+                     'evidence': 'nonempty_direct_paragraph_before_technical_field'}
+    start = title['paragraph'] if title else (direct[fields[0]]['p'] if len(fields)==1 else None)
+    end = next((p['p'] for p in body if start is not None and p['p']>start and
+                (p.get('default_header','').replace(' ','') == '说明书附图' or p['text'].strip() == '说明书附图')), None)
+    description = [p for p in body if (start is not None and p['p'] >= start and (end is None or p['p'] < end)) or
+                   re.sub(r'\s+', '', p.get('default_header','')) == '说明书']
+    hits = lambda paragraphs,pattern: [
+        {'part':'word/document.xml','paragraph':p['p'],'offset':m.start(),'text':m[0], 'context':p['text'][max(0,m.start()-24):m.end()+32]}
+        for p in paragraphs for m in re.finditer(pattern,p['text'])]
+    return {'schema_version':1, 'title':title, 'description_scope_resolved':bool(description),
+            'global_word_hits':hits(body,'从而|一一'),
+            'description_word_hits':hits(description,'权利要求|特征在于'),
+            'status':'objective_candidates_not_semantic_pass'}
 
 
 def visible_text(node, skip_nested_paragraphs=False):
@@ -283,6 +315,7 @@ def attach_section_headers(root, paragraphs, rels, z):
             headers[ref.get(f'{{{NS["w"]}}}type', 'default')] = text
         for paragraph in paragraphs[start:end]:
             paragraph['section_headers'] = list(headers.values())
+            paragraph['default_header'] = headers.get('default', '')
         start = end
 
 
@@ -390,6 +423,7 @@ def inspect(path):
             root = ET.fromstring(z.read(part))
             rels = relationships(z, part)
             paragraphs = []
+            direct_paragraphs = {id(p) for p in root.findall('./w:body/w:p', NS)} if part == 'word/document.xml' else set()
             for index, p in enumerate(root.findall('.//w:p', NS), 1):
                 owned_nodes = list(paragraph_owned_nodes(p))
                 result['text_color_evidence']['review_runs'].extend(read_colors(p, owned_nodes, part, index))
@@ -420,6 +454,7 @@ def inspect(path):
                 symbols=[{'font':n.get(f'{{{NS["w"]}}}font'),'char':n.get(f'{{{NS["w"]}}}char'),
                     'xml':ET.tostring(n,encoding='unicode')} for n in owned_nodes if n.tag == f'{{{NS["w"]}}}sym']
                 paragraphs.append({'p':index, 'text':visible_text(p, skip_nested_paragraphs=True), 'formulas':formula_ids, 'media':media_refs,
+                    'body_direct':id(p) in direct_paragraphs,
                     'font_encoded_symbols':symbols,
                     'word_run_formats':word_run_formats(p),
                     'layout_evidence':paragraph_layout_evidence(p)})
@@ -544,6 +579,14 @@ def precheck(result, kind):
             add('CLAIM_REFERENCE','Self, future or missing parent detected',f'P{claim["p"]:04}')
     result['claims_detected']=claims
     result['wording_evidence']=wording_evidence(body, claims)
+    result['document_contract_evidence']=document_contract_evidence(body)
+    for part in result['parts']:
+        if part['part']=='word/document.xml': continue
+        for p in part['paragraphs']:
+            for hit in re.finditer('从而|一一',p['text']):
+                result['document_contract_evidence']['global_word_hits'].append({
+                    'part':part['part'],'paragraph':p['p'],'offset':hit.start(),'text':hit[0],
+                    'context':p['text'][max(0,hit.start()-24):hit.end()+32]})
     if result['wording_evidence']['occurrences']:
         add('WORDING_SCOPE_REVIEW','Review located wording candidates against claim-only restrictions, protected names/titles and whole-body replacements; never perform blind character replacement.')
     result['isolated_symbol_evidence']=[{'id':f['id'],'part':f['part'],'paragraph':f['paragraph'],'symbol':f['linear_text'],
