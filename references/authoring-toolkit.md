@@ -85,8 +85,8 @@
 |run|字段|行为|
 |---|---|---|
 |`text`|`type,text`|宋体14pt正体、显式黑字；标题/栏目由role加粗。|
-|`symbol_reference`|`type,text`，可选`formula_id`|一个普通Latin/Greek字母，正文宋体14pt基线；登记符号与源的语义对应仍需复查。|
-|`formula`|`type,formula_id`|从注册来源复制完整OMML，绝不由字符串重建。|
+|`symbol_reference`|`type,text`，可选`formula_id,style`|一个普通Latin/Greek字母；style默认body为宋体14pt基线，普通Latin字母可用reference_letter复现人工独立J的Cambria Math12pt正体基线。登记源语义对应仍需复查。|
+|`formula`|`type,formula_id`|按注册身份导入来源：真实公式/结构符号保留完整OMML；已核定平面普通Latin引用、prose_example或prose_label转普通w:r，并保留来源台账。|
 |`figure_ref`|`type,figure_id`|由同一图片映射输出“图N”，避免手工图号漂移。|
 
 特殊字形、上下标、向量粗体、帽号等不得塞入`symbol_reference`；用来源OMML。`protected_names`每项为`text`和非空`block_ids`数组，验证该精确名称在每个声明块中仍存在；自动项目标题核验不依赖这份数组。受保护名称的真实性、穷尽性及普通叙述对象不能过度豁免，仍由复查模型按[人工定稿规范](manual-format-and-wording.md)检查。
@@ -118,10 +118,10 @@
 ```
 
 1. 源SHA和OMML树SHA都匹配才导入。序号是`word/document.xml`内全部`m:oMath`的1起序号，不是页面、正文段号或主公式编号。源输入发生变化须重新提取与核对，不能只改哈希绕过。
-2. `category`只能为`main_formula`、`source_example`、`symbol_reference`。每个来源中的每个OMML必须恰好登记一次；不可漏掉、用两个ID伪装同一源对象。主公式/来源算例各只允许一个目标完整对象，符号引用允许多处复用，但至少使用一次。
+2. `category`为`main_formula`、`source_example`、`symbol_reference`、`prose_example`、`prose_label`。后两类仅用于来源已有、经语义核定的普通数字算例或平面标签，不计主公式。每个来源中的每个OMML必须恰好登记一次；不可漏掉、用两个ID伪装同一源对象。主公式/来源算例及普通算例/标签各对应一个目标出现；符号引用可复用至少一次。目标表示可以是源数学对象或按核定身份输出的普通字符，不用OMML数核算主式N。
 3. `formula_policy.source_main_count`须与已核定`main_formula`数相等，成稿按该分类保持N→N。`oMath`本身不是天然的“完整主公式”单位：同一OMML中含多条独立公式等无法建立一对象一式映射的情况，应走原有手工保真路线，不能报成一个主式凑计数。
 4. `source_inventory_complete:true`是上游的明确声明，工具不代替模型检查文本、图像、OLE或上下文公式。`non_omml_formulas`当前只接受`none`；确有非OMML公式时禁止假报none，按原有手工路线处理。无公式须提供非空`no_formula_reason`。
-5. 深复制完整数学子树，保留字形、`m:scr/m:sty`、上下标、数组、空白与运算顺序，不设置全局`m:sty=p`，不压平`eqArr`，不把ℬ改成B；独立显示只在外层设置居中和无首缩进。多来源的`mathPr`必须一致，原样带入。
+5. 对真正公式和结构记号深复制完整数学子树，保留字形、`m:scr/m:sty`、上下标、数组、空白与运算顺序，不设置全局`m:sty=p`，不压平`eqArr`，不把ℬ改成B；独立显示按正确稿把原m:oMath放在居中无首缩进的段内，并在对象外补一个普通中文分号；源顶层最后run已带分号则不重复，内部括号/下标的分号不视为段末。多来源的`mathPr`必须一致，原样带入。
 6. 观测到依赖外部字符样式、段落样式/段落字体、主题或关系ID、修订的OMML会明确失败，不悄悄丢掉依赖；源数学文字显式非黑色也拒绝，不静默改色或产出红色净稿。源对象未显式指定的字体/大小仍需结合来源继承与最终显示核对；该工具不声称完全复现任意源文档的字体解析环境。缺字号不会擅自改写原OMML；本模板普通基准为14pt，必要的数学排版修正走原有复查模型流程并说明依据。
 
 主式、符号、类别及正文解释仍按`formula_registry`要求语义复核。树SHA是忽略XML前缀/属性次序及元素间缩进空白的结构哈希；保留数学文本（包括字面空白）、每个属性、节点次序与所有子结构，不等于原始XML字节哈希。
@@ -154,7 +154,7 @@
 
 ## 模板、读回与审查边界
 
-工具使用`manual-v18-explicit-v2`版式：A4、用户给定边距和312twip网格；正文宋体14pt黑色正体、角色化首缩进；项目名称居中加粗并遵从最新人工稿2字符首缩进；五节独立default页眉页脚，关闭first/even模式。四类页眉黑体14pt字距90twip，权项页眉宋体14pt加粗和0.75pt底边框；其他横线使用一个DrawingML锚定对象，不生成双份兼容线。说明书、说明书附图各从1起用真实PAGE域，PAGE域载体为黑体9pt，横线及空段按各自角色设置字体和行高；不复制缓存页码。
+工具使用`manual-v23-source-math-prose-v4`版式：A4、用户给定边距和312twip网格；正文宋体14pt黑色正体、角色化首缩进；项目名称居中加粗并遵从最新人工稿2字符首缩进；五节独立default页眉页脚，关闭first/even模式。四类页眉黑体14pt字距90twip，权项页眉宋体14pt加粗和0.75pt底边框；其他横线使用一个DrawingML锚定对象，不生成双份兼容线。说明书、说明书附图各从1起用真实PAGE域，PAGE域载体为黑体9pt，横线及空段按各自角色设置字体和行高；不复制缓存页码。
 
 保存后直接读取最终ZIP，按隐藏书签定位每个block的实际直属正文段，重新校验文字、分区、公式完整树、图片源字节、图题相邻及基本段落/字体格式，并重新统计对象；记录不是生成时计数的自我复述。正文仅允许契约支持的直属段落和末尾分节，块/图题顺序及段内文字与数学对象的相对次序须和输入相同；PAGE域五个载体逐个核验9pt、黑体、黑色，不能只查段落默认值。manifest含输入/成稿/工具/inspection/content哈希、blocks、来源对象与最终位置、五节页眉页脚信息。实际页码仍须渲染后补充，不能把段号写成页号。`inspection.json`复用原检查器，既有六项检查继续使用它，不重复编写另一份语义台账。
 
@@ -176,3 +176,10 @@
 
 
 v5.5的manual-v22-natural-flow-v3按角色控制分页：body的keepLines/keepNext/pageBreakBefore/widowControl为0，短标题与文末图片采用必要的keepNext，完整公式及图下号保持keepLines。分节直接附在本节最后内容段；空逻辑节才保留最小1pt结构载体。没有减少或拆分技术文字、重排公式节点，也没有改变页脚定位空段。摘要图的客观记录caption_locator/caption_text为null，文末图仍有图号定位。读回拒绝普通正文重新启用分页束缚、摘要多出图号、额外满行高分节载体；后续验收复用page_flow_evidence，实际页面仍须查看。
+
+
+v5.6按已核定身份选择表示，不把普通内容自动建成公式。注册为prose_example的平面数字算例和prose_label的标签通过原源SHA/OMML树SHA校验后生成普通宋体14pt文字；语义普通的平面Latin symbol_reference同样转文字。仅支持无复杂结构且无有义粗体、修饰、下划线等的安全子集；不支持时拒绝或保留原数学结构，不能靠linear_text压平。source_objects保留kind=source_text、类别、源/目标位置及原树SHA；source_text_occurrences和omml_occurrences分别报告，主公式仍按main_formula核算。源中原本的普通文字直接用text，不需绕道OMML。
+
+普通符号示例：`{"type":"symbol_reference","text":"J","style":"reference_letter"}`。仅这个角色为Cambria Math12pt，ascii/hAnsi为Cambria Math，eastAsia宋体、cs Times New Roman；body角色维持宋体14pt，结构记号/希腊源数学保持真实源格式，不能将12pt传播到大公式。正文/benefit开头式中，或式中：定向改为其中，或其中：，支持跨相邻text run，保留实施方式中/公式中的；其他回指由模型依原意改写。所有读回仍比对片段次序、精确文字、源树、字体和分号，最终视觉/语义不由manifest代签。
+
+分类为symbol_reference的片段只能在paragraph.runs内引用，不能用独立formula块升格为完整公式；此限制同样适用于带结构的引用。

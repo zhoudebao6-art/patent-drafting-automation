@@ -72,6 +72,10 @@ def validate_policy(p):
         raise BatchError('Invalid page flow/abstract figure contract')
     if p.get('layout_contract') and p.get('output_contract')!='wording_title_v18':
         raise BatchError('Page flow/abstract figure contract requires the frozen final output contract')
+    if p.get('formula_contract') not in (None,'source_math_prose_v23'):
+        raise BatchError('Invalid formula/prose contract')
+    if p.get('formula_contract') and p.get('output_contract')!='wording_title_v18':
+        raise BatchError('Formula/prose contract requires the frozen final output contract')
 
 @contextmanager
 def locked(path, timeout=10):

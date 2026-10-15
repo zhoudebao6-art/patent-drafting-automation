@@ -390,6 +390,112 @@ def isolated_symbol_candidate(math):
     return len(text) == 1 and text.isalpha() and not ('\u3400' <= text <= '\u9fff')
 
 
+def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previous_text=''):
+    """Locate v23 roles during the existing inspection, without rewriting math.
+
+    A mathematical-looking string is not a technical formula identity. Only an
+    unambiguous standalone math carrier is checked for terminal punctuation;
+    labels, multiple objects and nonliteral carriers remain semantic review.
+    """
+    out={k:[] for k in ('explanation_lead_hits','standalone_formula_semicolon_hits',
+        'bare_symbol_omml_candidates','plain_label_omml_candidates','inline_numeric_omml_candidates',
+        'review_candidates','standalone_formulas')}
+    w='{'+NS['w']+'}';m='{'+NS['m']+'}'
+    tokens=[];maths=[];nonliteral=[]
+    def walk(node,path):
+        if node.tag in {w+'del',w+'moveFrom'}:return
+        if node is not paragraph and node.tag==w+'p':return
+        if node.tag==m+'oMath':
+            row={'part':part,'paragraph':number,'path':path,'object_id':object_ids[id(node)],
+                 'text':visible_text(node,True),'representation':'omml'}
+            maths.append((node,row));tokens.append(('math',row['text']));return
+        if node.tag==w+'t':tokens.append(('text',node.text or ''))
+        if node.tag in {w+n for n in ('sym','fldChar','fldSimple','instrText','drawing','pict','object','br','tab','cr')}:
+            nonliteral.append(path)
+        counts={}
+        for child in node:
+            tag=child.tag.split('}')[-1];counts[tag]=counts.get(tag,0)+1
+            walk(child,f'{path}/{tag}[{counts[tag]}]')
+    base=f'p[{number}]';walk(paragraph,base)
+    plain=''.join(text for kind,text in tokens if kind=='text')
+    projection=''.join(text if kind=='text' else '\ufffc' for kind,text in tokens)
+    lead=re.match(r'^\s*(式中[，,：:])',projection)
+    if lead:
+        out['explanation_lead_hits'].append({'part':part,'paragraph':number,'path':base,
+            'offset':lead.start(1),'text':lead[1],'replacement':'其中'+lead[1][-1],
+            'context':projection[:100],'offset_projection':'plain_text_with_OMML_boundary_placeholder'})
+    props=paragraph.find('./w:pPr',NS)
+    jc=props.find('./w:jc',NS) if props is not None else None
+    centered=jc is not None and jc.get(w+'val')=='center'
+    display=paragraph.find('.//m:oMathPara',NS) is not None
+    # Ordinary bare Latin/Greek glyphs only. Script/blackboard Unicode letters,
+    # operators and real OMML structures are not flattened by this contract.
+    def bare_runs(node):
+        children=[n for n in node if n.tag!=m+'oMathPr']
+        return bool(children) and all(n.tag==m+'r' and all(c.tag in {m+'t',m+'rPr',w+'rPr'} for c in n)
+                                      for n in children)
+    for node,row in maths:
+        text=row['text'];name=unicodedata.name(text,'') if len(text)==1 else ''
+        if bare_runs(node) and len(text)==1 and text.isalpha() and name.startswith(('LATIN ','GREEK ')):
+            out['bare_symbol_omml_candidates'].append(dict(row,reason='bare_prose_symbol_requires_plain_run_or_source_math_identity'))
+        elif bare_runs(node) and re.fullmatch(r'[A-Za-z]{2,}',text):
+            out['plain_label_omml_candidates'].append(dict(row,reason='flat_ascii_label_requires_plain_run_or_source_math_identity'))
+        elif bare_runs(node) and plain.strip() and re.fullmatch(
+                r'[+−-]?\d+(?:\.\d+)?(?:[+−\-×÷*/]\d+(?:\.\d+)?)+=[+−-]?\d+(?:\.\d+)?',
+                re.sub(r'\s+','',text)):
+            out['inline_numeric_omml_candidates'].append(dict(row,reason='inline_numeric_calculation_requires_plain_prose_or_source_math_identity'))
+    if not maths:return out
+    carrier_plain=not plain.strip(' \t\r\n；;。.') and not nonliteral
+    if len(maths)!=1:
+        if (centered or display) and carrier_plain:
+            out['review_candidates'].append({'part':part,'paragraph':number,'path':base,
+                'object_ids':[row['object_id'] for _,row in maths],
+                'reason':'multiple_math_objects_require_semantic_block_and_punctuation_review'})
+        return out
+    node,row=maths[0]
+    if not carrier_plain:
+        # A formula number or nonliteral object can follow a display equation.
+        # Never mistake that mixed carrier for an objectively punctuable block.
+        if centered or display:
+            out['review_candidates'].append(dict(row,reason='display_label_prose_or_nonliteral_carrier_requires_semantic_review'))
+        return out
+    text=row['text'].strip()
+    structures={n.tag for n in node.iter()}
+    compound=bool(structures & {m+n for n in ('f','nary','limLow','limUpp','eqArr','m')})
+    introduction=bool(re.search(r'下式|以下(?:表达|公式)|计算式|公式(?:为|如下)|表示为|表达式为',previous_text))
+    statement=bool(re.search(r'[=≠≤≥≈≔<>]',text) and re.search(r'[^=≠≤≥≈≔<>\s]',text))
+    def terminal_glyph(math_node):
+        # visible_text omits generated fences and script layout. A semicolon
+        # inside a closing delimiter or a subscript is not block punctuation.
+        if math_node.tag in {m+'r',m+'t',w+'t'}:return visible_text(math_node).rstrip()[-1:]
+        if math_node.tag==m+'d':
+            end=math_node.find('./m:dPr/m:endChr',NS)
+            glyph=')' if end is None else end.get(m+'val','')
+            if glyph:return glyph[-1:]
+        elif math_node.tag not in {m+'oMath',m+'e'}:
+            return '\ufffc'
+        for child in reversed(list(math_node)):
+            if child.tag.startswith(m) and child.tag.split('}')[-1].endswith('Pr'):continue
+            glyph=terminal_glyph(child)
+            if glyph:return glyph
+        return ''
+    # Layout + accepted carrier + substantive expression/context are all
+    # required. Equality or object count by itself never establishes a role.
+    if (centered or display) and (compound or (statement and (introduction or re.search(r'[A-Za-zΑ-ω]',text)))):
+        last=next(((kind,value.rstrip()) for kind,value in reversed(tokens) if value.strip()),('',''))
+        terminal=(last[1][-1:] if last[0]=='text' else terminal_glyph(node))
+        block=dict(row,terminal_semicolon=terminal in {'；',';'},
+                   role_basis={'centered':centered,'display_container':display,
+                               'compound_structure':compound,'formula_introduction':introduction,
+                               'statement_shape':statement})
+        out['standalone_formulas'].append(block)
+        if not block['terminal_semicolon']:
+            out['standalone_formula_semicolon_hits'].append(dict(block,reason='standalone_formula_missing_terminal_semicolon'))
+    elif centered or display:
+        out['review_candidates'].append(dict(row,reason='standalone_math_identity_requires_semantic_review'))
+    return out
+
+
 def wording_evidence(body, claims):
     """Locate edits by scope; never replace titles or certify antecedents."""
     rows = []
@@ -637,11 +743,17 @@ def inspect(path):
               'locator_convention': 'part + 1-based all w:p document order; not page numbers',
               'formula_warning': 'linear_text loses mathematical structure; use omml_xml and visual review',
               'parts': [], 'formulas': [], 'media': [], 'embeddings': [], 'issues': [],
+              'formula_prose_evidence': {'schema_version':1,'artifact_sha256':None,
+                  'extraction_complete':False,'complete':False,'explanation_lead_hits':[],
+                  'standalone_formula_semicolon_hits':[],'bare_symbol_omml_candidates':[],'plain_label_omml_candidates':[],
+                  'inline_numeric_omml_candidates':[],'review_candidates':[],'standalone_formulas':[],
+                  'scope':'Located formatting candidates only. Formula identity is source-semantic; complex OMML, text/image/OLE formulas, labels and mixed carriers retain the existing independent semantic and final-page review.'},
               'punctuation_evidence': {'schema_version':2,'literal_scan_complete':False,'hits':[],
                   'formula_protected_candidates':[],'preferred_wording_hits':[],'review_candidates':[],
                   'scope':'Prose characters are candidates; OMML punctuation is protected pending original source/formula mapping review. Text/image/OLE formulas, numbering, fields, glyphs and angle characters require existing semantic and final-page review.'},
               'text_color_evidence': {'review_runs': [],
                   'scope': 'Applied document-default, paragraph/character basedOn and direct Word/OMML run font colors. Unused styles ignored. Automatic colors, table conditional formatting, DrawingML/image text, highlighting and revision display still require final visual review.'}}
+    result['formula_prose_evidence']['artifact_sha256']=result['sha256']
     with zipfile.ZipFile(path) as z:
         if sum(i.file_size for i in z.infolist()) > 512 * 1024 * 1024:
             raise ValueError('Uncompressed DOCX exceeds 512 MiB inspection limit')
@@ -683,14 +795,19 @@ def inspect(path):
                 owned_nodes = list(paragraph_owned_nodes(p))
                 result['text_color_evidence']['review_runs'].extend(read_colors(p, owned_nodes, part, index))
                 formula_ids = []
+                object_ids = {}
                 for math in (n for n in owned_nodes if n.tag == f'{{{NS["m"]}}}oMath'):
                     fid = f'F{len(result["formulas"])+1:04}'
                     formula_ids.append(fid)
+                    object_ids[id(math)] = fid
                     result['formulas'].append({'id':fid,'part':part,'paragraph':index,
                         'linear_text':visible_text(math),'omml_xml':ET.tostring(math,encoding='unicode'),
                         'math_evidence':math_evidence(math),
                         'isolated_symbol_candidate':isolated_symbol_candidate(math),
                         'status':'unverified'})
+                prior=next((row['text'] for row in reversed(paragraphs) if row['text'].strip()),'')
+                formula_prose=formula_prose_paragraph_evidence(p,part,index,object_ids,prior)
+                for key,rows in formula_prose.items():result['formula_prose_evidence'][key].extend(rows)
                 media_refs = []
                 for node in owned_nodes:
                     if node.tag == f'{{{NS["a"]}}}blip':
@@ -742,6 +859,8 @@ def inspect(path):
                     result['punctuation_evidence']['review_candidates'].append({'part':'word/numbering.xml',
                         'path':f'lvlText[{index}]','text':text,'reason':'numbering_definition_requires_applied_display_review_not_all_definitions_are_used'})
         result['punctuation_evidence']['literal_scan_complete']=True
+        result['formula_prose_evidence']['extraction_complete']=True
+        result['formula_prose_evidence']['complete']=True
         for name in names:
             if name.startswith('word/media/') and not name.endswith('/'):
                 data = z.read(name)

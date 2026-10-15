@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 22,
-  "updated_at": "2026-10-15T05:42:55Z",
+  "version": 23,
+  "updated_at": "2026-10-15T06:09:14Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -1037,7 +1037,7 @@
       "scope": "global",
       "section": "formula",
       "level": "must",
-      "instruction": "复合公式及结构符号按Cambria Math14pt正体基准保留完整上下标、修饰和语义字形，解释对应同一完整符号。解释中的已登记孤立普通变量允许用人工稿式宋体14pt正体、不粗、基线w:r，不必套OMML；这是symbol_reference表示方式例外，不增加或减少源公式N。不得把带上下标或向量/集合特殊字形的完整参数改成裸字母，不强制剥离所有合法单字OMML。",
+      "instruction": "按片段实际身份选择正文或公式格式：普通Latin变量、标签及普通算例用文字，正文裸变量随宋体14pt正体基线；需要复现人工独立单字样式时可用Cambria Math12pt正体基线普通run。完整公式、带上下标/修饰/有义粗体或特殊字形的结构符号仍按来源及Cambria Math14pt正体基准完整保留。正确稿存在不同角色，不能把12pt推广到所有公式或强拆全部单字OMML；符号解释须与式内身份一致。",
       "evidence": [
         {
           "source": "references/terminology-formula-user-requirement.txt",
@@ -1058,9 +1058,13 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+        },
+        {
+          "source": "references/formula-prose-user-requirement.txt",
+          "locator": "2026-10-15全部要求"
         }
       ],
-      "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。 同查m:rPr与w:rPr冲突，正文数学片段复用完整规范符号；区分向量和标量分量。 核对孤立变量的plain_run例外依据、基字符/大小写/角色、源符号语义；完整公式中的数学字体和结构仍保持，不由显示简化改含义。",
+      "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。 同查m:rPr与w:rPr冲突，正文数学片段复用完整规范符号；区分向量和标量分量。 核对孤立变量的plain_run例外依据、基字符/大小写/角色、源符号语义；完整公式中的数学字体和结构仍保持，不由显示简化改含义。 按版本23的角色表核对plain/body、reference_letter、structured_math及来源；普通算例不建OMML，特殊结构不压平。",
       "exceptions": [
         "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
       ]
@@ -1454,6 +1458,32 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "版本22新增正文自然分页和摘要附图无图下号"
+        }
+      ]
+    },
+    {
+      "id": "FORMULA-05",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "formula",
+      "level": "must",
+      "instruction": "公式解释引导语用其中，不用式中；独立完整公式后以一个分号收尾，优先在公式对象外使用普通中文分号。按本案来源核定完整公式、符号引用、标签及普通算例后选择表示；正文内容不得因含变量、运算字符或等号而自动生成公式对象。",
+      "check": "复用同次formula_prose_evidence检查引导语、独立公式末尾及裸符号/标签/算例对象。明确错误须修复；实际合法数学身份或复杂分组由FORMULA-05的source_math_identity结论以当前稿SHA、来源SHA、精确位置、registry_id、source_locator及理由核定。来源N与主公式N对应，不把对象减少当成删掉技术公式。最终同稿逐页核对基线、完整上下标、真实字形及分号不孤行，纳入既有formulas/rendered_pages审查，不新增模型轮次。",
+      "exceptions": [
+        "实施方式中、公式中的等正常词语不按式中子串替换；式中的某符号等回指需保留原意改写。",
+        "源数学内部已有末尾分号不再重复；内部关系分隔符、参数分号不是段末分号。多式分组、公式号或图像/OLE公式按来源定位复核，不能靠文本拼接猜末端。",
+        "真实数学关系、结构记号和有义字形保持；纯平面正文算例转为普通字符时保留每个数值、运算符和顺序，不造算例。",
+        "旧批次不自动迁移。"
+      ],
+      "evidence": [
+        {
+          "source": "references/formula-prose-user-requirement.txt",
+          "locator": "全文"
+        },
+        {
+          "source": "references/formula-layout-standard.md",
+          "locator": "版本23 文中符号、普通算例和公式收尾"
         }
       ]
     }
@@ -3935,6 +3965,85 @@
               {
                 "source": "references/manual-format-and-wording.md",
                 "locator": "版本22新增正文自然分页和摘要附图无图下号"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 23,
+      "previous_version": 22,
+      "updated_at": "2026-10-15T06:09:14Z",
+      "summary": "按人工稿区分文中符号、标签和普通算例，公式引导语其中及独立公式末尾分号的通用修复",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMULA-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "按片段实际身份选择正文或公式格式：普通Latin变量、标签及普通算例用文字，正文裸变量随宋体14pt正体基线；需要复现人工独立单字样式时可用Cambria Math12pt正体基线普通run。完整公式、带上下标/修饰/有义粗体或特殊字形的结构符号仍按来源及Cambria Math14pt正体基准完整保留。正确稿存在不同角色，不能把12pt推广到所有公式或强拆全部单字OMML；符号解释须与式内身份一致。",
+            "evidence": [
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第3至4项"
+              },
+              {
+                "source": "references/terminology-formula-evidence.md",
+                "locator": "历史主公式映射及数学格式证据"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "2026-10-14 实际问题与反例、写作时的处理顺序"
+              },
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+              },
+              {
+                "source": "references/formula-prose-user-requirement.txt",
+                "locator": "2026-10-15全部要求"
+              }
+            ],
+            "check": "核对显式及继承字体/字号/m:sty/m:scr、完整数学子树、解释对应与最终显示。历史证据见terminology-formula-evidence.md；用户明确项目样式可覆盖，技术符号身份仍须保留。 同查m:rPr与w:rPr冲突，正文数学片段复用完整规范符号；区分向量和标量分量。 核对孤立变量的plain_run例外依据、基字符/大小写/角色、源符号语义；完整公式中的数学字体和结构仍保持，不由显示简化改含义。 按版本23的角色表核对plain/body、reference_letter、structured_math及来源；普通算例不建OMML，特殊结构不压平。",
+            "exceptions": [
+              "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
+            ]
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "FORMULA-05",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "公式解释引导语用其中，不用式中；独立完整公式后以一个分号收尾，优先在公式对象外使用普通中文分号。按本案来源核定完整公式、符号引用、标签及普通算例后选择表示；正文内容不得因含变量、运算字符或等号而自动生成公式对象。",
+            "check": "复用同次formula_prose_evidence检查引导语、独立公式末尾及裸符号/标签/算例对象。明确错误须修复；实际合法数学身份或复杂分组由FORMULA-05的source_math_identity结论以当前稿SHA、来源SHA、精确位置、registry_id、source_locator及理由核定。来源N与主公式N对应，不把对象减少当成删掉技术公式。最终同稿逐页核对基线、完整上下标、真实字形及分号不孤行，纳入既有formulas/rendered_pages审查，不新增模型轮次。",
+            "exceptions": [
+              "实施方式中、公式中的等正常词语不按式中子串替换；式中的某符号等回指需保留原意改写。",
+              "源数学内部已有末尾分号不再重复；内部关系分隔符、参数分号不是段末分号。多式分组、公式号或图像/OLE公式按来源定位复核，不能靠文本拼接猜末端。",
+              "真实数学关系、结构记号和有义字形保持；纯平面正文算例转为普通字符时保留每个数值、运算符和顺序，不造算例。",
+              "旧批次不自动迁移。"
+            ],
+            "evidence": [
+              {
+                "source": "references/formula-prose-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "版本23 文中符号、普通算例和公式收尾"
               }
             ]
           }

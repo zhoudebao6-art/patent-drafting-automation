@@ -47,3 +47,23 @@ RGB伽马项目源文件SHA256为`82e79a43150c6bc60246aa8d5c48dbcec246522afab5be
 以下代码是定位线索：`MATH_ARRAY_TRAILING_OPERATOR`、`MATH_EMPTY_SLOT`、`MATH_EXPLICIT_BREAK`、`MATH_STYLE_CONFLICT`、`MATH_FIXED_LINE_HEIGHT`、`MATH_DISPLAY_INDENT`。操作符单独引用等合法情况可依源关闭；不得把所有警告统一标忽略。继承的固定行高、字体替换、自动折行可能没有诊断，零诊断不等于合格。
 
 Sol/xhigh在既有`formulas`检查中逐项保存来源位置、数组语义分类、变更前后结构及理由、完整符号与解释对照、诊断处置；`rendered_pages`记录最终页码及公式/符号实际显示。与最终DOCX哈希绑定，不新增平行验收流程。每条主公式及其解释查看足够清晰的原尺寸区域，同时查看整页，检查等号连续、上下限完整、横线/帽号、缺字/方框/问号、越界和分页；缩略拼图不能代替。必要时按用户使用的Word/WPS核对同一文件的显示，不能拿不同文件或删掉报错符号的PDF证明通过。修正后新复查模型独立重验，未核定问题不得记passed。
+
+## 版本23 文中符号、普通算例和公式收尾
+
+本次人工稿SHA为6301e02adfb2d66bce264807f5bde033521b5dcf24d601793f6185e513486d65，对照稿SHA为e7a51deafa75503ae680d20c96b5cc9f5d8b657bdd347b7c40175871ce9be51d。只提取格式角色，不复制两案技术内容。段号为word/document.xml全部w:p序号，非页码。
+
+|角色|正确稿证据及通用处理|
+|---|---|
+|随正文解释的普通字母|人工P103/P122的普通Latin字母随正文宋体14pt正体基线，可用w:r，不套公式对象。|
+|独立普通字母run|人工P122的J为普通字符，ascii/hAnsi=Cambria Math、12pt、正体不粗、常规基线，eastAsia宋体、cs Times New Roman。可用reference_letter角色复现；此局部样式不推广到全部变量或公式。|
+|希腊字母及结构记号|同段希腊字母为Cambria Math14pt正体OMML，带上下标的量保留真实结构；保留源有义粗体、帽号和特殊字形。缺属性须查继承，不能以一种字体替换全稿。|
+|普通标签/算例|已经核定为标签名或叙述中的数值算例，按正文普通字符输出，不因含字母/等号另建OMML。完整公式中的同名字词仍保留其真实上下标/函数作用。|
+|完整独立公式|人工P104/P123/P138/P152为居中段内的m:oMath，随后普通w:r中文分号。公式对象及外置分号同段；已有合法末尾分号不重复，不能把内部参数分号误作结尾。|
+
+先分类再排版：来源主公式N→N；symbol_reference不计主式，source_example中的正式数学代入与普通叙述算例分别登记。prose_example/prose_label是源绑定的文字表示分类，不代表允许新增示例、标签或事实。普通算例的数值、Unicode减号/加号/等号及先后次序原样保留；不可用linear_text展平分式、上下标、根式、求和、函数参数、矩阵或隐式括号。仅为解释下标名字而提及裸标签时可用基线文字，但完整量的下标不能被删除。
+
+解释引导语写其中，或其中：。段首式中，/式中：及跨run同样改写；实施方式中、公式中的、普通回指不能子串替换。式中的某量这样的回指由模型保持语义改写，不强删其中的条件或引用。
+
+公共生成器对已分类的平面普通Latin引用、prose_example数字算例、prose_label标签导入普通w:r，记录原源SHA/OMML定位/树SHA与目标文字；数学结构和有义字形不能自动展平。明确unsupported保留源并走既有审查路径。全式按原树导入，在居中段外加普通分号；数学子树不因加标点改写。原式以非分号标点收尾或存在复杂公式号时先在修稿阶段按源核定，不叠加标点。
+
+同一次inspect_docx输出formula_prose_evidence，标明schema、当前DOCX SHA、提取完整性、引导语、独立式收尾与裸字母/ASCII标签/数字算例对象候选。候选不是自动技术分类；真正数学身份的例外须有FORMULA-05、classification=source_math_identity、status=closed、当前artifact_sha256、当前案source_sha256、part/paragraph及精确path或object_id、registry_id/source_locator/reason。不得用整段或全稿ignore关闭；未检查不记通过。未知分组/公式号进入保守复核。文字、图片、OLE公式继续原来源盘点及逐页检查，零OMML不等于零公式。新增检查并入既有formulas与rendered_pages，不另起模型阶段。

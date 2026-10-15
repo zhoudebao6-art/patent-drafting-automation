@@ -41,7 +41,7 @@ HEADERS = ('说明书摘要', '摘要附图', '权利要求书', '说明书', '�
 SHA = re.compile(r'^[0-9a-f]{64}$')
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,47}$')
 LIMIT = 64 * 1024 * 1024
-PROFILE = 'manual-v22-natural-flow-v3'
+PROFILE = 'manual-v23-source-math-prose-v4'
 
 
 def fail(message):
@@ -207,6 +207,81 @@ def inventory(case_root, source):
             'boundary': 'Inventory is navigation only. Classify each object and inspect text/image/OLE formulas; null categories are not buildable. oMath count is not the semantic main-formula count.'}
 
 
+def plain_source_text(node, category):
+    """Convert only an explicitly classified, flat scalar/prose example.
+
+    This is not a math recognizer. Scripts, accents, vectors and operators
+    with structural operands remain native; their linear text is insufficient.
+    """
+    if category not in {'symbol_reference', 'prose_example', 'prose_label'}:
+        return None
+    children = [n for n in node if n.tag != qn('m:oMathPr')]
+    if not children or any(n.tag != qn('m:r') for n in children):
+        return None
+    for run in children:
+        if any(n.tag not in {qn('m:rPr'), qn('w:rPr'), qn('m:t')} for n in run):
+            return None
+        if any(n.tag not in {qn('m:sty'), qn('m:nor')} for props in run.findall('m:rPr', NS) for n in props):
+            return None
+        safe_word_props = {'rFonts', 'sz', 'szCs', 'i', 'iCs', 'b', 'bCs', 'color', 'lang'}
+        if any(ET.QName(n).localname not in safe_word_props for props in run.findall('w:rPr', NS) for n in props):
+            return None
+        if run.xpath('./m:rPr/m:scr | ./w:rPr/w:vertAlign | ./w:rPr/w:position', namespaces=NS):
+            return None
+        if any(n.get(qn('m:val')) not in {'p', 'i'} for n in run.findall('m:rPr/m:sty', NS)):
+            return None
+        if any(n.get(qn('w:val'), '1') not in {'0', 'false', 'off'}
+               for n in run.xpath('./w:rPr/w:b | ./w:rPr/w:bCs', namespaces=NS)):
+            return None
+    text = ''.join(n.text or '' for run in children for n in run.findall('m:t', NS))
+    if category == 'symbol_reference':
+        # The reference uses plain Latin letters in prose. Greek math glyphs
+        # retain their source rendering unless explicitly authored as text.
+        return text if re.fullmatch(r'[A-Za-z]', text) else None
+    if category == 'prose_label':
+        return text if re.fullmatch(r'[A-Za-z][A-Za-z0-9]*', text) else None
+    return text if re.fullmatch(r'[0-9+\-−×÷*/=.,%]+', text) and '=' in text else None
+
+
+def explanation_intro(block):
+    """Rewrite only the paragraph-leading introduction, including split runs."""
+    if block.get('role') not in {'body', 'benefit'}:
+        return
+    if 'text' in block:
+        block['text'] = re.sub(r'^(\s*)式中(?=[，,:：])', r'\1其中', block['text'])
+        return
+    prefix = []
+    for run in block.get('runs', []):
+        if run.get('type') != 'text':
+            break
+        prefix.append(run)
+    text = ''.join(r.get('text', '') for r in prefix)
+    found = re.match(r'^\s*式中(?=[，,:：])', text)
+    if found:
+        offset = text.index('式')
+        for run in prefix:
+            if offset < len(run['text']):
+                run['text'] = run['text'][:offset] + '其' + run['text'][offset+1:]
+                break
+            offset -= len(run['text'])
+
+
+def formula_suffix(formula):
+    children = [n for n in formula['node'] if n.tag != qn('m:oMathPr')]
+    # A punctuation character inside a delimiter or subscript is not the
+    # end of the formula. Only a final top-level math run can already end it.
+    text = ''
+    for node in reversed(children):
+        if node.tag != qn('m:r'):
+            break
+        text = ''.join(node.xpath('./m:t/text()', namespaces=NS)).rstrip()
+        if text or any(n.tag not in {qn('m:t'), qn('m:rPr'), qn('w:rPr')} for n in node):
+            break
+    if text.endswith(('。', '.', '，', ',', '：', ':')):
+        fail('Display formula ends with other punctuation; review source before normalizing')
+    return '' if text.endswith(('；', ';')) else '；'
+
+
 def source_formula(row, sources):
     fields(row, ('id', 'source_id', 'locator', 'tree_sha256', 'category'), where='formula')
     identifier(row['id'], 'formula.id')
@@ -227,7 +302,7 @@ def source_formula(row, sources):
     sha_value(row['tree_sha256'], 'formula.tree_sha256')
     if tree_signature(node) != row['tree_sha256']:
         fail('Source OMML tree hash mismatch: ' + row['id'])
-    if row['category'] not in {'main_formula', 'source_example', 'symbol_reference'}:
+    if row['category'] not in {'main_formula', 'source_example', 'symbol_reference', 'prose_example', 'prose_label'}:
         fail('Explicit formula category required: ' + row['id'])
     unsupported = node.xpath('.//w:rStyle | .//w:ins | .//w:del | .//w:moveFrom | .//w:moveTo', namespaces=NS)
     if unsupported or any(k.startswith('{' + NS['r'] + '}') or 'theme' in k.lower()
@@ -247,7 +322,10 @@ def source_formula(row, sources):
             fail('OMML has a paragraph-style/font dependency; manual source-preserving route required: ' + row['id'])
     if node.getparent() is not None and node.getparent().tag == qn('m:oMath'):
         fail('Nested oMath objects are unsupported')
-    return dict(row, node=node)
+    plain = plain_source_text(node, row['category'])
+    if row['category'] in {'prose_example', 'prose_label'} and plain is None:
+        fail('Prose example is not safely representable as flat text; use the reviewed source-preserving route: ' + row['id'])
+    return dict(row, node=node, plain_text=plain)
 
 
 def validate(case_root, spec):
@@ -385,6 +463,7 @@ def validate(case_root, spec):
                     fail('Unsupported paragraph role')
                 if ('text' in block) == ('runs' in block):
                     fail('Paragraph requires exactly one of text/runs')
+                explanation_intro(block)
                 runs = [{'type': 'text', 'text': block['text']}] if 'text' in block else block['runs']
                 if not isinstance(runs, list) or not runs:
                     fail('runs must be a nonempty array')
@@ -393,17 +472,22 @@ def validate(case_root, spec):
                         fail('Run must be an object')
                     rtype = run.get('type')
                     if rtype in {'text', 'symbol_reference'}:
-                        fields(run, ('type', 'text'), ('formula_id',) if rtype == 'symbol_reference' else (), 'run')
+                        fields(run, ('type', 'text'), ('formula_id', 'style') if rtype == 'symbol_reference' else (), 'run')
                         string += text_value(run['text'], 'run.text')
                         if rtype == 'symbol_reference':
                             if len(run['text']) != 1 or not run['text'].isalpha() or ord(run['text']) > 0x3FF:
                                 fail('Plain symbol_reference is one ordinary Latin/Greek letter; use source OMML for structured/special glyphs')
                             if 'formula_id' in run and run['formula_id'] not in formulas:
                                 fail('Unknown symbol_reference formula_id')
+                            if run.get('style', 'body') not in {'body', 'reference_letter'}:
+                                fail('Unknown plain symbol style')
+                            if run.get('style') == 'reference_letter' and not re.fullmatch(r'[A-Za-z]', run['text']):
+                                fail('Reference letter style is evidenced only for an ordinary Latin letter')
                     elif rtype == 'formula':
                         fields(run, ('type', 'formula_id'), where='formula run')
                         if run['formula_id'] not in formulas:
                             fail('Unknown inline formula')
+                        string += formulas[run['formula_id']]['plain_text'] or ''
                         formula_uses[run['formula_id']] += 1
                     elif rtype == 'figure_ref':
                         fields(run, ('type', 'figure_id'), where='figure_ref')
@@ -451,6 +535,11 @@ def validate(case_root, spec):
                 fields(block, ('id', 'type', 'formula_id'), where='formula block')
                 if kind in {'abstract_figure', 'figures'} or block['formula_id'] not in formulas:
                     fail('Unknown formula or formula in figure section')
+                if formulas[block['formula_id']]['category'] == 'symbol_reference':
+                    fail('Symbol references belong in paragraph runs, not complete display formula blocks')
+                if formulas[block['formula_id']]['plain_text'] is not None:
+                    fail('Plain symbols and prose examples belong in paragraph runs, not display formula blocks')
+                string = formula_suffix(formulas[block['formula_id']])
                 formula_uses[block['formula_id']] += 1
             elif btype in {'figure', 'figure_description'}:
                 fields(block, ('id', 'type', 'figure_id'), where=btype)
@@ -477,7 +566,7 @@ def validate(case_root, spec):
         fail('Exactly one protected project_title paragraph is required')
     for formula_id, formula in formulas.items():
         count = formula_uses[formula_id]
-        if count < 1 or (formula['category'] in {'main_formula', 'source_example'} and count != 1):
+        if count < 1 or (formula['category'] in {'main_formula', 'source_example', 'prose_example', 'prose_label'} and count != 1):
             fail('Main/example formulas require one target; symbol references at least one: ' + formula_id)
     if figure_uses != Counter({f: 1 for f in figures}):
         fail('Each registered figure requires exactly one final figure block')
@@ -734,19 +823,29 @@ def render_document(context, path):
                 runs = [{'type': 'text', 'text': block['text']}] if 'text' in block else block['runs']
                 for run in runs:
                     if run['type'] == 'formula':
-                        p._p.append(deepcopy(context['formulas'][run['formula_id']]['node']))
+                        formula = context['formulas'][run['formula_id']]
+                        if formula['plain_text'] is None:
+                            p._p.append(deepcopy(formula['node']))
+                        else:
+                            font(p.add_run(formula['plain_text']), bold=block['role'] in {'heading', 'project_title'})
                     else:
                         string = '图' + str(context['figures'][run['figure_id']]['number']) if run['type'] == 'figure_ref' else run['text']
-                        font(p.add_run(string), bold=block['role'] in {'heading', 'project_title'})
+                        reference = run.get('style') == 'reference_letter'
+                        added = p.add_run(string)
+                        font(added, name='Cambria Math' if reference else '宋体',
+                             size=12 if reference else 14, bold=block['role'] in {'heading', 'project_title'})
+                        if reference:
+                            slots = added._r.find('w:rPr/w:rFonts', NS)
+                            slots.set(qn('w:eastAsia'), '宋体')
+                            slots.set(qn('w:cs'), 'Times New Roman')
             elif btype == 'formula':
                 paragraph_format(p, 'formula', kind)
-                math_para = OxmlElement('m:oMathPara')
-                props = OxmlElement('m:oMathParaPr')
-                jc = OxmlElement('m:jc')
-                jc.set(qn('m:val'), 'center')
-                props.append(jc)
-                math_para.extend([props, deepcopy(context['formulas'][block['formula_id']]['node'])])
-                p._p.append(math_para)
+                # The correct reference centers an inline math object in its
+                # own paragraph, keeping the following prose semicolon inline.
+                p._p.append(deepcopy(context['formulas'][block['formula_id']]['node']))
+                suffix = formula_suffix(context['formulas'][block['formula_id']])
+                if suffix:
+                    font(p.add_run(suffix))
             elif btype == 'figure_description':
                 paragraph_format(p, 'body', kind)
                 font(p.add_run(context['block_texts'][block['id']]))
@@ -930,6 +1029,7 @@ def verify_document(context, path):
     require(list(observed) == expected_order, 'block/caption order changed')
     expected_math_count = 0
     object_rows, block_rows = [], []
+    reference_letter_runs = set()
     for block in context['blocks']:
         index, p, section = observed[block['bookmark']]
         require(section == block['section'], 'block moved to wrong section: ' + block['id'])
@@ -982,7 +1082,8 @@ def verify_document(context, path):
         else:
             require(word_text(p) == context['block_texts'][block['id']], 'text changed or missing in ' + block['id'])
             expected_formulas = ([block['formula_id']] if block['type'] == 'formula' else
-                                 [r['formula_id'] for r in block.get('runs', []) if r['type'] == 'formula'])
+                                 [r['formula_id'] for r in block.get('runs', []) if r['type'] == 'formula' and
+                                  context['formulas'][r['formula_id']]['plain_text'] is None])
             # Preserve interleaving: concatenated text plus a separate math list
             # would miss moving an unchanged equation across explanatory text.
             actual_tokens = []
@@ -999,10 +1100,30 @@ def verify_document(context, path):
                     fail('Readback verification: unexpected paragraph object')
             if block['type'] == 'formula':
                 expected_tokens = [('math', context['formulas'][block['formula_id']]['tree_sha256'])]
+                if context['block_texts'][block['id']]:
+                    expected_tokens.append(('text', context['block_texts'][block['id']]))
             elif 'runs' in block:
-                expected_tokens = [('math', context['formulas'][r['formula_id']]['tree_sha256']) if r['type'] == 'formula' else
-                                   ('text', '图' + str(context['figures'][r['figure_id']]['number']) if r['type'] == 'figure_ref' else r['text'])
-                                   for r in block['runs']]
+                expected_tokens = []
+                actual_runs = iter(p.findall('w:r', NS))
+                for r in block['runs']:
+                    if r['type'] == 'formula':
+                        f = context['formulas'][r['formula_id']]
+                        if f['plain_text'] is None:
+                            expected_tokens.append(('math', f['tree_sha256']))
+                            continue
+                        value = f['plain_text']
+                        object_rows.append({'kind': 'source_text', 'id': f['id'], 'category': f['category'],
+                                            'source_file': context['sources'][f['source_id']]['file'],
+                                            'source_sha256': context['sources'][f['source_id']]['sha256'],
+                                            'source_locator': f['locator'], 'tree_sha256': f['tree_sha256'],
+                                            'target_locator': locator, 'text': value})
+                    else:
+                        value = '图' + str(context['figures'][r['figure_id']]['number']) if r['type'] == 'figure_ref' else r['text']
+                    expected_tokens.append(('text', value))
+                    actual_run = next(actual_runs, None)
+                    require(actual_run is not None, 'ordinary source/symbol run missing')
+                    if r.get('style') == 'reference_letter':
+                        reference_letter_runs.add(actual_run)
             else:
                 expected_tokens = [('text', context['block_texts'][block['id']])]
         math = p.xpath('.//m:oMath', namespaces=NS)
@@ -1039,13 +1160,20 @@ def verify_document(context, path):
             if run.find('w:t', NS) is not None:
                 props = run.find('w:rPr', NS)
                 require(props is not None and attributes(props.find('w:color', NS)).get('val') == '000000', 'body text is not explicitly black')
-                require(attributes(props.find('w:rFonts', NS)).get('eastAsia') == '宋体', 'ordinary body text font changed')
-                require(attributes(props.find('w:sz', NS)).get('val') == '28', 'ordinary body text size changed')
+                expected_fonts = (dict(ascii='Cambria Math', hAnsi='Cambria Math', eastAsia='宋体', cs='Times New Roman')
+                                  if run in reference_letter_runs else {k:'宋体' for k in ('ascii','hAnsi','eastAsia','cs')})
+                require(all(attributes(props.find('w:rFonts', NS)).get(slot) == name
+                            for slot,name in expected_fonts.items()), 'ordinary body text font changed')
+                require(attributes(props.find('w:sz', NS)).get('val') == ('24' if run in reference_letter_runs else '28'),
+                        'ordinary body text size changed')
                 require(attributes(props.find('w:i', NS)).get('val') == '0', 'ordinary text italic changed')
                 require(attributes(props.find('w:vertAlign', NS)).get('val') == 'baseline', 'ordinary symbol vertical alignment changed')
+                require(attributes(props.find('w:position', NS)).get('val', '0') == '0',
+                        'ordinary symbol baseline position changed')
     return {'verification': 'structural_readback_passed', 'profile': PROFILE, 'sections': section_evidence,
             'blocks': block_rows, 'source_objects': object_rows,
             'counts': {'sections': 5, 'blocks': len(block_rows), 'omml_occurrences': expected_math_count,
+                       'source_text_occurrences': sum(r['kind'] == 'source_text' for r in object_rows),
                        'main_formula_occurrences': sum(r.get('category') == 'main_formula' for r in object_rows),
                        'image_occurrences_including_abstract_reuse': expected_images},
             'semantic_review': 'not_run', 'visual_review': 'not_run',

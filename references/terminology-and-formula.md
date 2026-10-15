@@ -1,6 +1,6 @@
 # 所述、公式来源与符号格式
 
-本页执行规则 TXT-04、TXT-10、FORMULA-01 至 FORMULA-04；基础规则适用于版本6起，版本10补充[公式结构与版式标准](formula-layout-standard.md)。原用户反馈见[本轮要求](terminology-formula-user-requirement.txt)，历史依据见[定稿证据](terminology-formula-evidence.md)。当前用户要求优先于旧定稿中不一致的个别写法；不静默改写在途批次的冻结规则。
+本页执行规则 TXT-04、TXT-10、FORMULA-01 至 FORMULA-05；基础规则适用于版本6起，版本10补充[公式结构与版式标准](formula-layout-standard.md)。原用户反馈见[本轮要求](terminology-formula-user-requirement.txt)，历史依据见[定稿证据](terminology-formula-evidence.md)。当前用户要求优先于旧定稿中不一致的个别写法；不静默改写在途批次的冻结规则。
 
 ## 逐处核查所述后的完整名词
 
@@ -62,3 +62,5 @@ inspect_docx.py 的 `math_evidence` 给出字面空白、显式字体/字号/数
 Sol/high 撰写前建立来源公式清单和首次术语登记，写完先做结构预检。Sol/xhigh 在既有 `antecedents` 检查逐处回指，在 `formulas` 检查源/稿计数、双向来源对应、完整符号及解释、无真实空白、格式与数学意义。其他四项照常执行，不另造并行验收通道。
 
 review.json 的证据至少包含：逐处所述结论、N及全部分类计数、每个源/稿公式定位和映射、符号差异/空白发现与处理记录；并绑定最终文件哈希。数为零时也写明已检查哪些表示方式。未看清/未检查不能记 passed。全部修改由 Sol/xhigh 执行并重验，最后一次修改后重新渲染并逐页查看；通过后按既定规则逐案交付。
+
+版本23按[文中符号与收尾](formula-layout-standard.md#版本23-文中符号普通算例和公式收尾)进一步区分普通正文变量、独立普通字母、数学结构和普通算例；源数值算例与标签可登记prose_example/prose_label并用文字输出，保持来源身份、字符和值，不能因对象数量下降改动主公式N。解释引导语用其中，独立大公式末尾一个分号。

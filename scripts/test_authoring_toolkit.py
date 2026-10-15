@@ -194,7 +194,7 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(math.find('m:sSub/m:e/m:r/m:rPr/m:sty', toolkit.NS).get(toolkit.qn('m:val')), 'b')
         self.assertEqual(math.find('m:sSub/m:sub/m:r/m:t', toolkit.NS).text, 'g')
         self.assertEqual(math.find('m:sSup/m:sup/m:r/m:t', toolkit.NS).text, '2')
-        p = math.getparent().getparent()
+        p = math.getparent()
         self.assertEqual(p.find('w:pPr/w:ind', toolkit.NS).get(toolkit.qn('w:firstLineChars')), '0')
 
     def test_figures_reference_caption_and_abstract_reuse(self):

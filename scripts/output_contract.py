@@ -10,6 +10,7 @@ MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
 BENEFIT_MODE = 'numbered_benefits_v21'
 LAYOUT_MODE = 'manual_flow_abstract_v22'
+FORMULA_MODE = 'source_math_prose_v23'
 KNOWN_YIYI = re.compile(r'一一(?:地)?(?:对应|相应|匹配|映射|配对|关联|绑定|核对|对齐|连接|比较|列出|验证|校验|检查|处理|进行|执行|标记|登记|记录|确认|说明)')
 
 
@@ -27,7 +28,7 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False):
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -129,12 +130,52 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
             if not resolved:
                 raise b.BatchError('Final page flow needs a current artifact and located review finding: '+
                                    candidate['part']+' '+candidate['path']+' '+candidate['reason'])
+    if strict_formulas:
+        formula=report.get('formula_prose_evidence')
+        fields=('explanation_lead_hits','standalone_formula_semicolon_hits','bare_symbol_omml_candidates','plain_label_omml_candidates',
+                'inline_numeric_omml_candidates','review_candidates','standalone_formulas')
+        if (not isinstance(formula,dict) or formula.get('schema_version')!=1 or
+                formula.get('extraction_complete') is not True or formula.get('complete') is not True or
+                formula.get('artifact_sha256')!=report['sha256'] or
+                any(not isinstance(formula.get(k),list) for k in fields)):
+            raise b.BatchError('Final formula/prose inspection is missing, incomplete or bound to another artifact')
+        # Formatting errors are not waivable as source formulas. A source-bound
+        # exception applies only to this exact bare/arithmetical math object.
+        for key,label in [('explanation_lead_hits','explanation lead must use 其中'),
+                          ('standalone_formula_semicolon_hits','standalone formula needs a terminal semicolon')]:
+            if formula[key]:
+                where=', '.join(f'{h["part"]} {h["path"]}' for h in formula[key][:6])
+                raise b.BatchError('Final formula/prose contract not satisfied: '+label+': '+where)
+        def source_math_identity(hit):
+            return any(isinstance(f,dict) and f.get('rule_id')=='FORMULA-05' and
+                       f.get('classification')=='source_math_identity' and f.get('status')=='closed' and
+                       f.get('artifact_sha256')==report['sha256'] and
+                       isinstance(f.get('source_sha256'),str) and re.fullmatch(r'[0-9a-fA-F]{64}',f['source_sha256']) and
+                       f['source_sha256'] in source_hashes and
+                       all(f.get(k)==hit.get(k) for k in ('part','paragraph')) and
+                       ((isinstance(f.get('path'),str) and f['path'].strip() and f['path']==hit.get('path')) or
+                        (isinstance(f.get('object_id'),str) and f['object_id'].strip() and
+                         f['object_id']==hit.get('object_id'))) and
+                       all(isinstance(f.get(k),str) and f[k].strip() for k in ('registry_id','source_locator','reason'))
+                       for f in findings)
+        unresolved=[h for key in ('bare_symbol_omml_candidates','plain_label_omml_candidates','inline_numeric_omml_candidates')
+                    for h in formula[key] if not source_math_identity(h)]
+        if unresolved:
+            where=', '.join(f'{h["part"]} {h["path"]}:{h["text"]}' for h in unresolved[:6])
+            raise b.BatchError('Final formula/prose contract needs plain text or a located source math identity finding: '+where)
+        unresolved_reviews=[h for h in formula['review_candidates'] if not source_math_identity(h)]
+        if unresolved_reviews:
+            where=', '.join(f'{h["part"]} {h["path"]}:{h["reason"]}' for h in unresolved_reviews[:6])
+            raise b.BatchError('Final formula/prose review needs a current source-bound located finding: '+where)
     result={'mode':MODE,'artifact_sha256':report['sha256'],'document_title':expected_title,
             'delivery_filename':filename(expected_title),'title_paragraph':title['paragraph'],
             'scope':'Objective title, located wording and enabled numbering/page-flow checks only; original six reviews and final-page acceptance remain required'}
     if strict_prose:result['prose_contract']=PROSE_MODE
     if strict_benefits:result['benefit_contract']=BENEFIT_MODE
     if strict_layout:result['layout_contract']=LAYOUT_MODE
+    if strict_formulas:
+        result['formula_contract']=FORMULA_MODE
+        result['scope']='Objective title, located wording and enabled numbering/page-flow/formula-prose checks only; original six reviews and final-page acceptance remain required'
     return result
 
 
@@ -155,4 +196,5 @@ def verify(m,case,attempt,receipt):
     return check(report,case['title'],receipt.get('findings',[]),
                  m['policy'].get('prose_contract')==PROSE_MODE, [s['sha256'] for s in case.get('sources',[])],
                  m['policy'].get('benefit_contract')==BENEFIT_MODE,
-                 m['policy'].get('layout_contract')==LAYOUT_MODE)
+                 m['policy'].get('layout_contract')==LAYOUT_MODE,
+                 m['policy'].get('formula_contract')==FORMULA_MODE)

@@ -50,5 +50,6 @@
   "prose_contract": "clean_prose_v19",
   "model_policy": "sol_review_xhigh_v20",
   "benefit_contract": "numbered_benefits_v21",
-  "layout_contract": "manual_flow_abstract_v22"
+  "layout_contract": "manual_flow_abstract_v22",
+  "formula_contract": "source_math_prose_v23"
 }
