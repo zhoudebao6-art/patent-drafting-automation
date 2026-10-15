@@ -11,10 +11,11 @@ description: 按用户指定文件夹滚动并行撰写专利文件，使用GPT-
 
 收到明确case/attempt、阶段及prepared时，只做该阶段，不重新启动批次或派发模型。模型及强度以本批冻结策略和真实派发参数为准；下文现行Sol/xhigh要求适用于v5.3起新建批次，旧批次恢复仍遵循原冻结模型。
 
-- **有prepared.pipeline**：完整读取其stage_guide一次。它保留全部active规则的原文指令、检查、范围和例外，已包含写作、所述、净稿、人工定稿格式及本案证据字段；不再重复读取已包含的SKILL、rules.active或散落参考文件。涉及公式/附图时再读其math_guide一次。疑点仍查原始来源及规范，不跳过宿主要求。
+- **有prepared.pipeline**：优先按stage_read_parts顺序完整读取各块一次，不先通读stage_guide再重复分块；无read_parts的旧批次完整读stage_guide一次。v5.7保留worker适用规则原文、检查、范围与例外，纯主控规则单独完整保留，未知或项目规则不删减；人工标准采用执行要点和条件索引，遇到索引情形必须查对应原文。已包含的SKILL、rules.active和标准不重复读取，公式/附图另读math_guide一次。疑点仍查原始来源及规范，不跳过宿主要求。
 - **初稿默认复用公共工具**：读prepared.pipeline.toolkit_guide，按支持的结构提供内容JSON，调用对应toolkit生成Word和客观台账；不再每案重写页眉、分节、公式复制、图号及收尾脚本。不支持的来源结构明确处理，不静默展平/遗漏，也不因此重写所有已支持代码。
 - **旧批次无pipeline**：读本批冻结active规则、[写作规范](references/writing-standard.md)、[所述与公式](references/terminology-and-formula.md)、[净稿与图序](references/reference-style-standard.md)、[人工格式与用词](references/manual-format-and-wording.md)和[本案记录字段](references/data-contracts.md#项目记录)。按需读[技术校核](references/technical-review.md)及[公式结构](references/formula-layout-standard.md)，不假造历史完整快照。
 - 直接读取prepared给出的来源content/index、当前稿inspection及页面候选；完整数学对象按定位读取。来源、旧稿、其他案与冻结工具只读，产物只写当前attempt。模型最终仅提交真实回执，未做项写not_run。
+- v5.7使用pipeline.evidence_query查询现有提取中的指定段落/完整数学对象，避免每案另写检索脚本；CLI退出前按[回执预校验](references/worker-receipt.md)用pipeline.receipt_tool组装真实身份与哈希。语义结论和实际看页记录由模型提供，工具不能生成通过结论。
 
 ## 主控批量执行
 
@@ -23,7 +24,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，使用GPT-
 3. 新批次init一次复制本技能规范与执行工具，编译单份阶段清单。后续队列/CLI命令自动进入本批冻结版本；阶段交接只验证和复用，不逐案重新编译。实现与边界见[快速执行](references/fast-execution.md)。
 4. 默认用[多CLI池](references/cli-workers.md)自动收稿补位；目标4个worker、最多8案在制，容量按账户与机器实际核定。指定模型不可用时记录失败，不换模型、不改全局配置。无CLI时用实际可用子代理名额。手工通道直接reserve --prepare，不先重复plan；新模式会强制准备。
 5. 主控编排，不替模型写稿。极高对应xhigh；draft固定gpt-6.1-sol/high，review、review内修正、revise及修改后独立重验固定gpt-6.1-sol/xhigh。虽然使用同一模型，阶段仍必须分开派发，新复查上下文不能沿用修改者会话。真实派发Sol/high撰写；Sol/xhigh复查和修改。有唯一依据的小修在当前review集中完成并返回revised，随后新Sol/xhigh独立重验；不适合合并的修复走revise。修改者不能同轮通过自己的新稿。
-6. 收稿验证真实执行身份、文件与六项审查；最终来源、所述、权项联动、公式、附图、全部最终页均通过后立即deliver，同一目录追加，不等待其他案。未验收稿和详细工作记录不放交付目录。流程不中途停止到只完成部分。
+6. 收稿验证真实执行身份、文件与六项审查；最终来源、所述、权项联动、公式、附图、全部最终页均通过后立即deliver，同一目录追加，不等待其他案。v5.7仅隔离明确定义的单案回执结构错误，保留拒收证据且不自动重试；身份、哈希、来源及未知异常仍停派发。新稿发布前完整验一次，历史成稿每次查身份与哈希，收尾/恢复完整查历史证据。未验收稿和详细工作记录不放交付目录，继续处理其余可用案件。
 
 ## 内容与正确性边界
 
@@ -44,7 +45,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，使用GPT-
 
 优先[快速执行](references/fast-execution.md)与[提效流程](references/efficiency.md)：单份冻结清单、公共排版和证据工具、一次结构预检、直接交接定位与缓存、内容稳定后最终渲染。检查合入现有六项，不另起一层重复审批。技能维护按本次改动测试，全部通过后停止重复运行。
 
-工具索引：stage_bundle.py冻结与编译；authoring_toolkit.py通用Word生成/客观核验；inspect_docx.py提取与结构预检；prepare_handoff.py缓存交接；render_docx_checked.py真实渲染与哈希；cli_pool.py派发和收稿；parallel_batch.py状态与交付；recover_cli_batch.py严格恢复符合条件的误拒初稿。具体参数读对应--help或规范，不自行猜路径。
+工具索引：stage_bundle.py冻结与编译；authoring_toolkit.py通用Word生成/客观核验；inspect_docx.py提取与结构预检；evidence_query.py只读定位；worker_receipt.py回执组装预校验；prepare_handoff.py缓存交接；render_docx_checked.py真实渲染与哈希；cli_pool.py派发和收稿；parallel_batch.py状态与交付；recover_cli_batch.py严格恢复符合条件的误拒初稿。具体参数读对应--help或规范，不自行猜路径。
 
 来源缓存绑定源和提取器；页面绑定当前DOCX、后端/参数与配置字体。缓存失效时只重做受影响数据，不重跑无关阶段。渲染证据不等于可见正确，未知问题不得记通过。已有4路执行通道不代表固定倍数提速，只报告实际测量范围。
 

@@ -18,6 +18,10 @@ CORE = ('writing-standard.md', 'claim-families-and-benefits.md', 'terminology-an
         'reference-style-standard.md', 'manual-format-and-wording.md')
 MATH = ('technical-review.md', 'formula-layout-standard.md')
 STAGES = ('draft', 'review', 'revise')
+LEAN = 'lean_execution_v24'
+# Explicit controller routes only. Unknown/new/project rules stay with workers.
+CONTROLLER_RULES = frozenset({'UPDATE-01', 'UPDATE-02', 'BATCH-01', 'BATCH-02',
+                              'BATCH-07', 'BATCH-09', 'BATCH-11', 'BATCH-12'})
 
 
 def sha(path):
@@ -95,6 +99,7 @@ def build_packet(snapshot, rules, stage):
     if len({r['id'] for r in active}) != len(active):
         raise ValueError('Duplicate active rule ID')
     policy = json.loads((snapshot/'references/batch-policy.json').read_text(encoding='utf-8-sig'))
+    lean = policy.get('execution_optimization') == LEAN
     config = policy['models'][stage]
     identity = config['model']+'/'+str(config['reasoning_effort'])
     stage_text = {
@@ -105,12 +110,28 @@ def build_packet(snapshot, rules, stage):
     sections = [f'# 本批{stage}执行清单（规则v{rules["version"]}）', f'本阶段模型/强度：{identity}。'+stage_text,
                 '本清单包含全部active规则的原文指令、检查及例外，以及必需写作规范。正常阶段读一次本清单，不再重复读取rules.active.json、整个SKILL或其已包含的参考文件。疑点按索引查询；不能用此安排跳过宿主要求或本案来源。',
                 '## 原文规则（含适用范围）']
-    for r in active:
+    routed = [r for r in active if lean and r['id'] in CONTROLLER_RULES and r['scope']=='global'
+              and r['section'] in {'batch', 'delivery', 'update'}]
+    included = [r for r in active if r not in routed]
+    if lean:
+        sections[2] = ('本清单保留全部适用worker规则的原文、检查与例外。控制器专用规则原文见worker-controller.md；'
+                       '只写本attempt，来源/其他案/规则只读，派发/状态/交付由总控执行。'
+                       '按prepared.pipeline.stage_read_parts顺序完整读取各块一次，不先整读再重读分块。'
+                       '原文规范仍在冻结references中，worker-standard末表指定复杂情形必须读取的原节；不能跳过宿主技能或来源。')
+    for r in included:
         sections.append(rule_block(r))
     sections += ['## 规则来源与完整字段',
                  '来源证据与完整规则见references/rules.json；本清单不改变任何规则优先级。规则更新由总控处理，worker不得修改批次或规则。']
     spans = []
-    for name in CORE:
+    if lean:
+        guard = json.loads((snapshot/'references/worker-standard-coverage.json').read_text(encoding='utf-8'))
+        expected = {*CORE, 'worker-standard.md'}
+        if set(guard['files']) != expected:
+            raise ValueError('Worker standard coverage inventory changed')
+        for name, expected_sha in guard['files'].items():
+            if sha(snapshot/'references'/name) != expected_sha:
+                raise ValueError('Worker standard reference changed; review compact coverage before compilation: '+name)
+    for name in (('worker-standard.md',) if lean else CORE):
         raw = (snapshot/'references'/name).read_text(encoding='utf-8-sig')
         sections += ['# 规范原文：'+name, normalize_links(raw)]
         spans.append({'file': 'references/'+name, 'mode': 'complete', 'sha256': sha(snapshot/'references'/name)})
@@ -127,7 +148,33 @@ def build_packet(snapshot, rules, stage):
     coverage = {'stage': stage, 'active_rule_ids': [r['id'] for r in active],
                 'rule_payload_sha256': hashlib.sha256(canonical(active).encode('utf-8')).hexdigest(),
                 'normative_sections': spans, 'semantic_approval': False}
+    if lean:
+        coverage.update(included_rule_ids=[r['id'] for r in included],
+                        controller_rule_ids=[r['id'] for r in routed],
+                        reference_coverage=guard,
+                        reading_mode='nonoverlapping_parts',
+                        scope='Applicable rule text is verbatim; detailed standards remain frozen and conditionally required')
     return output, coverage
+
+
+def write_parts(root, stage, text, limit=7000):
+    """Lossless bounded reads: concatenation reproduces the whole packet exactly."""
+    directory = root/'worker-parts'; directory.mkdir(exist_ok=True)
+    chunks, current = [], ''
+    for line in text.splitlines(keepends=True):
+        while len(line) > limit:
+            if current: chunks.append(current); current = ''
+            chunks.append(line[:limit]); line = line[limit:]
+        if current and len(current)+len(line) > limit:
+            chunks.append(current); current = ''
+        current += line
+    if current: chunks.append(current)
+    result = []
+    for n, chunk in enumerate(chunks, 1):
+        path = directory/f'{stage}-{n:02}.md'
+        path.write_text(chunk, encoding='utf-8', newline='')
+        result.append({'file': path.relative_to(root).as_posix(), 'sha256': sha(path), 'characters': len(chunk)})
+    return result
 
 
 def freeze(skill, batch, rules_bytes, policy):
@@ -152,7 +199,16 @@ def freeze(skill, batch, rules_bytes, policy):
     coverage = {}
     for stage in STAGES:
         text, coverage[stage] = build_packet(root, rules, stage)
-        (root/f'worker-{stage}.md').write_text(text, encoding='utf-8')
+        (root/f'worker-{stage}.md').write_text(text, encoding='utf-8', newline='')
+        if policy.get('execution_optimization') == LEAN:
+            coverage[stage]['read_parts'] = write_parts(root, stage, text)
+    if policy.get('execution_optimization') == LEAN:
+        routed = [r for r in rules['rules'] if r['status']=='active' and r['id'] in CONTROLLER_RULES
+                  and r['scope']=='global' and r['section'] in {'batch', 'delivery', 'update'}]
+        (root/'worker-controller.md').write_text('\n\n'.join(rule_block(r) for r in routed)+'\n', encoding='utf-8')
+        active = [r for r in rules['rules'] if r['status']=='active']
+        (root/'rules.active.json').write_text(json.dumps({'schema_version': 1, 'rule_version': rules['version'],
+            'rules_sha256': hashlib.sha256(rules_bytes).hexdigest(), 'rules': active}, ensure_ascii=False), encoding='utf-8')
     (root/'worker-math.md').write_text('\n\n'.join('# '+n+'\n\n'+normalize_links(
         (root/'references'/n).read_text(encoding='utf-8-sig')) for n in MATH), encoding='utf-8')
     (root/'packet-coverage.json').write_text(json.dumps(coverage, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -194,11 +250,21 @@ def worker_paths(m, stage):
         return None
     if stage not in STAGES:
         raise ValueError('Unknown worker stage')
-    return {'root': str(root), 'stage_guide': str(root/f'worker-{stage}.md'),
+    result = {'root': str(root), 'stage_guide': str(root/f'worker-{stage}.md'),
             'stage_guide_sha256': sha(root/f'worker-{stage}.md'),
             'math_guide': str(root/'worker-math.md'), 'toolkit': str(root/'scripts/authoring_toolkit.py'),
             'toolkit_guide': str(root/'references/authoring-toolkit.md'),
             'snapshot_sha256': m['skill_snapshot']['sha256']}
+    if m['policy'].get('execution_optimization') == LEAN:
+        coverage = json.loads((root/'packet-coverage.json').read_text(encoding='utf-8'))[stage]
+        result.update(execution_optimization=LEAN,
+                      stage_read_parts=[dict(path=str(root/p['file']), sha256=p['sha256'], characters=p['characters'])
+                                        for p in coverage['read_parts']],
+                      rules_active=str(root/'rules.active.json'),
+                      runtime_config=str(root/'references/runtime.json'),
+                      evidence_query=str(root/'scripts/evidence_query.py'),
+                      receipt_tool=str(root/'scripts/worker_receipt.py'))
+    return result
 
 
 def restore_snapshot(old, new):

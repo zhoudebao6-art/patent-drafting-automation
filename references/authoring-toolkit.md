@@ -11,12 +11,13 @@
 ```powershell
 & $docPython -X utf8 scripts/authoring_toolkit.py inventory --case-root 'E:\案件\case001' --source 'sources/原始材料.docx'
 & $docPython -X utf8 scripts/authoring_toolkit.py build --case-root 'E:\案件\case001' --input 'draft-content.json' --out 'draft-v1'
-& $docPython -X utf8 scripts/authoring_toolkit.py verify --case-root 'E:\案件\case001' --out 'draft-v1'
 ```
 
 - `inventory`只读，输出源文件 SHA256、`word/document.xml`内全部`oMath`的稳定序号/树哈希，以及媒体 part/哈希。`category: null`和导航文本不能原样充作已核定注册项；模型先分类，去掉`linear_text_for_navigation_only`后再放入`formulas`。
 - `build`输出`draft.docx`、输入快照`content.json`、现有预检器的`inspection-cache/`及`build_manifest.json`。缓存内实际`inspection.json`、`content.txt`、源媒体与`cache.json`路径由返回值`inspection`和manifest给出。成稿页眉五分区由工具生成，不在正文重复写“说明书摘要”等分区标题。
 - `verify`从最终 ZIP 再读一次，与输入快照和来源重新比对；不会修改产物。返回`structural_readback_passed`只代表本工具负责的客观结构通过，`semantic_review`、`visual_review`永远为`not_run`。
+
+`build`成功已包含独立读回，不紧接着再执行同样的`verify`。仅外部修改、恢复或具体完整性疑点时执行`authoring_toolkit.py verify --case-root 本案根目录 --out 产物目录`。需要来源段落、完整OMML或问题定位时直接用`prepared.pipeline.evidence_query`查询已有inspection，不重新解压或逐案写查询脚本；例如`evidence_query.py inspection.json --section paragraphs --start 1 --end 30`，按返回next_offset继续而不重叠读取。`--section formulas --ids F0001`保留完整数学对象；导航结果不表示已核定公式或审查通过。
 
 所有参数中的文件路径、`sources[].file`均相对`case-root`，必须位于该根目录内；绝对路径、`..`越界、解析后指向其他目录的链接拒绝。`case-root`本身由派发上下文提供，不能由另一案拷贝替换。源 DOCX/PNG/JPEG必须带 SHA256，构建前后核对；不修改来源。
 

@@ -1,4 +1,4 @@
-# 单份清单与公共生成工具（v5.0）
+# 通用精简执行（v5.7）
 
 用户要求兼顾速度与正确，并显著减少实际耗时。本模式减少重复准备和每案临时编程，不增加逐案审批或改变指定模型。默认4路滚动并行继续，不以未测量的扩容承诺速度。
 
@@ -6,9 +6,13 @@
 
 `batch-policy.json.worker_preparation=frozen_stage_packet_v1`启用本模式。`parallel_batch.py init`建立`skill-snapshot`，复制当前规则、引用规范、运行脚本和必要资产，保存文件SHA及规则/策略身份。历史规则备份、测试脚本不随每批复制。来源技术正文仍分案管理。
 
-在快照根生成`worker-draft.md`、`worker-review.md`、`worker-revise.md`及按需的`worker-math.md`。全部active规则的instruction、check、exceptions、scope、section、level及origin原样进入清单，完整evidence保留在冻结rules.json；写作、所述、净稿及人工格式规范原文进入清单。data-contracts只取项目证据部分，批次状态操作由总控负责。不是模型重新概括规则；编译覆盖清单记全部ID和原始字段摘要哈希，缺字段或约定章节改名即停止。
+在快照根生成`worker-draft.md`、`worker-review.md`、`worker-revise.md`及按需的`worker-math.md`。v5.7新批次还启用`execution_optimization=lean_execution_v24`：worker适用规则的instruction、check、exceptions、scope、section、level及origin原样进入阶段清单；已知纯主控global规则原文另放`worker-controller.md`。未知和project范围规则始终保留在worker清单，不靠关键词过滤。完整active集合另冻结为一份rules.active.json，完整evidence仍在rules.json；覆盖清单记录全部ID、路由和字段摘要哈希。
 
-以后各attempt直接接收`prepared.pipeline.stage_guide`与工具路径。完整读一次清单后，不再重复打开同样的active JSON和规范；需要公式/附图时读math清单一次。保留宿主要求、当前documents技能和按来源深入核对。
+人工规范使用经独立复核的`worker-standard.md`执行要点和条件原文索引；触发索引条件必须读对应完整规范，不以简版覆盖例外。`worker-standard-coverage.json`绑定简版及五份原始规范SHA，任一改变后先维护覆盖并复核，编译不接受过期覆盖。项目证据契约仍完整提供。没有lean标志的旧批次继续把全部active规则及五份原始规范放入阶段清单。
+
+以后各attempt接收`prepared.pipeline.stage_read_parts`与工具路径。各块不超过7000字符，顺序拼接恰好等于stage_guide；每块完整读一次，避免整份输出截断后再读重叠区段。若工具输出仍截断，只补未读范围。不要再读同样的active JSON和已包含规范；公式/附图按需读math清单一次。保留宿主要求、当前documents技能和按来源深入核对。
+
+来源提取验证后，精简导航以inspection与映射器SHA为键，生成在本案source-navigation并由manifest记录SHA，各阶段只读复用；不改写提取cache目录。规则active只在批次冻结一次，不在每个attempt重写。已有证据用`evidence_query.py`按段落、对象ID和非重叠分页读取，避免每案编写同类查询程序。自定义技术推算仍由本案模型依据来源完成，不能把它当重复步骤删除。
 
 队列和CLI命令会自动转入本批冻结脚本执行，避免运行中安装新技能改变旧批规范或程序。每次绑定/收稿仍核对快照完整性，不能给被改写的工具签通过。无此标志的旧批次保留旧契约，不事后声称已有完整冻结证据。
 
@@ -23,6 +27,10 @@
 Sol/high完成内容和必要结构检查，避免再模拟整轮复查模型审查；已知待改内容先改，不提前反复渲染。Sol/xhigh一次集中核查，有唯一依据的小修可本轮完成再交新的复查模型独立重验。修订只处理问题及其关联章节，不无理由重写全文。
 
 验收的六项、全部最终页面、真实模型身份和最终字节哈希不变。普通批次不跑技能回归、不再打开GitHub或重读历史案例。真正影响版式的修改仍需最终页面核对；同稿页面只有身份完整且匹配才复用。
+
+CLI在退出前使用[回执工具](worker-receipt.md)从真实job、dispatch和产物组装身份及哈希，预先发现可修正的字段错误；模型填写实际审查结论，工具不补passed。收稿时仅把明确的`CaseReceiptError`隔离到本案，记录拒收证据、不自动重新收费重跑；来源/身份/哈希/跨案路径或未知异常仍停止新派发。合成错误样例不能代替真实模型审查。
+
+追加交付只对本次新成稿在原子发布前完整核验一次；已有成稿每次仍核对目录归属、文件身份和SHA，不逐件重扫全部历史来源、页面及回执。批次收尾完整审计历史证据，发布中断恢复也完整核验；不能以已交付状态跳过证据异常。单个空闲轮复用一次已验证manifest，任何状态变更或异常后重载，下一轮重新验证，不建立跨事务的全局免检缓存。
 
 ## 字体与恢复
 

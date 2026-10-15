@@ -164,14 +164,14 @@ class CliPoolTests(unittest.TestCase):
         self.enable_cli(); launched=[]; completed=False; iterations=0
         class StopTest(Exception): pass
         real_collect=pool.collect
-        def collect(manifest,controller):
+        def collect(manifest,controller,*,state=None):
             nonlocal completed, iterations
             iterations += 1
             self.assertLess(iterations, 9, 'Pool did not refill promptly')
             if len(launched)==4 and not completed:
                 completed=True
                 self.fixture_cli(launched[0],bind=False)
-                return real_collect(manifest,controller)
+                return real_collect(manifest,controller,state=state)
             return False,False
         def prepare(reserved,exe):
             launched.append(reserved)
@@ -184,9 +184,9 @@ class CliPoolTests(unittest.TestCase):
                     self.assertEqual(p.case_by_id(m,r['case_id'])['active_attempt'],r['attempt']['id'])
                 raise StopTest()
             return 'synthetic-job'
-        def status(manifest):
+        def status(manifest,*,state=None):
             return {'cases':[{'case_id':c['id'],'next_action':'wait_cli' if c['active_attempt'] else 'draft'}
-                            for c in p.load_manifest(manifest)['projects']]}
+                            for c in (state if state is not None else p.load_manifest(manifest))['projects']]}
         with patch.object(pool,'preflight',return_value=str(self.root/'codex.exe')), \
              patch.object(pool,'collect',side_effect=collect), patch.object(pool,'status',side_effect=status), \
              patch.object(pool,'prepare_job',side_effect=prepare), patch.object(pool,'start_supervisor'), \
@@ -207,6 +207,37 @@ class CliPoolTests(unittest.TestCase):
         self.assertEqual(m['projects'][0]['active_attempt'],bad['attempt']['id'])
         self.assertEqual(m['projects'][1]['status'],'drafted')
         self.assertNotEqual(status['cases'][0]['next_action'],'done')
+
+    def test_idle_iteration_reads_manifest_once_and_reuses_only_current_view(self):
+        self.enable_cli()
+        for _ in range(4): p.reserve(self.manifest,4,transport='codex_cli')
+        class StopTest(Exception): pass
+        states=[]
+        def collect(manifest,controller,*,state=None):
+            states.append(state)
+            return False,False
+        def status(manifest,*,state=None):
+            self.assertIs(state,states[-1])
+            return {'cases':[{'case_id':c['id'],'next_action':'wait_cli'} for c in state['projects'] if c['active_attempt']]}
+        with patch.object(pool,'preflight',return_value=str(self.root/'codex.exe')), \
+             patch.object(pool,'collect',side_effect=collect), patch.object(pool,'status',side_effect=status), \
+             patch.object(pool,'emit'), patch.object(pool.time,'sleep',side_effect=StopTest), \
+             patch.object(p,'load_manifest',wraps=p.load_manifest) as loads:
+            with self.assertRaises(StopTest): pool.run(self.manifest,'controller',4)
+        self.assertEqual(loads.call_count,2)  # Startup plus one current iteration.
+
+    def test_next_iteration_reloads_frozen_metadata_and_rejects_changes(self):
+        self.enable_cli()
+        for _ in range(4): p.reserve(self.manifest,4,transport='codex_cli')
+        def status(manifest,*,state=None):
+            return {'cases':[{'case_id':c['id'],'next_action':'wait_cli'} for c in state['projects'] if c['active_attempt']]}
+        def change_snapshot(_):
+            b.atomic(self.batch/'policy.snapshot.json', {'changed': True})
+        with patch.object(pool,'preflight',return_value=str(self.root/'codex.exe')), \
+             patch.object(pool,'collect',return_value=(False,False)), patch.object(pool,'status',side_effect=status), \
+             patch.object(pool,'emit'), patch.object(pool.time,'sleep',side_effect=change_snapshot):
+            with self.assertRaisesRegex(b.BatchError,'Policy snapshot changed'):
+                pool.run(self.manifest,'controller',4)
 
 
 if __name__ == '__main__': unittest.main()

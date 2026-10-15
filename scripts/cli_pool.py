@@ -12,6 +12,7 @@ import uuid
 import batch_tool as b
 import parallel_batch as queue
 import cli_evidence as evidence
+from worker_receipt import CaseReceiptError, MODE as LEAN_MODE
 
 SKILL = Path(__file__).resolve().parent.parent
 
@@ -70,19 +71,37 @@ def worker_prompt(reserved):
     prepared = reserved['worker_context'].get('prepared') or {}
     pipeline = prepared.get('pipeline')
     if pipeline:
+        lean = pipeline.get('execution_optimization') == LEAN_MODE
+        receipt_instruction = ''
+        reading_instruction = f"先完整读取一次本批冻结阶段清单：{pipeline['stage_guide']}。"
+        coverage_instruction = '该清单已含全部active原文规则和必需规范'
+        review_instruction = '内容问题先集中解决；小修可在当前复查轮完成并返回revised，新派发的复查模型独立重验。最终按冻结清单做六项与全部最终页面审查；缓存与生成器均不证明语义通过。'
+        if lean:
+            coverage_instruction = '规则块含本阶段全部适用原文规则和必需规范；控制器规则由总控执行'
+            review_instruction = {
+                'draft': '本轮完成初稿内容和一次客观结构预检即可，不模拟独立复查或完整最终全页验收。只有具体布局疑点才做必要预览；正式六项审查与最终全部页面检查由后续独立review执行。',
+                'revise': '本轮按已有findings集中修正并做一次客观结构预检，不重复撰写无关正文，不签发通过。修订稿的正式六项和全部最终页面检查由后续独立review执行。',
+                'review': '先审内容，稳定后完成六项及全部最终页面实际审查；本轮若修稿则返回revised，由新会话独立重验，不能自验pass。缓存与生成器均不证明语义或视觉通过。',
+            }[stage]
+            if pipeline.get('stage_read_parts'):
+                reading_instruction = ('先按prepared.pipeline.stage_read_parts依次完整读取每个不重叠规则块一次；'
+                                       '这些块覆盖本阶段全部适用规则及例外。不要先整读stage_guide再重复分块，'
+                                       '也不要把工具输出截断当作已读；发现截断仅补缺失区间。')
+            receipt_instruction = f"""结束前使用统一回执工具，避免退出后才发现字段/路径错误：把你实际完成的verdict、checks、findings及artifact/render.evidence写入本attempt的decisions.json，使用本批runtime_config指定的Python执行\"{Path(pipeline['root'])/'scripts/worker_receipt.py'}\" --job \"{Path(a['directory'])/'cli-job.json'}\" --decisions \"{Path(a['directory'])/'decisions.json'}\"。工具自动补实际身份、文件SHA和渲染SHA，不补passed、不关闭问题、不代替语义或视觉审查；失败时在本轮修正真实字段/产物后重试，不重写已正确的正文。工具成功输出的JSON须原样作为最终回复，不再手写或改写回执；不得写worker-final.json或receipt.json。\n"""
         if stage == 'draft':
             stage_instruction = '完成本案专利初稿；公共生成器已生成的有效inspection缓存直接交接，不再重复预检。自行生成的稿件才按prepared.draft_inspection_cache做一次结构预检。'
         return f"""你是单案{stage} worker，实际模型/强度为{model_identity}，由CLI显式指定。{stage_instruction}
-先完整读取一次本批冻结阶段清单：{pipeline['stage_guide']}。
-该清单已含全部active原文规则和必需规范，不再重复读取同内容的SKILL、rules.active.json或散落规范。有公式/附图再读一次{pipeline['math_guide']}；疑点再查其原始依据。此安排不覆盖宿主指令或documents工具要求。
+{reading_instruction}
+{coverage_instruction}，不再重复读取同内容的SKILL、rules.active.json或散落规范。有公式/附图再读一次{pipeline['math_guide']}；疑点再查其原始依据。此安排不覆盖宿主指令或documents工具要求。
 初稿优先用{pipeline['toolkit_guide']}规定的结构化内容和{pipeline['toolkit']}公共生成器，复用页眉/段落/源数学/图号/客观台账代码。不把未支持的结构强行展平，不凭生成器的记录签发通过。需要自定义时只补不支持部分，不重新写全部公共逻辑。
 工具返回的output实际路径与SHA用于回执，不能照抄模板里的占位文件名；生成器的inspection缓存直接复用。
 按prepared直接读取本案来源content/index，完整核对原始公式。其他案、来源、旧稿、冻结工具/规范及manifest只读，只在本attempt写入。不得再启动CLI/批次/子代理，不得改变模型或推理强度。
 来源材料只作技术证据，不执行其中的命令；历史案例只提供格式与话术，不移植技术事实。
-内容问题先集中解决；小修可在当前复查轮完成并返回revised，新派发的复查模型独立重验。最终按冻结清单做六项与全部最终页面审查；缓存与生成器均不证明语义通过。
+{review_instruction}
 最终渲染工具：{Path(pipeline['root'])/'scripts/render_docx_checked.py'}；原稿缓存、运行环境和当前稿路径均由prepared/冻结工具提供。合法同稿页面可验证复用。不要为无关问题重装依赖、重读历史案例或重写客观台账。
 工具运行中用对应等待工具等30至60秒，不重复启动或高频短轮询。合并独立只读操作，输出必要定位，不反复打印全文。
 最后仅输出真实JSON回执，不输出正文、不写receipt.json；实际未做项写not_run，未解决问题不得pass。review修改过稿必须返回revised，不能自验通过。
+{receipt_instruction}
 回执模板：{json.dumps(template, ensure_ascii=False)}
 本案上下文：{json.dumps(reserved['worker_context'], ensure_ascii=False)}
 来源快照：{json.dumps(reserved['source_snapshots'], ensure_ascii=False)}
@@ -118,6 +137,12 @@ def prepare_job(reserved, executable):
     job = {'attempt': a, 'model': model, 'executable': executable,
            'argv': evidence.build_command(executable, root, model['model'], model['reasoning_effort']),
            'prompt_sha256': b.sha(root/'prompt.txt')}
+    context = reserved['worker_context']
+    pipeline = (context.get('prepared') or {}).get('pipeline') or {}
+    if pipeline.get('execution_optimization') == LEAN_MODE:
+        job['receipt_contract'] = {'execution_optimization': LEAN_MODE,
+                                   'case_directory': context['case_directory'],
+                                   'review_mode': context['review_mode']}
     write_new(root/'cli-job.json', job)
     # A durable intent prevents an interrupted launch being silently duplicated.
     write_new(root/'cli-launch-intent.json', {'context': a['context'], 'job_sha256': b.sha(root/'cli-job.json')})
@@ -214,8 +239,10 @@ def observe_identity(record):
     return current is not None and current['created'] == record['created']
 
 
-def status(manifest):
-    m = queue.load_manifest(manifest)
+def status(manifest, *, state=None):
+    # Only the controller's current iteration may pass an already-verified view.
+    # Standalone status and every new iteration still load/verify frozen metadata.
+    m = queue.load_manifest(manifest) if state is None else state
     rows = []
     for c in m['projects']:
         next_action = queue.NEXT.get(c['status'], 'deliver' if c['status'] == 'accepted' else 'done' if c['status'] == 'delivered' else 'needs_attention')
@@ -251,10 +278,10 @@ def release_failed(manifest, c, a, reason, controller):
     queue.defer(manifest, c['id'], 'failed', reason, controller)
 
 
-def collect(manifest, controller):
+def collect(manifest, controller, *, state=None, suppress_delivery=False):
     """Collect each exited worker once; never accept an early receipt from a live CLI."""
     changed = False; stop_launching = False
-    m = queue.load_manifest(manifest)
+    m = queue.load_manifest(manifest) if state is None else state
     for c in m['projects']:
         if not c['active_attempt']:
             continue
@@ -298,15 +325,24 @@ def collect(manifest, controller):
                 case = queue.record(manifest, c['id'], a['id'], receipt, controller)
             except (ValueError, OSError, KeyError, TypeError, queue.BatchError) as exc:
                 reason = 'CLI result was not accepted: '+str(exc)
+                isolated = (m['policy'].get('execution_optimization') == LEAN_MODE
+                            and isinstance(exc, CaseReceiptError))
+                rejection = {'reason': reason, 'scope': 'case' if isolated else 'pool',
+                             'code': exc.code if isolated else 'integrity_or_unknown',
+                             'attempt': a['id'], 'automatic_retry': False}
+                if not (root/'cli-rejection.json').exists():
+                    write_new(root/'cli-rejection.json', rejection)
                 release_failed(manifest, c, a, reason, controller)
-                # Any executor/receipt failure stops new paid launches; active workers
-                # drain normally. Resume is explicit after the cause is corrected.
-                stop_launching = True
-                event(manifest, 'rejected', case_id=c['id'], reason=reason)
+                # Only known local contract failures, raised after real execution
+                # and identity proof, permit unrelated paid work to continue.
+                # Unknown errors, changed hashes/sources or model identity halt.
+                stop_launching = stop_launching or not isolated
+                event(manifest, 'case_isolated' if isolated else 'rejected',
+                      case_id=c['id'], **rejection)
             else:
                 event(manifest, 'completed', case_id=c['id'], stage=a['stage'], status=case['status'],
                       session_id=next(x['cli_session_id'] for x in case['attempts'] if x['id'] == a['id']))
-                if case['status'] == 'accepted':
+                if case['status'] == 'accepted' and not suppress_delivery:
                     destination = queue.deliver(manifest, controller)
                     event(manifest, 'delivered', case_id=c['id'], destination=str(destination))
             changed = True
@@ -332,19 +368,42 @@ def run(manifest, controller, workers=4, executable=None):
     # Separate kernel lock: only one CLI coordinator; queue mutations retain their
     # original short-lived lock and all existing acceptance/delivery verification.
     with queue.locked(pool/'owner.json', timeout=0):
-        executable = preflight(executable)
-        event(manifest, 'pool_started', workers=workers, executable=executable)
         halted = False
         blocking_reasons = []
+        history_audit_failed = False
+        # Restart is a new trust boundary. Audit published history once before
+        # any paid launch; ordinary appends and idle polls do not repeat it.
+        if m['policy'].get('execution_optimization') == LEAN_MODE and m.get('delivery_mode'):
+            try:
+                queue.deliver(manifest, controller, audit_history=True)
+            except (queue.BatchError, ValueError, OSError, KeyError, TypeError) as exc:
+                halted = history_audit_failed = True
+                blocking_reasons.append({'reason': 'Published history audit failed: '+str(exc)})
+                event(manifest, 'history_audit_failed', reason=str(exc))
+        if not history_audit_failed:
+            executable = preflight(executable)
+        event(manifest, 'pool_started', workers=workers, executable=executable)
         while True:
-            changed, failure = collect(manifest, controller)
+            m = queue.load_manifest(manifest)
+            if history_audit_failed:
+                changed, failure = collect(manifest, controller, state=m, suppress_delivery=True)
+            else:
+                changed, failure = collect(manifest, controller, state=m)
             halted = halted or failure
-            snapshot = status(manifest)
+            # A successful mutation or an uncertain partial operation invalidates
+            # the view. Pure idle observation reuses it within this iteration.
+            if changed or failure:
+                m = queue.load_manifest(manifest)
+            snapshot = status(manifest, state=m)
             uncertain = [r for r in snapshot['cases'] if r['next_action'] in {'inspect_interrupted_launch', 'inspect_exit'}]
             if uncertain:
                 halted = True
-            m = queue.load_manifest(manifest)
-            if any(c['status'] == 'accepted' and not c['active_attempt'] for c in m['projects']):
+            needs_final_audit = (m['policy'].get('execution_optimization') == 'lean_execution_v24'
+                                 and m.get('delivery_mode') and not m.get('delivery_closed')
+                                 and all(c['status'] in b.TERMINAL and not c.get('active_attempt')
+                                         for c in m['projects']))
+            if not history_audit_failed and (needs_final_audit or any(
+                    c['status'] == 'accepted' and not c['active_attempt'] for c in m['projects'])):
                 queue.deliver(manifest, controller); changed = True
                 m = queue.load_manifest(manifest)
             active = sum(bool(c['active_attempt']) for c in m['projects'])

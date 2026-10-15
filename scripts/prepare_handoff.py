@@ -4,6 +4,8 @@ import json
 import inspect_docx as inspector
 from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile
+import hashlib
+import uuid
 
 # Source container/XML errors should be queue refusals, not uncaught tracebacks.
 SOURCE_ERRORS = (BadZipFile, ParseError)
@@ -25,6 +27,28 @@ def source_index(report):
             'issues': report['issues'], 'media': report['media'],
             'embeddings': report['embeddings'],
             'formula_count_status': report['formula_count_status']}
+
+
+def shared_source_index(case, case_root, summary):
+    """Controller-sealed navigation; never recompile it in every stage."""
+    identity = {'inspection_sha256': inspector.file_sha(summary['inspection']),
+                'mapper_sha256': inspector.file_sha(__file__)}
+    key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    records = case.setdefault('source_navigation', {})
+    saved = records.get(key)
+    directory = inspector.local_path(case_root/'source-navigation')
+    if saved:
+        target = inspector.local_path(saved['path'])
+        if target.parent != directory or saved['identity'] != identity or inspector.file_sha(target) != saved['sha256']:
+            raise ValueError('Shared source navigation changed')
+    else:
+        directory.mkdir(exist_ok=True)
+        target = directory/(key[:20]+'-'+uuid.uuid4().hex[:8]+'.json')
+        report = json.loads(Path(summary['inspection']).read_text(encoding='utf-8'))
+        save_new(target, source_index(report))
+        saved = {'path': str(target), 'sha256': inspector.file_sha(target), 'identity': identity}
+        records[key] = saved
+    return {'index': saved['path'], 'index_sha256': saved['sha256'], 'index_identity': identity}
 
 
 def read_existing_inspection(source, cache_root, kind):
@@ -86,15 +110,23 @@ def prepare(m, case, attempt):
         raise ValueError('Handoff must belong to the reserved case attempt')
     out = attempt_root/'prepared'
     out.mkdir(exist_ok=False)
+    pipeline = None
+    if m.get('skill_snapshot') or m['policy'].get('worker_preparation'):
+        from stage_bundle import worker_paths
+        pipeline = worker_paths(m, attempt['stage'])
+    lean = m['policy'].get('execution_optimization') == 'lean_execution_v24'
     rules_path = inspector.local_path(Path(m['batch_dir'])/'rules.snapshot.json')
     if inspector.file_sha(rules_path) != m['rules_sha256']:
         raise ValueError('Frozen rules changed during preparation')
-    rules = json.loads(rules_path.read_text(encoding='utf-8-sig'))
-    active = [r for r in rules['rules'] if r['status'] == 'active']
-    active_path = out/'rules.active.json'
-    save_new(active_path, {'rule_version': m['rule_version'], 'snapshot': str(rules_path),
-                          'snapshot_sha256': m['rules_sha256'], 'rules': active,
-                          'scope_note': 'All active rules retained including exceptions and evidence; apply their recorded scopes. History is not needed for ordinary drafting.'})
+    if lean:
+        active_path = Path(pipeline['rules_active'])
+    else:
+        rules = json.loads(rules_path.read_text(encoding='utf-8-sig'))
+        active = [r for r in rules['rules'] if r['status'] == 'active']
+        active_path = out/'rules.active.json'
+        save_new(active_path, {'rule_version': m['rule_version'], 'snapshot': str(rules_path),
+                              'snapshot_sha256': m['rules_sha256'], 'rules': active,
+                              'scope_note': 'All active rules retained including exceptions and evidence; apply their recorded scopes. History is not needed for ordinary drafting.'})
     reports = []
     for i, src in enumerate(case['sources'], 1):
         source = inspector.local_path(src['snapshot_path'])
@@ -104,10 +136,14 @@ def prepare(m, case, attempt):
             reports.append({'input': str(source), 'sha256': src['sha256'], 'status': 'read_original_non_docx'})
             continue
         summary = inspector.run_inspection(source, case_root/'source-cache', 'proposal', True, True)
-        report = json.loads(Path(summary['inspection']).read_text(encoding='utf-8'))
-        index = out/f'source-{i:03}-index.json'
-        save_new(index, source_index(report))
-        reports.append(dict(seal_inspection(summary), index=str(index)))
+        if lean:
+            navigation = shared_source_index(case, case_root, summary)
+        else:
+            report = json.loads(Path(summary['inspection']).read_text(encoding='utf-8'))
+            index = out/f'source-{i:03}-index.json'
+            save_new(index, source_index(report))
+            navigation = {'index': str(index)}
+        reports.append(dict(seal_inspection(summary), **navigation))
     artifact_inspection = None
     if attempt.get('input_artifact'):
         artifact = inspector.local_path(attempt['input_artifact'])
@@ -123,9 +159,8 @@ def prepare(m, case, attempt):
               'render_candidates': render_candidates(attempt.get('input_artifact'), attempt.get('input_artifact_sha256')),
               'draft_inspection_cache': str(attempt_root/'inspection-cache'),
               'boundary': 'Read content and index first; load full OMML for relevant IDs. Reuse data, never semantic approval. Verify render candidates before viewing; invalid or distorted output cannot pass.'}
-    if m.get('skill_snapshot') or m['policy'].get('worker_preparation'):
-        from stage_bundle import worker_paths
-        result['pipeline'] = worker_paths(m, attempt['stage'])
+    if pipeline:
+        result['pipeline'] = pipeline
     result['prepared_files'] = [{'file': p.name, 'sha256': inspector.file_sha(p)} for p in sorted(out.glob('*.json'))]
     path = out/'handoff.json'
     save_new(path, result)
@@ -169,6 +204,8 @@ def verify_prepared(m, case, attempt):
         from stage_bundle import worker_paths
         if data.get('pipeline') != worker_paths(m, attempt['stage']):
             raise ValueError('Prepared frozen pipeline changed')
+        if m['policy'].get('execution_optimization') == 'lean_execution_v24' and data['rules_active'] != data['pipeline']['rules_active']:
+            raise ValueError('Prepared shared rules path changed')
     for entry in data['prepared_files']:
         target = inspector.local_path(root/entry['file'])
         if target.parent != root or inspector.file_sha(target) != entry['sha256']:
@@ -182,6 +219,16 @@ def verify_prepared(m, case, attempt):
             raise ValueError('Prepared source belongs to a foreign case')
         if path.suffix.lower() == '.docx':
             verify_inspection(summary, path, source['sha256'], 'proposal', [case_root/'source-cache'])
+            if m['policy'].get('execution_optimization') == 'lean_execution_v24':
+                index = inspector.local_path(summary['index'])
+                identity = {'inspection_sha256': inspector.file_sha(summary['inspection']),
+                            'mapper_sha256': inspector.file_sha(__file__)}
+                key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+                expected = {'path': str(index), 'sha256': summary['index_sha256'], 'identity': identity}
+                if (index.parent != case_root/'source-navigation' or summary['index_identity'] != identity
+                        or case.get('source_navigation', {}).get(key) != expected
+                        or inspector.file_sha(index) != summary['index_sha256']):
+                    raise ValueError('Prepared shared source navigation changed')
         elif (inspector.local_path(summary['input']) != path or inspector.file_sha(path) != source['sha256']
               or summary['sha256'] != source['sha256'] or summary['status'] != 'read_original_non_docx'):
             raise ValueError('Prepared non-DOCX source changed')

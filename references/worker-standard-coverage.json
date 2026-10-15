@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "reviewed_for": "lean_execution_v24",
+  "description": "Compact workflow plus verbatim applicable rules; full references are preserved and exception sections are conditionally required. Any source edit requires renewed coverage review.",
+  "files": {
+    "writing-standard.md": "21ff68421ab75d1635816b8b7738a4d853064f8e5b79a77297393827fff54ef9",
+    "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
+    "terminology-and-formula.md": "f7b88878130e9b5f20a007974f53a54c09b134bb6e9dac62e961075ea52f7af3",
+    "reference-style-standard.md": "f7415d99bef8ce8c9bf64815355f739130c657eb356174343d1d497f5e89c028",
+    "manual-format-and-wording.md": "216695511ba774935ca859dd632cf1e2a0e8ee729d757f78849421baae92f6b0",
+    "worker-standard.md": "d640618b6e2988e6af3ab64272b6eb20a854139817de6e451876f7c11046fc57"
+  }
+}

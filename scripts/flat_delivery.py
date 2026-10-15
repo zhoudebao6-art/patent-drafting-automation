@@ -221,12 +221,19 @@ def recover_published_cases(m, verify):
     return recovered
 
 
-def deliver(path, m, verify):
+def deliver(path, m, verify, *, force_history_audit=False):
     selected = [c for c in m['projects'] if c['status'] in {'accepted', 'delivered'}]
     closed = all(c['status'] in b.TERMINAL and not c.get('active_attempt') for c in m['projects'])
     if not selected and not closed and m.get('delivery_mode') != MODE:
         raise b.BatchError('No accepted case is ready for flat delivery')
-    for c in selected: verify(c)
+    lean = m['policy'].get('execution_optimization') == 'lean_execution_v24'
+    # New cases are fully verified immediately before atomic publication below.
+    # Published cases retain file identity/SHA checks on EVERY delivery. Their full
+    # historical evidence is audited once at closure instead of on every append.
+    audit_history = force_history_audit or (closed and not m.get('delivery_closed'))
+    for c in selected:
+        if not lean or (c['status'] == 'delivered' and audit_history):
+            verify(c)
     dest = destination(m); desk = dest.parent
     if m.get('delivery_path') and Path(m['delivery_path']) != dest: raise b.BatchError('Delivery location changed')
     if m.get('delivery_path') and not dest.exists(): raise b.BatchError('Recorded delivery directory disappeared')

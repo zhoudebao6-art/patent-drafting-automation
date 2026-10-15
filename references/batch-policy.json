@@ -51,5 +51,6 @@
   "model_policy": "sol_review_xhigh_v20",
   "benefit_contract": "numbered_benefits_v21",
   "layout_contract": "manual_flow_abstract_v22",
-  "formula_contract": "source_math_prose_v23"
+  "formula_contract": "source_math_prose_v23",
+  "execution_optimization": "lean_execution_v24"
 }

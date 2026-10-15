@@ -2,7 +2,7 @@
 
 # 多项目滚动并行
 
-v5.0新批次的worker_preparation=frozen_stage_packet_v1：init一次冻结本技能规范、程序与阶段清单，prepared.pipeline传实际路径；队列及CLI命令自动路由到该快照。新worker读取一次stage_guide及按需math_guide，公共Word工具生成支持的结构与客观台账，避免重复读取/编程。模型、六项审查、分案与即时交付不变。详见[快速执行](fast-execution.md)，旧无标志批次不自动迁移。
+新批次的worker_preparation=frozen_stage_packet_v1：init一次冻结本技能规范、程序与阶段清单，prepared.pipeline传实际路径；队列及CLI命令自动路由到该快照。v5.7启用execution_optimization=lean_execution_v24，worker按stage_read_parts完整读取各不重叠块一次，公式/附图按需math_guide；适用规则原文保留、条件规范按索引读取。公共工具提供Word生成、只读证据查询和回执预校验，规则active及同案来源索引跨阶段复用。模型、六项审查、分案与即时交付不变。详见[快速执行](fast-execution.md)，旧无标志批次不自动迁移。
 
 新批次使用scripts/parallel_batch.py和schema_version=2的[策略](batch-policy.json)，execution=rolling_parallel。旧批次execution=serial_per_project仍使用scripts/batch_tool.py和[历史流程](batch-workflow-serial.md)；不改写旧清单、派发或快照，正在测试的旧项目不自动迁移。
 

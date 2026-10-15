@@ -76,6 +76,11 @@ def validate_policy(p):
         raise BatchError('Invalid formula/prose contract')
     if p.get('formula_contract') and p.get('output_contract')!='wording_title_v18':
         raise BatchError('Formula/prose contract requires the frozen final output contract')
+    if p.get('execution_optimization') not in (None, 'lean_execution_v24'):
+        raise BatchError('Invalid execution optimization contract')
+    if p.get('execution_optimization') and (p.get('worker_preparation') != 'frozen_stage_packet_v1'
+                                           or p['delivery'].get('layout') != 'flat_final_files'):
+        raise BatchError('Lean execution requires frozen preparation and flat delivery')
 
 @contextmanager
 def locked(path, timeout=10):
@@ -472,6 +477,9 @@ def record(path, case_id, attempt, receipt, controller='controller'):
         model = m['policy']['models'][a['stage']]
         if any(receipt.get(k) != v for k, v in model.items()) or receipt.get('agent_id') != a['agent_id'] or receipt.get('stage') != a['stage']:
             raise BatchError('Receipt model/effort/worker/stage mismatch')
+        if m['policy'].get('execution_optimization') == 'lean_execution_v24':
+            from worker_receipt import precheck_receipt
+            precheck_receipt(m, c, a, receipt)
         r = copy.deepcopy(receipt); verdict = r.get('verdict')
         if verdict in {'failed', 'needs_input'}:
             if not isinstance(r.get('reason'), str) or not r['reason'].strip(): raise BatchError('Concrete failure reason required')
@@ -566,7 +574,7 @@ def defer(path, case_id, status, reason, controller='controller'):
         c['status'] = status; return copy.deepcopy(c)
     return mutate(path, controller, apply)
 
-def deliver(path, controller='controller'):
+def deliver(path, controller='controller', *, audit_history=False):
     import incremental_delivery as incremental
     import flat_delivery as flat
     with locked(path):
@@ -603,6 +611,8 @@ def deliver(path, controller='controller'):
             for c in m['projects']:
                 if c['status'] == 'accepted': quarantined = quarantine_changed_input(m, c) or quarantined
             if quarantined or recovered: b.atomic(path, m)
+            if audit_history and flat.enabled(m):
+                return publisher.deliver(path, m, verify, force_history_audit=True)
             return publisher.deliver(path, m, verify)
     # The legacy implementation owns its lock and preserves old completed batches.
     return _deliver_legacy(path, controller)
