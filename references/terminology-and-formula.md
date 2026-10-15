@@ -21,7 +21,7 @@
 
 首处去掉“所述”，后处“参考轨迹位置”保留裸写即可。若原始上下文确有合格前置，则不凭截图片段机械删除。
 
-在 terms.json 逐处记录 `following_noun_phrase`、`occurrence_locator`（含句内偏移）、`scope`、`introduced_at`、`ancestor_path`、`identity_evidence`、`verdict` 和 `correction`。没有依据的引用不能记 passed；引用头及真实行文指引分类另记（reference_kind），名词修饰范围记head_span。inspect_docx.py 提供全部“所述”的上下文与偏移，**不会自动分词或判定语义通过**，Astra/high 须对照完整段落和权项树核查。
+在 terms.json 逐处记录 `following_noun_phrase`、`occurrence_locator`（含句内偏移）、`scope`、`introduced_at`、`ancestor_path`、`identity_evidence`、`verdict` 和 `correction`。没有依据的引用不能记 passed；引用头及真实行文指引分类另记（reference_kind），名词修饰范围记head_span。inspect_docx.py 提供全部“所述”的上下文与偏移，**不会自动分词或判定语义通过**，Sol/xhigh 须对照完整段落和权项树核查。
 
 ## 先冻结来源公式清单，再撰写
 
@@ -59,6 +59,6 @@ inspect_docx.py 的 `math_evidence` 给出字面空白、显式字体/字号/数
 
 ## 并入既有六项复查
 
-Sol/high 撰写前建立来源公式清单和首次术语登记，写完先做结构预检。Astra/high 在既有 `antecedents` 检查逐处回指，在 `formulas` 检查源/稿计数、双向来源对应、完整符号及解释、无真实空白、格式与数学意义。其他四项照常执行，不另造并行验收通道。
+Sol/high 撰写前建立来源公式清单和首次术语登记，写完先做结构预检。Sol/xhigh 在既有 `antecedents` 检查逐处回指，在 `formulas` 检查源/稿计数、双向来源对应、完整符号及解释、无真实空白、格式与数学意义。其他四项照常执行，不另造并行验收通道。
 
-review.json 的证据至少包含：逐处所述结论、N及全部分类计数、每个源/稿公式定位和映射、符号差异/空白发现与处理记录；并绑定最终文件哈希。数为零时也写明已检查哪些表示方式。未看清/未检查不能记 passed。全部修改由 Astra/high 执行并重验，最后一次修改后重新渲染并逐页查看；通过后按既定规则逐案交付。
+review.json 的证据至少包含：逐处所述结论、N及全部分类计数、每个源/稿公式定位和映射、符号差异/空白发现与处理记录；并绑定最终文件哈希。数为零时也写明已检查哪些表示方式。未看清/未检查不能记 passed。全部修改由 Sol/xhigh 执行并重验，最后一次修改后重新渲染并逐页查看；通过后按既定规则逐案交付。

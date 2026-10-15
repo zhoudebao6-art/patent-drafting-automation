@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 19,
-  "updated_at": "2026-10-15T02:23:04Z",
+  "version": 20,
+  "updated_at": "2026-10-15T02:46:46Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -674,7 +674,7 @@
       "scope": "global",
       "section": "delivery",
       "level": "must",
-      "instruction": "每案完成并经GPT-6-astra/high最终复查通过后，立即将DOCX直接交付到用户实际桌面同一批次文件夹根目录。全部合格成稿同层排列，不建立已完成或每案交付子目录；不等待其他项目完成。规则版本18起按NAME-01将文件名与文内正式名称逐字核对，不擅加案号；重名或非法文件名须先解决冲突，不覆盖用户文件或往期批次。内部撰写与复查仍分案隔离，详细台账及待处理说明留工作目录。",
+      "instruction": "每案完成并经GPT-6.1-sol/xhigh最终复查通过后，立即将DOCX直接交付到用户实际桌面同一批次文件夹根目录。全部合格成稿同层排列，不建立已完成或每案交付子目录；不等待其他项目完成。规则版本18起按NAME-01将文件名与文内正式名称逐字核对，不擅加案号；重名或非法文件名须先解决冲突，不覆盖用户文件或往期批次。内部撰写与复查仍分案隔离，详细台账及待处理说明留工作目录。",
       "check": "每次通过回执后执行交付，核对来源、最终稿及渲染证据；检查所有成稿父目录相同且等于批次交付根目录，名称按全队列冻结并消歧；部分交付不关闭批次，未验收稿不交付，重试不覆盖，发布中断可恢复；新平铺布局与旧快照均有回归验证。",
       "evidence": [
         {
@@ -692,6 +692,10 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": [
@@ -705,8 +709,8 @@
       "scope": "global",
       "section": "draft",
       "level": "must",
-      "instruction": "专利文稿初稿由真实派发的gpt-6.1-sol以high推理强度执行；复查、复查后的撰写修改及重验均由gpt-6-astra以high推理强度执行。各阶段必须显式设置并记录模型及推理强度，不使用默认值或降低强度。",
-      "check": "检查真实CLI参数与实际会话turn_context，或真实子代理派发参数及成功结果；draft须为gpt-6.1-sol/high，review、revise及重验须为gpt-6-astra/high；缺失、null、其他强度或仅文本身份声明均不符合要求。",
+      "instruction": "专利文稿初稿由真实派发的gpt-6.1-sol以high推理强度执行；复查、复查内修正、复查后的撰写修改及重验均由gpt-6.1-sol以xhigh极高推理强度执行。各阶段必须显式设置并记录模型及推理强度，不使用默认值或降低强度。新建批次冻结model_policy=sol_review_xhigh_v20；使用同一模型仍须按阶段独立派发，修改后使用新的复查上下文或CLI会话。",
+      "check": "检查真实CLI参数与实际会话turn_context，或真实子代理派发参数及成功结果；draft须为gpt-6.1-sol/high，review、revise及重验须为gpt-6.1-sol/xhigh；缺失、null、其他强度或仅文本身份声明均不符合要求。",
       "evidence": [
         {
           "source": "references/batch-user-requirement.txt",
@@ -724,9 +728,15 @@
         {
           "source": "references/cli-workers.md",
           "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
-      "exceptions": []
+      "exceptions": [
+        "已运行旧批次按其冻结模型、强度及工具执行；不得改写历史真实模型记录或静默迁移。"
+      ]
     },
     {
       "id": "BATCH-04",
@@ -735,8 +745,8 @@
       "scope": "global",
       "section": "review",
       "level": "must",
-      "instruction": "文稿复查由gpt-6-astra执行，reasoning_effort固定为high；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。有阻碍通过的内容错误时先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
-      "check": "确认review阶段工具派发模型与high强度，检查实际文件哈希及复查证据。",
+      "instruction": "文稿复查由gpt-6.1-sol执行，reasoning_effort固定为xhigh；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。有阻碍通过的内容错误时先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
+      "check": "确认review阶段工具派发gpt-6.1-sol模型与xhigh极高强度，检查实际文件哈希及复查证据。",
       "evidence": [
         {
           "source": "references/batch-user-requirement.txt",
@@ -745,6 +755,10 @@
         {
           "source": "references/efficiency-user-requirement.txt",
           "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": []
@@ -756,8 +770,8 @@
       "scope": "global",
       "section": "revise",
       "level": "must",
-      "instruction": "复查发现错误时，由gpt-6-astra/high修正文稿并同步关联内容，不交回Sol或主控。新策略允许当前review代理在一次调用内完成有明确依据的修正，另存新稿并返回revised；不适合合并时走独立revise，旧策略仍保持原流程。",
-      "check": "核对真实Astra/high派发及修改产物、问题定位和新稿哈希；合并修正仅在允许的新策略下接受，返回revised后不能交付，必须进入新的独立review。",
+      "instruction": "复查发现错误时，由gpt-6.1-sol/xhigh修正文稿并同步关联内容，不交回初稿worker或主控。新策略允许当前review代理在一次调用内完成有明确依据的修正，另存新稿并返回revised；不适合合并时走独立revise，旧策略仍保持原流程。",
+      "check": "核对真实Sol/xhigh派发及修改产物、问题定位和新稿哈希；合并修正仅在允许的新策略下接受，返回revised后不能交付，必须进入新的独立review。",
       "evidence": [
         {
           "source": "references/batch-user-requirement.txt",
@@ -766,6 +780,10 @@
         {
           "source": "references/efficiency-user-requirement.txt",
           "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": []
@@ -777,7 +795,7 @@
       "scope": "global",
       "section": "review",
       "level": "must",
-      "instruction": "任何修订（含review内直接修正）后，由新派发的Astra/high代理独立复查最终版本；修改者不得在同次回执直接通过自己的变更稿。未解决问题、未完成最终页面复核或复查哈希不一致不得进入已完成。",
+      "instruction": "任何修订（含review内直接修正）后，由新派发的Sol/xhigh代理独立复查最终版本；修改者不得在同次回执直接通过自己的变更稿。未解决问题、未完成最终页面复核或复查哈希不一致不得进入已完成。",
       "check": "以最终内容哈希绑定审阅结果；需要源材料补充的项目单列待处理并继续其他项目。",
       "evidence": [
         {
@@ -787,6 +805,10 @@
         {
           "source": "references/efficiency-user-requirement.txt",
           "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": []
@@ -861,7 +883,7 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许Astra在当前review内直接完成有明确依据的一次修正，再交新的Astra/high独立重验，减少单独修改派发；修正回执不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
+      "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许复查模型在当前review内直接完成有明确依据的一次修正，再交新的Sol/xhigh独立重验，减少单独修改派发；修正回执不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
       "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。 核对派发实际包含prepared路径、同稿热交接不再解析ZIP、规则例外未丢失、跨案/过期证据拒绝及准备失败不提交占槽；页面候选必须验证，不能把同SHA的证据复制、工具升级或渲染器纠错重试计成无效重复。 通过真实隔离CLI实测区分通道可用与整批提速；不可把账面并行或局部测量宣称为已证实的文稿产能倍数。",
       "evidence": [
         {
@@ -891,6 +913,10 @@
         {
           "source": "references/speed-user-requirement.txt",
           "locator": "全文"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": []
@@ -902,7 +928,7 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "并行数量受实际工具额度、在制项目上限及机器资源约束。持续推进Astra复查和修正，同时为后续Sol撰写保留机会；无可用额度时等待事件，不虚构成功或降低模型质量。 CLI与collaboration分别核实真实可用容量，共用本批case占槽，不通过新聊天、全局配置改动或安全降级绕过限制。",
+      "instruction": "并行数量受实际工具额度、在制项目上限及机器资源约束。持续推进复查模型复查和修正，同时为后续Sol撰写保留机会；无可用额度时等待事件，不虚构成功或降低模型质量。 CLI与collaboration分别核实真实可用容量，共用本批case占槽，不通过新聊天、全局配置改动或安全降级绕过限制。",
       "check": "压力调度检查队列公平、草稿积压上限、满槽等待、资源下降和单worker退化状态，并明确验证范围。",
       "evidence": [
         {
@@ -916,6 +942,10 @@
         {
           "source": "references/cli-workers.md",
           "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": []
@@ -1017,9 +1047,13 @@
         {
           "source": "references/formula-layout-standard.md",
           "locator": "实际问题与反例、格式基准与来源优先级"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
-      "check": "核对eqArr祖先路径及每行、空必需槽、强制断点、段落缩进/行高和最终每条公式及解释显示；诊断逐项有依据处置，零诊断与源树相同均不代表正确。Astra修正后新Astra独立复查。",
+      "check": "核对eqArr祖先路径及每行、空必需槽、强制断点、段落缩进/行高和最终每条公式及解释显示；诊断逐项有依据处置，零诊断与源树相同均不代表正确。复查模型修正后新复查模型独立复查。",
       "exceptions": []
     },
     {
@@ -1075,7 +1109,7 @@
       "section": "all",
       "level": "must",
       "instruction": "正式交付DOCX使用黑字净稿，不加红字解释、彩色修订说明、高亮审核提示或编辑批注；正常技术解释、公式参数说明和图文解读仍按原稿话术融入黑色正文，不能因禁红而删除。修改记录留工作目录，不把其他任务的红字补充模式移植到本技能。",
-      "check": "核验实际应用run、段落/字符样式与继承、主题色、修订显示及最终页面；未使用红色样式不误报为红字，未知颜色不算已证黑色。模型修正后新Astra/high独立验收，保持原有六项检查。",
+      "check": "核验实际应用run、段落/字符样式与继承、主题色、修订显示及最终页面；未使用红色样式不误报为红字，未知颜色不算已证黑色。模型修正后新Sol/xhigh独立验收，保持原有六项检查。",
       "evidence": [
         {
           "source": "user:2026-10-14-clean-reference-style",
@@ -1084,6 +1118,10 @@
         {
           "source": "references/reference-style-standard.md",
           "locator": "正式净稿与文字颜色"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": []
@@ -1118,12 +1156,16 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "CLI连接重试不能仅因出现error事件就判失败。仅接受严格可识别的Reconnecting连接重试，且必须位于唯一turn.started之后、新最终回复及唯一turn.completed之前；未知错误、turn.failed、非零退出、会话/模型/high/原始prompt/封存哈希不一致仍拒绝。旧判定误拒的已终结草稿批次保持原记录，通过recover_cli_batch.py重新核验完整真实证据后，仅把成功Sol初稿导入新批次继续新的Astra/high独立复查，不改旧回执、不继承复查通过。",
-      "check": "覆盖恢复成功、未知错误、终态错误、无新最终回复、实际退出失败、篡改来源/稿件/执行证据及恢复身份不符；验证旧批次不变、复制哈希相同、下一阶段是新Astra会话且无pass继承。",
+      "instruction": "CLI连接重试不能仅因出现error事件就判失败。仅接受严格可识别的Reconnecting连接重试，且必须位于唯一turn.started之后、新最终回复及唯一turn.completed之前；未知错误、turn.failed、非零退出、会话/模型/推理强度/原始prompt/封存哈希不一致仍拒绝。旧判定误拒的已终结草稿批次保持原记录，通过recover_cli_batch.py重新核验完整真实证据后，仅把成功Sol初稿导入新批次按原冻结模型及强度继续新的独立复查，不改旧回执、不继承复查通过。",
+      "check": "覆盖恢复成功、未知错误、终态错误、无新最终回复、实际退出失败、篡改来源/稿件/执行证据及恢复身份不符；验证旧批次不变、复制哈希相同、下一阶段是符合原冻结模型及强度的新独立复查会话且无pass继承。",
       "evidence": [
         {
           "source": "references/cli-retry-user-requirement.txt",
           "locator": "第1-3行"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ],
       "exceptions": []
@@ -1198,8 +1240,8 @@
       "scope": "global",
       "section": "all",
       "level": "must",
-      "instruction": "通用优化应显著减少重复规范读取、每案排版编程和客观台账整理；优先由指定撰写模型提供结构化内容，公共工具按人工定稿参数生成Word并复用本案原始公式和图。保留Sol/high撰写、Astra/high复查修正及修改后新Astra独立验收。现有必要检查合并执行，不额外增加逐案维护审计；客观索引不能自签语义或视觉通过，未支持结构不得静默丢失。",
-      "check": "核对阶段清单覆盖全部active规则原文及例外；公共生成器独立读回成品的对象和位置，Astra仍直接核对来源及最终文件；测量局部工具收益与真实批次耗时，未经端到端实测不承诺加速比例。",
+      "instruction": "通用优化应显著减少重复规范读取、每案排版编程和客观台账整理；优先由指定撰写模型提供结构化内容，公共工具按人工定稿参数生成Word并复用本案原始公式和图。保留Sol/high撰写、Sol/xhigh复查修正及修改后新复查模型独立验收。现有必要检查合并执行，不额外增加逐案维护审计；客观索引不能自签语义或视觉通过，未支持结构不得静默丢失。",
+      "check": "核对阶段清单覆盖全部active规则原文及例外；公共生成器独立读回成品的对象和位置，复查模型仍直接核对来源及最终文件；测量局部工具收益与真实批次耗时，未经端到端实测不承诺加速比例。",
       "exceptions": [
         "公共生成器尚不支持的有源结构仅补充该部分，不能擅自展平、删减或伪造通过；旧批次不静默迁移。"
       ],
@@ -1207,6 +1249,10 @@
         {
           "source": "references/speed-user-requirement.txt",
           "locator": "全文"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ]
     },
@@ -1268,7 +1314,7 @@
       "section": "all",
       "level": "must",
       "instruction": "正式交付DOCX文件名去掉扩展名后须与说明书内正式完整发明名称逐字一致，包括原有一种及名称中的系统/方法等字样。以本案来源确认的正式名称冻结selection.title，正文完整名称引用同步；不得为了文件名而任意改发明名称，不截短、不追加修改版/最终版/案号。",
-      "check": "初建队列核对正式名称、Windows合法文件名与同目录重名；Astra最终核对文内正式标题与冻结名称，交付前复用同稿结构证据核一致性。同名或名称含非法字符时保留原稿并明确待解决冲突，不擅加后缀或覆盖，已运行旧命名契约不静默迁移。",
+      "check": "初建队列核对正式名称、Windows合法文件名与同目录重名；复查模型最终核对文内正式标题与冻结名称，交付前复用同稿结构证据核一致性。同名或名称含非法字符时保留原稿并明确待解决冲突，不擅加后缀或覆盖，已运行旧命名契约不静默迁移。",
       "exceptions": [],
       "evidence": [
         {
@@ -1278,6 +1324,10 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+        },
+        {
+          "source": "references/model-policy-user-requirement.txt",
+          "locator": "2026-10-15用户最新要求及通用执行解释"
         }
       ]
     },
@@ -3188,6 +3238,389 @@
               {
                 "source": "references/manual-format-and-wording.md",
                 "locator": "版本19新增：普通文字净化与公式保护"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 20,
+      "previous_version": 19,
+      "updated_at": "2026-10-15T02:46:46Z",
+      "summary": "用户要求通用改为GPT-6.1-sol/xhigh极高复查、复查修改及独立重验，初稿Sol/high不变；同步实际派发和证据校验，旧批次保留冻结策略与历史记录。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "delivery",
+            "level": "must",
+            "instruction": "每案完成并经GPT-6.1-sol/xhigh最终复查通过后，立即将DOCX直接交付到用户实际桌面同一批次文件夹根目录。全部合格成稿同层排列，不建立已完成或每案交付子目录；不等待其他项目完成。规则版本18起按NAME-01将文件名与文内正式名称逐字核对，不擅加案号；重名或非法文件名须先解决冲突，不覆盖用户文件或往期批次。内部撰写与复查仍分案隔离，详细台账及待处理说明留工作目录。",
+            "check": "每次通过回执后执行交付，核对来源、最终稿及渲染证据；检查所有成稿父目录相同且等于批次交付根目录，名称按全队列冻结并消歧；部分交付不关闭批次，未验收稿不交付，重试不覆盖，发布中断可恢复；新平铺布局与旧快照均有回归验证。",
+            "evidence": [
+              {
+                "source": "references/delivery-user-requirement.txt",
+                "locator": "第2-3行"
+              },
+              {
+                "source": "references/delivery-user-requirement.txt",
+                "locator": "2026-10-13 用户补充通用交付布局要求"
+              },
+              {
+                "source": "references/footer-wording-user-requirement.txt",
+                "locator": "2026-10-15全文"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": [
+              "旧批次保留其冻结的命名与发布契约，不自动重命名已交付文件。"
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "draft",
+            "level": "must",
+            "instruction": "专利文稿初稿由真实派发的gpt-6.1-sol以high推理强度执行；复查、复查内修正、复查后的撰写修改及重验均由gpt-6.1-sol以xhigh极高推理强度执行。各阶段必须显式设置并记录模型及推理强度，不使用默认值或降低强度。新建批次冻结model_policy=sol_review_xhigh_v20；使用同一模型仍须按阶段独立派发，修改后使用新的复查上下文或CLI会话。",
+            "check": "检查真实CLI参数与实际会话turn_context，或真实子代理派发参数及成功结果；draft须为gpt-6.1-sol/high，review、revise及重验须为gpt-6.1-sol/xhigh；缺失、null、其他强度或仅文本身份声明均不符合要求。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第7行",
+                "note": "用户进一步明确初稿也须使用高推理强度。"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": [
+              "已运行旧批次按其冻结模型、强度及工具执行；不得改写历史真实模型记录或静默迁移。"
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "review",
+            "level": "must",
+            "instruction": "文稿复查由gpt-6.1-sol执行，reasoning_effort固定为xhigh；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。有阻碍通过的内容错误时先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
+            "check": "确认review阶段工具派发gpt-6.1-sol模型与xhigh极高强度，检查实际文件哈希及复查证据。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-05",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "revise",
+            "level": "must",
+            "instruction": "复查发现错误时，由gpt-6.1-sol/xhigh修正文稿并同步关联内容，不交回初稿worker或主控。新策略允许当前review代理在一次调用内完成有明确依据的修正，另存新稿并返回revised；不适合合并时走独立revise，旧策略仍保持原流程。",
+            "check": "核对真实Sol/xhigh派发及修改产物、问题定位和新稿哈希；合并修正仅在允许的新策略下接受，返回revised后不能交付，必须进入新的独立review。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-06",
+            "status": "active",
+            "origin": "workflow",
+            "scope": "global",
+            "section": "review",
+            "level": "must",
+            "instruction": "任何修订（含review内直接修正）后，由新派发的Sol/xhigh代理独立复查最终版本；修改者不得在同次回执直接通过自己的变更稿。未解决问题、未完成最终页面复核或复查哈希不一致不得进入已完成。",
+            "check": "以最终内容哈希绑定审阅结果；需要源材料补充的项目单列待处理并继续其他项目。",
+            "evidence": [
+              {
+                "source": "workflow:批量撰写执行保障",
+                "locator": "BATCH-06"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-10",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许复查模型在当前review内直接完成有明确依据的一次修正，再交新的Sol/xhigh独立重验，减少单独修改派发；修正回执不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
+            "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。 核对派发实际包含prepared路径、同稿热交接不再解析ZIP、规则例外未丢失、跨案/过期证据拒绝及准备失败不提交占槽；页面候选必须验证，不能把同SHA的证据复制、工具升级或渲染器纠错重试计成无效重复。 通过真实隔离CLI实测区分通道可用与整批提速；不可把账面并行或局部测量宣称为已证实的文稿产能倍数。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户通用提效要求"
+              },
+              {
+                "source": "user:2026-10-14",
+                "locator": "再次检查必需重复步骤的效率优化，并明确这是通用修改优化"
+              },
+              {
+                "source": "references/efficiency.md",
+                "locator": "直接交接，避免每阶段重新查找；容量与可验证收益"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "references/speed-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-11",
+            "status": "active",
+            "origin": "workflow",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "并行数量受实际工具额度、在制项目上限及机器资源约束。持续推进复查模型复查和修正，同时为后续Sol撰写保留机会；无可用额度时等待事件，不虚构成功或降低模型质量。 CLI与collaboration分别核实真实可用容量，共用本批case占槽，不通过新聊天、全局配置改动或安全降级绕过限制。",
+            "check": "压力调度检查队列公平、草稿积压上限、满槽等待、资源下降和单worker退化状态，并明确验证范围。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMULA-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "区分来源数学语义与显示版式；不机械沿用左式加等号独占一行、空基底下标或错置极值限制。逐个分类多行结构，仅重排已核定的显示续行；保留求和限制、集合、矩阵及分段语义，所有数学操作数、完整符号和源公式数量保持可追溯。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14",
+                "locator": "要求仔细分析截图及以往案例话术、内容格式、公式与符号标准并通用更新技能"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "实际问题与反例、格式基准与来源优先级"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "check": "核对eqArr祖先路径及每行、空必需槽、强制断点、段落缩进/行高和最终每条公式及解释显示；诊断逐项有依据处置，零诊断与源树相同均不代表正确。复查模型修正后新复查模型独立复查。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMAT-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "正式交付DOCX使用黑字净稿，不加红字解释、彩色修订说明、高亮审核提示或编辑批注；正常技术解释、公式参数说明和图文解读仍按原稿话术融入黑色正文，不能因禁红而删除。修改记录留工作目录，不把其他任务的红字补充模式移植到本技能。",
+            "check": "核验实际应用run、段落/字符样式与继承、主题色、修订显示及最终页面；未使用红色样式不误报为红字，未知颜色不算已证黑色。模型修正后新Sol/xhigh独立验收，保持原有六项检查。",
+            "evidence": [
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "用户明确不要红字解释并要求参考三份正确稿"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿与文字颜色"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-12",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "CLI连接重试不能仅因出现error事件就判失败。仅接受严格可识别的Reconnecting连接重试，且必须位于唯一turn.started之后、新最终回复及唯一turn.completed之前；未知错误、turn.failed、非零退出、会话/模型/推理强度/原始prompt/封存哈希不一致仍拒绝。旧判定误拒的已终结草稿批次保持原记录，通过recover_cli_batch.py重新核验完整真实证据后，仅把成功Sol初稿导入新批次按原冻结模型及强度继续新的独立复查，不改旧回执、不继承复查通过。",
+            "check": "覆盖恢复成功、未知错误、终态错误、无新最终回复、实际退出失败、篡改来源/稿件/执行证据及恢复身份不符；验证旧批次不变、复制哈希相同、下一阶段是符合原冻结模型及强度的新独立复查会话且无pass继承。",
+            "evidence": [
+              {
+                "source": "references/cli-retry-user-requirement.txt",
+                "locator": "第1-3行"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-13",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "通用优化应显著减少重复规范读取、每案排版编程和客观台账整理；优先由指定撰写模型提供结构化内容，公共工具按人工定稿参数生成Word并复用本案原始公式和图。保留Sol/high撰写、Sol/xhigh复查修正及修改后新复查模型独立验收。现有必要检查合并执行，不额外增加逐案维护审计；客观索引不能自签语义或视觉通过，未支持结构不得静默丢失。",
+            "check": "核对阶段清单覆盖全部active规则原文及例外；公共生成器独立读回成品的对象和位置，复查模型仍直接核对来源及最终文件；测量局部工具收益与真实批次耗时，未经端到端实测不承诺加速比例。",
+            "exceptions": [
+              "公共生成器尚不支持的有源结构仅补充该部分，不能擅自展平、删减或伪造通过；旧批次不静默迁移。"
+            ],
+            "evidence": [
+              {
+                "source": "references/speed-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "NAME-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "正式交付DOCX文件名去掉扩展名后须与说明书内正式完整发明名称逐字一致，包括原有一种及名称中的系统/方法等字样。以本案来源确认的正式名称冻结selection.title，正文完整名称引用同步；不得为了文件名而任意改发明名称，不截短、不追加修改版/最终版/案号。",
+            "check": "初建队列核对正式名称、Windows合法文件名与同目录重名；复查模型最终核对文内正式标题与冻结名称，交付前复用同稿结构证据核一致性。同名或名称含非法字符时保留原稿并明确待解决冲突，不擅加后缀或覆盖，已运行旧命名契约不静默迁移。",
+            "exceptions": [],
+            "evidence": [
+              {
+                "source": "references/footer-wording-user-requirement.txt",
+                "locator": "2026-10-15全文"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
               }
             ]
           }

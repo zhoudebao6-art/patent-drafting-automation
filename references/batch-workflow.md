@@ -1,3 +1,5 @@
+> v5.3新建批次的model_policy=sol_review_xhigh_v20：初稿gpt-6.1-sol/high；复查、复查内修改、独立修改和修改后新一轮复查均为gpt-6.1-sol/xhigh，极高对应xhigh。缺少此标志的旧批次继续按冻结模型及强度执行；安装更新不迁移运行中批次。以下现行模型示例仅用于新批次，恢复/重试始终使用reserve返回的冻结参数。
+
 # 多项目滚动并行
 
 v5.0新批次的worker_preparation=frozen_stage_packet_v1：init一次冻结本技能规范、程序与阶段清单，prepared.pipeline传实际路径；队列及CLI命令自动路由到该快照。新worker读取一次stage_guide及按需math_guide，公共Word工具生成支持的结构与客观台账，避免重复读取/编程。模型、六项审查、分案与即时交付不变。详见[快速执行](fast-execution.md)，旧无标志批次不自动迁移。
@@ -26,7 +28,7 @@ python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目
 
 总控维护事件循环：启动时连续reserve并派发多个不同项目；每个worker完成即登记回执；本案最终验收通过就立即deliver，然后直接reserve推进复查/修正并补位，不等待整批完成。plan仅用于需要观察队列的情况，不在每次reserve前后重复调用。有草稿与审查同时待办时兼顾两个方向，修正和重验及时推进，达到在制上限后先消化积压。满槽时等待完成事件，避免紧密轮询及固定长时间睡眠。单案缺资料或输入变化要具体记录，其他案继续。
 
-每案内部最多一个活跃attempt。旧策略为draft→review→revise(需要时)→review；新review_fix_then_recheck策略允许review内一次有依据的修正返回revised，再由新Astra/high review独立重验，仍可在需要时使用独立revise路径。不同案可以同时处于不同阶段。各案按实际验收完成时间直接交付到同一文件夹根目录，交付台账保留原队列ID；规则版本18起正式名称须唯一且与文内主标题一致，冲突先解决，不自动加案号；旧快照保持旧命名。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
+每案内部最多一个活跃attempt。旧策略为draft→review→revise(需要时)→review；新review_fix_then_recheck策略允许review内一次有依据的修正返回revised，再由新Sol/xhigh review独立重验，仍可在需要时使用独立revise路径。不同案可以同时处于不同阶段。各案按实际验收完成时间直接交付到同一文件夹根目录，交付台账保留原队列ID；规则版本18起正式名称须唯一且与文内主标题一致，冲突先解决，不自动加案号；旧快照保持旧命名。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
 
 ## 占槽和真实派发
 
@@ -36,7 +38,7 @@ python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目
 python scripts/parallel_batch.py reserve --manifest 批次清单 --capacity 实际worker总额度 --controller 本批控制器标识 --prepare
 ```
 
-reserve持久保存占槽并返回case_id、attempt、directory、task_name、context、spawn_arguments及source_snapshots。严格使用返回的上下文及路径。collaboration通道使用真实collaboration.spawn_agent，参数取spawn_arguments再补message：draft=gpt-6.1-sol/high；review/revise=gpt-6-astra/high；fork_turns=none。成功后保存真实tool/context/arguments/result为本attempt的dispatch.json；reserve本身不代表模型已经运行。
+reserve持久保存占槽并返回case_id、attempt、directory、task_name、context、spawn_arguments及source_snapshots。严格使用返回的上下文及路径。collaboration通道使用真实collaboration.spawn_agent，参数取spawn_arguments再补message：draft=gpt-6.1-sol/high；review/revise=gpt-6.1-sol/xhigh；fork_turns=none。成功后保存真实tool/context/arguments/result为本attempt的dispatch.json；reserve本身不代表模型已经运行。
 
 message包含本案来源快照及哈希、rules.snapshot.json、当前稿和哈希、attempt目录、阶段输出及上一轮问题。不得传入别案正文。worker不下派、不改共享规则或manifest，不写其他案目录。主控只编排，不能冒充指定模型写稿。
 
@@ -50,11 +52,11 @@ context必须逐字段等于reserve返回值，包括batch/case/stage/attempt及
 
 ## 阶段回执
 
-draft写成本案DOCX及必要证据，完成一次结构预检。review先独立核对来源支持、所述、权项与发明内容、公式、附图；有阻碍通过的内容错误时，若新策略允许且修正依据明确，Astra在本review内另存修订DOCX并返回revised；否则返回fix_required走独立revise，事实不足则needs_input。页面检查如实标not_run，省去已知待改稿的提前渲染。内容可通过时再渲染或复用当前稿页面，核对全部最终页面。revise由Astra/high直接另存修订版，联动章节和图号；新Astra/high worker重验内容后对最终稿渲染并逐页验收。连续两轮同问题无进展或缺关键技术事实时记录缺口，不无限空转。
+draft写成本案DOCX及必要证据，完成一次结构预检。review先独立核对来源支持、所述、权项与发明内容、公式、附图；有阻碍通过的内容错误时，若新策略允许且修正依据明确，复查模型在本review内另存修订DOCX并返回revised；否则返回fix_required走独立revise，事实不足则needs_input。页面检查如实标not_run，省去已知待改稿的提前渲染。内容可通过时再渲染或复用当前稿页面，核对全部最终页面。revise由Sol/xhigh直接另存修订版，联动章节和图号；新Sol/xhigh worker重验内容后对最终稿渲染并逐页验收。连续两轮同问题无进展或缺关键技术事实时记录缺口，不无限空转。
 
-receipt含reserve完整context和stage/model/reasoning_effort/agent_id。写稿含artifact/artifact_sha256，输出在当前attempt内且不得使用原稿硬链接。审阅含reviewed_sha256/verdict/findings/checks。check键为source_support、antecedents、claims_alignment、formulas、figures、rendered_pages。pass要求全部passed且无未关闭发现。新策略review返回revised时，reviewed_sha256绑定改前输入，artifact/artifact_sha256绑定本review attempt的新独立DOCX，findings须非空，每项包含status=resolved或closed、非空location与correction_evidence；变更稿不会在同一回执中pass，必须由新的Astra/high review重验。规则版本6起，worker必读[所述与公式执行规范](terminology-and-formula.md)：draft先登记完整术语首次引入及源公式清单；review/revise由Astra/high逐处核对完整名词与本项/父链前置，逐式核对源N→稿N、零源不造式、完整符号与解释、无真实空白及历史格式。详细证据并入antecedents/formulas，不另设验收捷径；旧批次保持冻结规则。
+receipt含reserve完整context和stage/model/reasoning_effort/agent_id。写稿含artifact/artifact_sha256，输出在当前attempt内且不得使用原稿硬链接。审阅含reviewed_sha256/verdict/findings/checks。check键为source_support、antecedents、claims_alignment、formulas、figures、rendered_pages。pass要求全部passed且无未关闭发现。新策略review返回revised时，reviewed_sha256绑定改前输入，artifact/artifact_sha256绑定本review attempt的新独立DOCX，findings须非空，每项包含status=resolved或closed、非空location与correction_evidence；变更稿不会在同一回执中pass，必须由新的Sol/xhigh review重验。规则版本6起，worker必读[所述与公式执行规范](terminology-and-formula.md)：draft先登记完整术语首次引入及源公式清单；review/revise由Sol/xhigh逐处核对完整名词与本项/父链前置，逐式核对源N→稿N、零源不造式、完整符号与解释、无真实空白及历史格式。详细证据并入antecedents/formulas，不另设验收捷径；旧批次保持冻结规则。
 
-pass另含render={artifact_sha256, evidence, evidence_sha256}，evidence指本次review或被审稿写稿attempt内的官方render.json。该文件绑定PDF与全部连续PNG哈希；脚本验证页数/图像完整性，Astra还须实际打开全部页面。旧稿pass、跨案路径、错模型/强度、旧attempt、重复回执均应拒绝。
+pass另含render={artifact_sha256, evidence, evidence_sha256}，evidence指本次review或被审稿写稿attempt内的官方render.json。该文件绑定PDF与全部连续PNG哈希；脚本验证页数/图像完整性，复查模型还须实际打开全部页面。旧稿pass、跨案路径、错模型/强度、旧attempt、重复回执均应拒绝。
 
 规则版本10起，有公式的draft/review/revise必读[公式结构与版式标准](formula-layout-standard.md)。复查逐条核对结构诊断处置、源与稿的完整符号/解释、每条主公式与邻接解释的清晰显示；仅有“公式数量相同、XML无空格、整页缩略图正常”不足以formulas或rendered_pages通过。与既有六项审查合并，缓存按最终文件/提取器哈希复用，不增加重复全稿扫描。
 
@@ -66,7 +68,7 @@ python scripts/parallel_batch.py record --manifest 批次清单 --case 项目ID 
 
 ## 取消、恢复与待处理
 
-成功连接重试被旧CLI判定误拒的draft批次，使用[CLI恢复入口](cli-workers.md)中的`recover_cli_batch.py`保留旧批次并另建批次继承完整核验的初稿。此操作不重写旧回执、不新增虚构模型调用、不继承通过状态；新的Astra/high仍独立验收。
+成功连接重试被旧CLI判定误拒的draft批次，使用[CLI恢复入口](cli-workers.md)中的`recover_cli_batch.py`保留旧批次并另建批次继承完整核验的初稿。此操作不重写旧回执、不新增虚构模型调用、不继承通过状态；按原冻结策略由新派发的复查模型独立验收。
 
 collaboration未bind的预留可因派发失败cancel；CLI已有启动意图即须确认原进程退出，不能因尚未bind直接取消。已bind先停止对应worker并确认实际停止，再保存停止证据并cancel。仅发出中断请求不等于停止确认。不得因超时直接启动同案第二个worker，活动worker不能直接defer。
 
@@ -84,7 +86,7 @@ stop-evidence含tool=collaboration.interrupt_agent、原context、arguments.targ
 
 环境预检每批一次，依赖改变后重新检查和实测。来源快照按源SHA和提取器哈希复用提取结果，同名异内容不能命中；复查复用数据结构但独立核对原材料及OMML。一个evidence.json可以汇总来源/术语/公式/附图，避免重复台账。独立只读检查批量执行。
 
-Word字节未变且render_docx_checked.py --verify通过时，直接复用同案已生成PDF/全部PNG，不重复转换。任何修订改变DOCX后重新渲染。最终Astra仍查看全部页、完成六项检查；可聚焦变更及依赖，不以省略验收换效率。
+Word字节未变且render_docx_checked.py --verify通过时，直接复用同案已生成PDF/全部PNG，不重复转换。任何修订改变DOCX后重新渲染。最终复查模型仍查看全部页、完成六项检查；可聚焦变更及依赖，不以省略验收换效率。
 
 ## 桌面交付
 
@@ -92,7 +94,7 @@ Word字节未变且render_docx_checked.py --verify通过时，直接复用同案
 python scripts/parallel_batch.py deliver --manifest 批次清单 --controller 本批控制器标识
 ```
 
-每收到一案最终pass并成功record为accepted，立即运行deliver；不用等待其他项目、复查或活跃worker。首案建立唯一桌面批次目录，后续合格DOCX直接追加到同一目录根部，不创建“已完成/案号_项目名”等交付子目录。新output_contract=wording_title_v18按“正式完整发明名称.docx”预分配名称，Astra核对文内标题与冻结selection.title一致；不截短、清洗或加后缀。Windows大小写、非法字符及同名冲突须在选案阶段明确解决，不能改名掩盖；旧无此标志批次保持原稳定案号契约。乱序完成不改变已发布名称。每案复制后核对最终文件与通过审阅哈希，按案发布并同步工作目录中的清单，重复调用保持幂等且不覆盖用户已修改文件或其他批次。部分交付不能关闭批次或阻止继续record/reserve；待处理说明留工作目录并在聊天中报告，处理中稿件不进入桌面交付目录。一次交付成功后向用户给出该案文件链接与当前完成数，随后继续队列；交付失败单独说明已验收但尚未交付，保留稿件并重试。全部项目终态后再运行deliver补齐最终清单，无需重新复制已经核实的成稿。最终汇总总数、已交付数、待处理和占槽/绑定峰值（账面计数，不独立证明模型同时运行）。
+每收到一案最终pass并成功record为accepted，立即运行deliver；不用等待其他项目、复查或活跃worker。首案建立唯一桌面批次目录，后续合格DOCX直接追加到同一目录根部，不创建“已完成/案号_项目名”等交付子目录。新output_contract=wording_title_v18按“正式完整发明名称.docx”预分配名称，复查模型核对文内标题与冻结selection.title一致；不截短、清洗或加后缀。Windows大小写、非法字符及同名冲突须在选案阶段明确解决，不能改名掩盖；旧无此标志批次保持原稳定案号契约。乱序完成不改变已发布名称。每案复制后核对最终文件与通过审阅哈希，按案发布并同步工作目录中的清单，重复调用保持幂等且不覆盖用户已修改文件或其他批次。部分交付不能关闭批次或阻止继续record/reserve；待处理说明留工作目录并在聊天中报告，处理中稿件不进入桌面交付目录。一次交付成功后向用户给出该案文件链接与当前完成数，随后继续队列；交付失败单独说明已验收但尚未交付，保留稿件并重试。全部项目终态后再运行deliver补齐最终清单，无需重新复制已经核实的成稿。最终汇总总数、已交付数、待处理和占槽/绑定峰值（账面计数，不独立证明模型同时运行）。
 
 原始资料在阶段运行中发生变化时，record保留真实worker回执和冻结快照，追加controller_input_change事件并将该案转needs_input，释放已完成的attempt；不能将返回needs_input当作阶段验收通过。交付前再次逐案核对原始资料，变化案单列而其他合格案继续。若复制过程中来源变化，不发布该案，隔离后重试deliver；其他先前已交付文件保留，不悄悄替换来源或重写旧通过记录。
 

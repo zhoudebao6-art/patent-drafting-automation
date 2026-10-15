@@ -61,7 +61,7 @@
 - **说明书范围**：技术领域、背景技术、发明内容、附图说明、具体实施方式的正文不得出现“权利要求”和“特征在于”；把引用头改成直接技术叙述。此禁词不套到权利要求书本身及其页眉，不删除正确权项引用头中的词语。
 - **名称一致**：先从本案材料核准正式完整名称并冻结selection.title。说明书主标题与正式交付文件名去掉`.docx`后的文本逐字相同，保留“一种”等名称组成；摘要及其他位置的完整名称引用同步。暂存稿可以用内部文件名，正式交付不追加“修改版/最终版/案号”，不截短或静默清洗名称。同一平铺目录出现同名或非法文件名，先报告并解决该选案冲突，不覆盖或凭空改正式名称；旧批次保持旧契约。
 
-`inspect_docx`在原有一次预检中输出document_contract_evidence，包含说明书范围、技术领域前的直属正式标题、全稿可提取文字命中和说明书范围命中。程序输出是客观线索，标题来源、图中文字和语义仍由Astra核对。新批次的output_contract=wording_title_v18在最终pass和交付前复用封存预检结果拦截名称不一致及禁词；不另开一次模型检查或重复解析DOCX。
+`inspect_docx`在原有一次预检中输出document_contract_evidence，包含说明书范围、技术领域前的直属正式标题、全稿可提取文字命中和说明书范围命中。程序输出是客观线索，标题来源、图中文字和语义仍由复查模型核对。新批次的output_contract=wording_title_v18在最终pass和交付前复用封存预检结果拦截名称不一致及禁词；不另开一次模型检查或重复解析DOCX。
 
 “统一一套格式”可能跨词形成“一一”字符，不能误删。独立review确认确为非修饰词时，可在既有findings记录`rule_id=WORDING-04, classification=not_modifier, status=closed, part, paragraph, offset, text=一一, reason`，位置对应最终同稿；明确的一一对应/相应等不能用此方式豁免。未知用法未核定保持未通过，不把零脚本警告当语义通过。
 
@@ -69,7 +69,7 @@
 
 draft阶段一次`inspect_docx.py`提供权项段落清单和所述总数/引用头计数、分范围用词候选、普通run格式、样式与页眉/分节证据、孤立OMML字符候选。它不自动替换、不判断保护名称或合法回指，也不能据零警告验收；复杂字形、图片文字和页眉继承仍需真实核对。
 
-Astra在原有`antecedents`中验每项有效所述≥3；`claims_alignment`中验词语作用域、名称保护及跨章节一致；`formulas`中验孤立符号与完整公式身份；`rendered_pages`中验所有最终页的段落、页眉线条、页码和图文。记录候选的适用/不适用及理由；合理的“比较/等于”等候选可以有依据关闭。修正后另存新稿、新Astra独立重验；普通批次不重新渲染历史模板或加做一轮维护审计。
+复查模型在原有`antecedents`中验每项有效所述≥3；`claims_alignment`中验词语作用域、名称保护及跨章节一致；`formulas`中验孤立符号与完整公式身份；`rendered_pages`中验所有最终页的段落、页眉线条、页码和图文。记录候选的适用/不适用及理由；合理的“比较/等于”等候选可以有依据关闭。修正后另存新稿、新复查模型独立重验；普通批次不重新渲染历史模板或加做一轮维护审计。
 
 
 ## 版本19新增：普通文字净化与公式保护
@@ -84,4 +84,4 @@ Astra在原有`antecedents`中验每项有效所述≥3；`claims_alignment`中�
 
 inspect_docx同一遍提取输出punctuation_evidence，包含schema_version=2、literal_scan_complete、hits、formula_protected_candidates、preferred_wording_hits及review_candidates。新冻结策略prose_contract=clean_prose_v19配合原output_contract和冻结准备模式；验收及交付复用同SHA封存报告，不新增模型阶段。脚本没有自动改写或删除文字/公式，也不因零命中签发视觉或语义通过。
 
-普通文字形式公式的字符保护写入既有finding：rule_id=WORDING-06、classification=source_formula、status=closed、artifact_sha256、part、paragraph、path、offset、text、source_sha256、source_locator、registry_id、reason。源SHA必须属于本案，定位绑定当前稿中的具体字符；只关闭公式字符，不关闭相邻引语。公式内的原始字符串常量同样完整保留，包括恰好含旧话术的情况；不按话术规则改变公式常量。普通文字投影在公式、换行、制表和非文字对象处保留边界，offset以该报告的投影为准，不把边界两侧拼成不存在的短语。完整技术名词的保留用同样字段，但rule_id=WORDING-07、classification=protected_technical_name，registry_id指既有术语台账；只适用于来源已有定义的完整技术名词，不豁免普通话术。该完整名词若含一一，相应旧一一候选也须逐处提供WORDING-07位置绑定，不能凭同段存在名词豁免其他一一修饰词。Astra核对实际原式/定义，回执文字本身不替代来源证据。图片/OLE、复杂域及编号仍合入既有最终全页检查。
+普通文字形式公式的字符保护写入既有finding：rule_id=WORDING-06、classification=source_formula、status=closed、artifact_sha256、part、paragraph、path、offset、text、source_sha256、source_locator、registry_id、reason。源SHA必须属于本案，定位绑定当前稿中的具体字符；只关闭公式字符，不关闭相邻引语。公式内的原始字符串常量同样完整保留，包括恰好含旧话术的情况；不按话术规则改变公式常量。普通文字投影在公式、换行、制表和非文字对象处保留边界，offset以该报告的投影为准，不把边界两侧拼成不存在的短语。完整技术名词的保留用同样字段，但rule_id=WORDING-07、classification=protected_technical_name，registry_id指既有术语台账；只适用于来源已有定义的完整技术名词，不豁免普通话术。该完整名词若含一一，相应旧一一候选也须逐处提供WORDING-07位置绑定，不能凭同段存在名词豁免其他一一修饰词。复查模型核对实际原式/定义，回执文字本身不替代来源证据。图片/OLE、复杂域及编号仍合入既有最终全页检查。

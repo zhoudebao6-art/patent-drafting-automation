@@ -19,11 +19,11 @@ python scripts/cli_pool.py status --manifest 批次manifest.json
 
 启动时一次非模型预检核验Windows、CLI必要参数和登录状态；这不等于文档工具验收。仅环境首次配置或变动时需要小样，不逐案做付费探针。渲染环境沿用runtime.md；模型与文档工具都不可用时如实报告，不写虚假成功。CLI执行使用workspace-write，完整保留宿主安全约束和用户配置，不注入ignore-rules、忽略配置、full-access或bypass参数。
 
-每次`codex exec`显式选择draft=GPT-6.1-sol/high、review/revise=GPT-6-astra/high，stdin传本案冻结prompt，`--json`保存真实事件，`-o`保存最终JSON。每次修订后的独立重验启动新进程/新会话，拒绝复用已记录的会话ID；不会resume修改者会话来签发独立通过。
+新建批次每次`codex exec`显式选择draft=GPT-6.1-sol/high、review/revise=GPT-6.1-sol/xhigh，stdin传本案冻结prompt，`--json`保存真实事件，`-o`保存最终JSON。每次修订后的独立重验启动新进程/新会话，拒绝复用已记录的会话ID；不会resume修改者会话来签发独立通过。
 
 ## 证据与正确性
 
-每个attempt保存`cli-job.json`、`cli-launch-intent.json`、`prompt.txt`、`dispatch.json`、原始`events.jsonl`、`worker-final.json`、实际`session.jsonl`、`cli-exit.json`和`cli-completion.json`。PID必须同时绑定创建时间和exe，避免PID复用。CLI退出后由supervisor封存五份证据的SHA；收稿核对事件、实际会话中的模型/high/cwd/sandbox、原始prompt、真实最终回复和退出码，任一矛盾均不能收为成功。
+每个attempt保存`cli-job.json`、`cli-launch-intent.json`、`prompt.txt`、`dispatch.json`、原始`events.jsonl`、`worker-final.json`、实际`session.jsonl`、`cli-exit.json`和`cli-completion.json`。PID必须同时绑定创建时间和exe，避免PID复用。CLI退出后由supervisor封存五份证据的SHA；收稿核对事件、实际会话中的模型/强度/cwd/sandbox、原始prompt、真实最终回复和退出码，任一矛盾均不能收为成功。
 
 这是总控采集的本地执行证据，不是外部签名或独立服务商证明。CLI成功只证明一次执行完成；仍调用原`parallel_batch.record`检查来源、attempt、DOCX与哈希、六项审查、最终渲染及全部页面证据。模型必须实际逐页查看。模型自报pass、进程退出或缓存命中均不能单独成为交付条件。
 
@@ -31,9 +31,9 @@ python scripts/cli_pool.py status --manifest 批次manifest.json
 
 ## 中断、失败和恢复
 
-2026-10-14用户批准修复成功重连被误拒收的问题。执行核验只允许严格匹配`Reconnecting... n/m (stream disconnected before completion: ...)`的中间连接重试：必须在唯一turn.started之后，且后续有新的最终agent_message及唯一turn.completed；所有原始日志保持原字节。未知error、turn.failed、非零退出、真实会话失败及模型/high/prompt/封存哈希不一致仍拒绝。连接恢复不代表专利验收，原六项内容和页面门禁不变。
+2026-10-14用户批准修复成功重连被误拒收的问题。执行核验只允许严格匹配`Reconnecting... n/m (stream disconnected before completion: ...)`的中间连接重试：必须在唯一turn.started之后，且后续有新的最终agent_message及唯一turn.completed；所有原始日志保持原字节。未知error、turn.failed、非零退出、真实会话失败及模型/强度/prompt/封存哈希不一致仍拒绝。连接恢复不代表专利验收，原六项内容和页面门禁不变。
 
-对旧程序仅因该判定而终结的成功draft，确认整池已退出后运行`python scripts/recover_cli_batch.py --manifest 旧manifest --work-root 工作根目录 --controller 新控制器标识`。工具重新核验原始完整执行证据、冻结Sol/high、来源和稿件哈希，保留旧manifest、attempt与拒收记录；另建批次复制验证成功的初稿，只设为drafted，沿用原冻结来源/内容规则/模型策略。新批次必须派发新的Astra/high独立review，不能继承pass或用原Sol会话复查。恢复证据与新稿哈希绑定；幂等指针不能指向无关批次。该入口仅支持上述draft误拒收，不泛化恢复未知失败、修改稿或旧通过结论。
+对旧程序仅因该判定而终结的成功draft，确认整池已退出后运行`python scripts/recover_cli_batch.py --manifest 旧manifest --work-root 工作根目录 --controller 新控制器标识`。工具重新核验原始完整执行证据、冻结Sol/high、来源和稿件哈希，保留旧manifest、attempt与拒收记录；另建批次复制验证成功的初稿，只设为drafted，沿用原冻结来源/内容规则/模型策略。恢复批次必须按原冻结策略派发新的独立review，不能继承pass或用原Sol会话复查。恢复证据与新稿哈希绑定；幂等指针不能指向无关批次。该入口仅支持上述draft误拒收，不泛化恢复未知失败、修改稿或旧通过结论。
 
 恢复初稿放在本案`stages/recovered-draft`导入目录，不能假造一次模型attempt。若旧版恢复布局导致全部案件在派发前被`Foreign or changed current artifact`拦截，可显式加`--new-generation`：工具只允许无活动/历史attempt、无启动意图/派发记录且原因完全匹配的布局准备失败，保留旧manifest和恢复指针历史后重建。未知失败不得借此重启。该路径须测试真实`reserve --prepare`及交接证据核验。
 

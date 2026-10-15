@@ -94,12 +94,15 @@ def build_packet(snapshot, rules, stage):
     active = [r for r in rules['rules'] if r['status'] == 'active']
     if len({r['id'] for r in active}) != len(active):
         raise ValueError('Duplicate active rule ID')
+    policy = json.loads((snapshot/'references/batch-policy.json').read_text(encoding='utf-8-sig'))
+    config = policy['models'][stage]
+    identity = config['model']+'/'+str(config['reasoning_effort'])
     stage_text = {
-        'draft': '本阶段由Sol/high形成完整初稿。先完成本案内容与结构预检；不模拟另一轮独立Astra复查。使用通用生成器可支持的结构时，不另写排版及台账脚本。生成器已经提供有效inspection缓存时直接复用，不再执行一遍；回执使用返回的实际output路径和SHA。自行生成时才按prepared.draft_inspection_cache运行一次inspect_docx。',
-        'review': '本阶段由Astra/high独立完成六项审查。先审内容，有唯一依据的小问题可集中修正并返回revised，之后必须新Astra重验；只有最终文件未被本轮修改且六项及所有最终页实际通过，才能pass。',
-        'revise': '本阶段由Astra/high按问题与依赖关系修改，保留未受影响的内容与来源。不重新创作全文；修订后不能自己签发pass，交新Astra独立重验。',
+        'draft': '形成完整初稿。先完成本案内容与结构预检；不模拟另一轮独立复查。使用通用生成器可支持的结构时，不另写排版及台账脚本。生成器已经提供有效inspection缓存时直接复用，不再执行一遍；回执使用返回的实际output路径和SHA。自行生成时才按prepared.draft_inspection_cache运行一次inspect_docx。',
+        'review': '独立完成六项审查。先审内容，有唯一依据的小问题可集中修正并返回revised，之后必须由新派发的复查模型独立重验；只有最终文件未被本轮修改且六项及所有最终页实际通过，才能pass。',
+        'revise': '按问题与依赖关系修改，保留未受影响的内容与来源。不重新创作全文；修订后不能自己签发pass，交新派发的复查模型独立重验。',
     }[stage]
-    sections = [f'# 本批{stage}执行清单（规则v{rules["version"]}）', stage_text,
+    sections = [f'# 本批{stage}执行清单（规则v{rules["version"]}）', f'本阶段模型/强度：{identity}。'+stage_text,
                 '本清单包含全部active规则的原文指令、检查及例外，以及必需写作规范。正常阶段读一次本清单，不再重复读取rules.active.json、整个SKILL或其已包含的参考文件。疑点按索引查询；不能用此安排跳过宿主要求或本案来源。',
                 '## 原文规则（含适用范围）']
     for r in active:

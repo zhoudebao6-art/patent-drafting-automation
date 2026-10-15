@@ -185,10 +185,11 @@ def deliver(path, m, verify):
         if entry['kind'] == 'accepted':
             c.update(status='delivered', delivered_artifact=str(dest / entry['relative_path']))
     final.update(delivery_path=str(dest), delivery_closed=all(c['status'] in b.TERMINAL and not c.get('active_attempt') for c in final['projects']))
-    draft = 'GPT-6.1-sol/high' if m['policy']['models']['draft']['reasoning_effort'] == 'high' else 'GPT-6.1-sol（旧批次冻结策略未指定推理强度）'
+    draft = b.model_label(m['policy'], 'draft')
+    review = b.model_label(m['policy'], 'review')
     labels = {'delivered': '已完成', 'needs_input': '待补材料', 'failed': '执行失败', 'pending': '待撰写',
               'drafted': '待复查', 'revised': '待重验', 'fix_required': '待修正', 'accepted': '待交付'}
-    lines = ['专利批次交付清单', f'已完成稿件均经 {draft} 撰写、GPT-6-astra/high 最终复查。',
+    lines = ['专利批次交付清单', f'已完成稿件均经 {draft} 撰写、{review} 最终复查。',
              '批次已结束。' if final['delivery_closed'] else '逐案交付中；其它项目继续处理，未经最终验收的稿件不交付。']
     lines.extend(f"{c['id']} {c['title']}：{labels[c['status']]}" for c in final['projects'])
     sync_metadata(final, dest, {'批次清单.json': json.dumps(final, ensure_ascii=False, indent=2), '交付清单.txt': '\n'.join(lines)})

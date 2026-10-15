@@ -81,8 +81,11 @@ def scan(root):
             (candidates if ext == '.docx' and not archived else pending).append(row)
     return {'input': str(root), 'candidates': candidates, 'pending': pending, 'projects': []}
 def validate_policy(p, *, legacy_snapshot=False):
-    expected = {'draft': ('gpt-6.1-sol', 'high'), 'review': ('gpt-6-astra', 'high'), 'revise': ('gpt-6-astra', 'high')}
     if not isinstance(p, dict): raise BatchError('Invalid model policy')
+    marker = p.get('model_policy')
+    if marker not in (None, 'sol_review_xhigh_v20'): raise BatchError('Unsupported model policy')
+    reviewer = ('gpt-6.1-sol', 'xhigh') if marker else ('gpt-6-astra', 'high')
+    expected = {'draft': ('gpt-6.1-sol', 'high'), 'review': reviewer, 'revise': reviewer}
     if p.get('schema_version') != 1: raise BatchError('Unsupported policy')
     if p.get('execution') != 'serial_per_project' or p.get('fallback_model_allowed') is not False: raise BatchError('Invalid execution or fallback policy')
     models = p.get('models')
@@ -91,13 +94,20 @@ def validate_policy(p, *, legacy_snapshot=False):
         actual = models.get(stage)
         # Only a verified version-2 batch may retain its explicit historical
         # draft null. init never enables this compatibility path.
-        if legacy_snapshot and stage == 'draft' and actual == {'model': model, 'reasoning_effort': None}: continue
+        if legacy_snapshot and marker is None and stage == 'draft' and actual == {'model': model, 'reasoning_effort': None}: continue
         if actual != {'model': model, 'reasoning_effort': effort}: raise BatchError('Invalid model policy')
     delivery = p.get('delivery')
     expected_delivery = {'folder_prefix': '专利撰写完成', 'accepted_subdir': '已完成', 'pending_subdir': '待处理'}
     flat_delivery = {'folder_prefix': '专利撰写完成', 'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}
     if not isinstance(delivery, dict) or delivery not in (expected_delivery, dict(expected_delivery, timing='after_each_acceptance'), flat_delivery):
         raise BatchError('Invalid delivery policy')
+def model_label(policy, stage):
+    """Describe the frozen stage policy, including historical unspecified effort."""
+    config = policy['models'][stage]
+    name = config['model'].replace('gpt-', 'GPT-', 1)
+    effort = config['reasoning_effort']
+    return name+'/'+effort if effort is not None else name+'（旧批次冻结策略未指定推理强度）'
+
 def init(root, work, selection, desktop=None):
     root, work = root_path(root, required=True), root_path(work)
     desk = root_path(desktop if desktop else desktop_folder())
@@ -399,9 +409,9 @@ def _deliver_legacy(path):
     if not m.get('delivery_transaction_id'):
         m['delivery_transaction_id'] = uuid.uuid4().hex; atomic(path, m)
     completed = copy.deepcopy(m)
-    draft_effort = m['policy']['models']['draft']['reasoning_effort']
-    draft_label = 'GPT-6.1-sol/high' if draft_effort == 'high' else 'GPT-6.1-sol（旧批次冻结策略未指定推理强度）'
-    lines = ['专利批次交付清单', f'已完成稿件均经 {draft_label} 撰写、GPT-6-astra/high 最终复查。']
+    draft_label = model_label(m['policy'], 'draft')
+    review_label = model_label(m['policy'], 'review')
+    lines = ['专利批次交付清单', f'已完成稿件均经 {draft_label} 撰写、{review_label} 最终复查。']
     labels = {'delivered': '已完成', 'needs_input': '待补材料', 'failed': '执行失败'}
     for c in completed['projects']:
         folder = dest/(m['policy']['delivery']['accepted_subdir'] if c['status'] in {'accepted', 'delivered'} else m['policy']['delivery']['pending_subdir'])/(c['id'] + '_' + safe(c['title']))

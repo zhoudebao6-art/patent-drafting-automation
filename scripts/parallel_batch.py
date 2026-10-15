@@ -397,7 +397,7 @@ def bind(path, case_id, attempt, dispatch, controller='controller'):
                     or not isinstance(agent, str) or agent.split('/')[-1] != a['task_name']
                     or any(result.get(k) for k in ('error', 'errors', 'isError')) or result.get('success') is False
                     or result.get('status') in {'failed', 'error', 'rejected'}):
-                raise BatchError('Dispatch model/high/none/task/context/result mismatch')
+                raise BatchError('Dispatch model/effort/none/task/context/result mismatch')
         if any(old.get('agent_id') == agent for row in m['projects'] for old in row['attempts']):
             raise BatchError('Worker dispatch already used')
         verify_case(m, c)
@@ -459,7 +459,7 @@ def record(path, case_id, attempt, receipt, controller='controller'):
         if receipt.get('context') != context(m, c, a): raise BatchError('Cross-case, source, rules or attempt receipt mismatch')
         model = m['policy']['models'][a['stage']]
         if any(receipt.get(k) != v for k, v in model.items()) or receipt.get('agent_id') != a['agent_id'] or receipt.get('stage') != a['stage']:
-            raise BatchError('Receipt model/high/worker/stage mismatch')
+            raise BatchError('Receipt model/effort/worker/stage mismatch')
         r = copy.deepcopy(receipt); verdict = r.get('verdict')
         if verdict in {'failed', 'needs_input'}:
             if not isinstance(r.get('reason'), str) or not r['reason'].strip(): raise BatchError('Concrete failure reason required')
@@ -628,7 +628,7 @@ def _deliver_legacy(path, controller='controller'):
         if m.get('delivery_path'): raise BatchError('Recorded delivery missing')
         staging = Path(tempfile.mkdtemp(prefix='.patent-' + m['batch_id'] + '-', dir=desk))
         try:
-            lines = ['专利批次交付清单', '已完成稿经 GPT-6.1-sol/high 撰写、GPT-6-astra/high 最终六项复查。']
+            lines = ['专利批次交付清单', f"已完成稿经 {b.model_label(m['policy'], 'draft')} 撰写、{b.model_label(m['policy'], 'review')} 最终六项复查。"]
             for c in final['projects']:
                 completed = c['status'] == 'delivered'
                 folder = staging / m['policy']['delivery']['accepted_subdir' if completed else 'pending_subdir'] / (c['id'] + '_' + b.safe(c['title']))

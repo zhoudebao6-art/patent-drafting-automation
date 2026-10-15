@@ -127,7 +127,8 @@ def recover(manifest, work_root, controller, new_generation=False):
                           'cli_session_id': execution['session_id'],
                           'completion_seal_sha256': b.sha(Path(a['directory'])/'cli-completion.json'),
                           'artifact': str(output), 'artifact_sha256': b.sha(output),
-                          'acceptance_inherited': False, 'next_stage': 'independent_astra_review'}
+                          'acceptance_inherited': False, 'next_stage': ('independent_sol_review' if new['policy'].get('model_policy') == 'sol_review_xhigh_v20' else 'independent_astra_review'),
+                          'next_model': copy.deepcopy(new['policy']['models']['review'])}
             b.atomic(folder/'recovery.json', provenance)
             target.update(status='drafted', artifact=str(output), artifact_sha256=b.sha(output),
                           recovered_cli_session_ids=[execution['session_id']],

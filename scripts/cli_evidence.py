@@ -14,7 +14,8 @@ import stat
 import uuid
 
 
-MODELS = frozenset({'gpt-6.1-sol', 'gpt-6-astra'})
+MODEL_EFFORTS = frozenset({('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh'),
+                          ('gpt-6-astra', 'high')})
 COMPLETION_FILES = ('events.jsonl', 'worker-final.json', 'session.jsonl', 'prompt.txt', 'cli-exit.json')
 CONNECTION_RETRY = re.compile(
     r'Reconnecting\.\.\. ([1-9][0-9]*)/([1-9][0-9]*) '
@@ -82,9 +83,9 @@ def _identity(value):
 
 def build_command(executable, attempt_dir, model, reasoning_effort):
     """Return argv for subprocess shell=False, with no global configuration edits."""
-    _require(model in MODELS and reasoning_effort == 'high', 'Explicit supported model/high required')
+    _require((model, reasoning_effort) in MODEL_EFFORTS, 'Explicit supported model/effort required')
     executable, root = str(_absolute(executable)), _absolute(attempt_dir)
-    return [executable, 'exec', '--model', model, '-c', 'model_reasoning_effort="high"',
+    return [executable, 'exec', '--model', model, '-c', f'model_reasoning_effort="{reasoning_effort}"',
             '--sandbox', 'workspace-write', '--skip-git-repo-check', '--json', '--color', 'never',
             '-C', str(root), '-o', str(root / 'worker-final.json'), '-']
 
@@ -154,10 +155,10 @@ def _dispatch_record(ev, attempt, model, check_prompt=True):
     root = _absolute(attempt['directory'])
     args = ev.get('arguments')
     _require(isinstance(args, dict), 'CLI dispatch arguments required')
-    _require(args.get('model') == model.get('model') and args.get('reasoning_effort') == 'high'
-             and model.get('reasoning_effort') == 'high', 'CLI dispatch model/high mismatch')
+    _require(args.get('model') == model.get('model')
+             and args.get('reasoning_effort') == model.get('reasoning_effort'), 'CLI dispatch model/effort mismatch')
     identity = _identity(ev.get('result'))
-    expected = build_command(identity['executable'], root, model.get('model'), 'high')
+    expected = build_command(identity['executable'], root, model.get('model'), model.get('reasoning_effort'))
     _require(args.get('argv') == expected and _same_path(args.get('cwd'), root),
              'CLI dispatch argv/cwd must exactly match the safe command')
     _require(ev.get('agent_id') == 'cli:' + attempt['id'], 'CLI agent identity mismatch')
@@ -274,8 +275,8 @@ def verify_completion(attempt, dispatch):
     _require(bool(turns), 'Actual CLI turn_context required')
     for turn in turns:
         _require(isinstance(turn, dict) and turn.get('model') == dispatch['arguments']['model']
-                 and turn.get('effort') == 'high' and _same_path(turn.get('cwd'), root),
-                 'Actual CLI turn model/high/cwd mismatch')
+                 and turn.get('effort') == dispatch['arguments']['reasoning_effort'] and _same_path(turn.get('cwd'), root),
+                 'Actual CLI turn model/effort/cwd mismatch')
         _require(isinstance(turn.get('sandbox_policy'), dict)
                  and turn['sandbox_policy'].get('type') == 'workspace-write',
                  'Actual CLI turn must retain workspace-write sandbox')
