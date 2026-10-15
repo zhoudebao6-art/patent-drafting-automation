@@ -85,3 +85,17 @@ draft阶段一次`inspect_docx.py`提供权项段落清单和所述总数/引用
 inspect_docx同一遍提取输出punctuation_evidence，包含schema_version=2、literal_scan_complete、hits、formula_protected_candidates、preferred_wording_hits及review_candidates。新冻结策略prose_contract=clean_prose_v19配合原output_contract和冻结准备模式；验收及交付复用同SHA封存报告，不新增模型阶段。脚本没有自动改写或删除文字/公式，也不因零命中签发视觉或语义通过。
 
 普通文字形式公式的字符保护写入既有finding：rule_id=WORDING-06、classification=source_formula、status=closed、artifact_sha256、part、paragraph、path、offset、text、source_sha256、source_locator、registry_id、reason。源SHA必须属于本案，定位绑定当前稿中的具体字符；只关闭公式字符，不关闭相邻引语。公式内的原始字符串常量同样完整保留，包括恰好含旧话术的情况；不按话术规则改变公式常量。普通文字投影在公式、换行、制表和非文字对象处保留边界，offset以该报告的投影为准，不把边界两侧拼成不存在的短语。完整技术名词的保留用同样字段，但rule_id=WORDING-07、classification=protected_technical_name，registry_id指既有术语台账；只适用于来源已有定义的完整技术名词，不豁免普通话术。该完整名词若含一一，相应旧一一候选也须逐处提供WORDING-07位置绑定，不能凭同段存在名词豁免其他一一修饰词。复查模型核对实际原式/定义，回执文字本身不替代来源证据。图片/OLE、复杂域及编号仍合入既有最终全页检查。
+
+
+## 版本22新增：正文自然分页和摘要附图无图下号
+
+本次只读对照人工稿SHA256 `6301e02adfb2d66bce264807f5bde033521b5dcf24d601793f6185e513486d65`与问题稿`e7a51deafa75503ae680d20c96b5cc9f5d8b657bdd347b7c40175871ce9be51d`。问题稿截图末句在body直属p87，p88紧接210字文字，二者之间没有空段或手动分页；整段不跨页`keepLines=1`使后段容易整段推到下一页。三份正确参考稿的普通正文keepLines关闭或缺省false，widowControl关闭。页边距、网格和页脚距离一致，不能用改变这些参数掩盖分页问题。P定位是XML段序号，不是实际页码。
+
+- 普通正文和权项自然段显式关闭keepLines、keepNext、pageBreakBefore、widowControl，允许段落在页内剩余空间排入后自然跨页续写，不重复编号或拆成新的逻辑段落。保留既有14pt字体、首行缩进、单倍行距/312twip网格与页边距；不压字、放大行距、改竖直分散对齐或虚构文字填满页。
+- 短栏目标题可与下一段同页；独立公式保持完整结构，文末图片与自己的图下号同页。这些是局部需要，不能给整份正文套整段不跨页，或把连续正文串成keepNext链。一行放不下的高公式或图片、章节自然末页、摘要短文和必要独立分区允许合理留白，不以留白率或固定段数判定错误。
+- 五分区仍按实际分节换页，分节属性优先附在本节真实末段，包括公式、图片或图号段；不再为分节额外生成一行正文高度空段。只有确实空的逻辑分区才保留1pt、脱离行网格的结构载体。不要用“没有w:t”判断空段：OMML、图片、OLE、域、符号、表格和锚点都是内容；页脚中用于定位横线的多段空载体继续保留。
+- 摘要附图只显示本案核验图像，不在图外另写图1、图一或图名。图片内部的技术标记/节点说明不是外置图号，不机械删除；图内如本身带图下号需按真实身份核对。文末说明书附图继续在每张图下单独居中写图N，保持原四处图序映射、首引和同页约束，不能全稿删除图号。人工稿第2节仅p2图像，末节p168/170/172保留图1/2/3；问题稿第2节p4多了图1。
+
+公共生成器按角色写入分页属性，独立读回核对实际属性、分节与图号；不只改默认样式。一次预检提供page_flow_evidence，按段落直接格式、样式继承及文档默认解析分页线索，空段与复杂结构只定位，不自动删正文或对象。新批次layout_contract=manual_flow_abstract_v22在最终pass与交付复用同稿封存预检；普通正文明确强制分页控制及摘要外置标签不能豁免。未解析范围/继承或复杂对象需要本次独立复查finding：rule_id=FORMAT-03、classification=page_flow_reviewed、status=closed、artifact_sha256、part、paragraph、path逐项对应候选，并用reason说明实际核验与处理依据，不接受泛泛通过。
+
+分页属性只说明风险，不能证明已顶满或图文实际同页。保留原figures和rendered_pages审查，最终逐页查看页尾能否继续容纳普通文字、跨页续段是否完整、摘要页无外置图号、文末图号未丢、公式/图片/页脚未裁切。任何版式修正后对新稿重新渲染；同稿有效缓存按既有规则复用，不新增模型阶段或逐案重读参考稿。已运行批次保留旧冻结版本。

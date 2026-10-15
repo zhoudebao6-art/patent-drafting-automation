@@ -72,11 +72,13 @@ class QueueFixture:
 
     def write_docx(self, path, token):
         doc = Document()
-        for text in ('说明书摘要', '本发明提供记录处理。', '权利要求书',
+        flow = doc.styles['Normal'].paragraph_format
+        flow.keep_together = flow.keep_with_next = flow.page_break_before = flow.widow_control = False
+        for text in ('说明书摘要', '本发明提供记录处理。', '摘要附图', '权利要求书',
                      '1.一种处理系统，其特征在于，依照权利要求限定的记录处理。',
-                     '一种处理系统', '技术领域', '本发明涉及记录处理。',
+                     '说明书', '一种处理系统', '技术领域', '本发明涉及记录处理。',
                      '发明内容', '本发明提供记录处理。', '与现有技术相比，本发明的有益效果在于：',
-                     '1.通过保留记录支持回查。', '附图说明', '具体实施方式', '保存对应记录。', token):
+                     '1.通过保留记录支持回查。', '附图说明', '具体实施方式', '保存对应记录。', token, '说明书附图'):
             doc.add_paragraph(text)
         doc.save(path)
 

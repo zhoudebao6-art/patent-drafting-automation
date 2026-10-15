@@ -68,6 +68,10 @@ def validate_policy(p):
         raise BatchError('Invalid benefit numbering contract')
     if p.get('benefit_contract') and p.get('output_contract')!='wording_title_v18':
         raise BatchError('Benefit numbering contract requires the frozen final output contract')
+    if p.get('layout_contract') not in (None,'manual_flow_abstract_v22'):
+        raise BatchError('Invalid page flow/abstract figure contract')
+    if p.get('layout_contract') and p.get('output_contract')!='wording_title_v18':
+        raise BatchError('Page flow/abstract figure contract requires the frozen final output contract')
 
 @contextmanager
 def locked(path, timeout=10):

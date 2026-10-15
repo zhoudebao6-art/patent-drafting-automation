@@ -41,7 +41,7 @@ HEADERS = ('说明书摘要', '摘要附图', '权利要求书', '说明书', '�
 SHA = re.compile(r'^[0-9a-f]{64}$')
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,47}$')
 LIMIT = 64 * 1024 * 1024
-PROFILE = 'manual-v18-explicit-v2'
+PROFILE = 'manual-v22-natural-flow-v3'
 
 
 def fail(message):
@@ -543,9 +543,42 @@ def paragraph_format(p, role='body', section='description'):
     props.append(element('w:snapToGrid', val='1' if indented else '0'))
     for name in ('autoSpaceDE', 'autoSpaceDN'):
         props.append(element('w:' + name, val='1' if section == 'claims' else '0'))
-    props.append(element('w:keepLines', val=1))
-    if role in {'heading', 'image'}:
-        props.append(element('w:keepNext', val=1))
+    # Ordinary prose must use the remaining page area and continue naturally.
+    # Keep only an actual indivisible object or short heading together.
+    props.append(element('w:keepLines', val=0 if role == 'body' else 1))
+    props.append(element('w:keepNext', val=int(role in {'heading', 'project_title'} or
+                                             (role == 'image' and section == 'figures'))))
+    props.append(element('w:pageBreakBefore', val=0))
+    props.append(element('w:widowControl', val=0))
+
+
+def attach_section_boundary(document):
+    """Reuse the preceding real paragraph instead of a full-height blank line.
+
+    python-docx's add_section creates a separate empty paragraph. Keep a tiny
+    structural carrier only when the preceding section itself has no content.
+    Header/footer spacers and source object paragraphs are never removed here.
+    """
+    boundary = document.paragraphs[-1]._p
+    props = boundary.get_or_add_pPr()
+    section = props.find(qn('w:sectPr'))
+    require(section is not None and not boundary.xpath('./w:r | ./m:oMath | ./m:oMathPara'),
+            'unexpected section carrier')
+    previous = boundary.getprevious()
+    if (previous is not None and previous.tag == qn('w:p') and
+            previous.find('w:pPr/w:sectPr', NS) is None):
+        previous.get_or_add_pPr().append(section)
+        boundary.getparent().remove(boundary)
+    else:
+        props.remove(section)
+        for key in ('keepLines', 'keepNext', 'pageBreakBefore', 'widowControl', 'snapToGrid'):
+            props.append(element('w:' + key, val=0))
+        props.append(element('w:spacing', before=0, after=0, line=20, lineRule='exact'))
+        mark_props = element('w:rPr')
+        mark_props.append(element('w:sz', val=2))
+        mark_props.append(element('w:szCs', val=2))
+        props.append(mark_props)
+        props.append(section)
 
 
 def line_shape(paragraph, line_id, top_pt, left_pt=0):
@@ -689,6 +722,8 @@ def render_document(context, path):
     document.core_properties.author = ''
     for index, kind in enumerate(SECTIONS):
         section = document.sections[0] if index == 0 else document.add_section(WD_SECTION_START.NEW_PAGE)
+        if index:
+            attach_section_boundary(document)
         configure_section(section, index)
         for block in (b for b in context['blocks'] if b['section'] == kind):
             p = document.add_paragraph()
@@ -719,10 +754,11 @@ def render_document(context, path):
                 figure = context['figures'][block['figure_id']]
                 paragraph_format(p, 'image', kind)
                 p.add_run().add_picture(io.BytesIO(figure['data']), width=Cm(figure['width_cm']))
-                caption = document.add_paragraph()
-                mark(caption, block['bookmark'] + 'c', len(document.paragraphs) * 2)
-                paragraph_format(caption, 'caption', kind)
-                font(caption.add_run('图' + str(figure['number'])))
+                if kind == 'figures':
+                    caption = document.add_paragraph()
+                    mark(caption, block['bookmark'] + 'c', len(document.paragraphs) * 2)
+                    paragraph_format(caption, 'caption', kind)
+                    font(caption.add_run('图' + str(figure['number'])))
     document.save(path)
 
 
@@ -883,12 +919,14 @@ def verify_document(context, path):
         if p.find('w:pPr/w:sectPr', NS) is not None:
             current_section += 1
     expected_markers = {b['bookmark'] for b in context['blocks']}
-    expected_markers |= {b['bookmark'] + 'c' for b in context['blocks'] if b['type'] == 'figure'}
+    expected_markers |= {b['bookmark'] + 'c' for b in context['blocks']
+                         if b['type'] == 'figure' and b['section'] == 'figures'}
     require(set(observed) == expected_markers, 'missing/unexpected block bookmarks')
     expected_order = []
     for block in context['blocks']:
         expected_order.append(block['bookmark'])
-        if block['type'] == 'figure': expected_order.append(block['bookmark'] + 'c')
+        if block['type'] == 'figure' and block['section'] == 'figures':
+            expected_order.append(block['bookmark'] + 'c')
     require(list(observed) == expected_order, 'block/caption order changed')
     expected_math_count = 0
     object_rows, block_rows = [], []
@@ -904,6 +942,12 @@ def verify_document(context, path):
         require(attributes(p.find('w:pPr/w:ind', NS)) == wanted_ind, 'paragraph indentation changed: ' + block['id'])
         wanted_alignment = 'center' if role in {'project_title', 'formula', 'image'} else 'left'
         require(attributes(p.find('w:pPr/w:jc', NS)).get('val') == wanted_alignment, 'paragraph alignment changed')
+        for prop, value in {'keepLines': int(role != 'body'),
+                            'keepNext': int(role in {'heading', 'project_title'} or
+                                            (role == 'image' and section == 'figures')),
+                            'pageBreakBefore': 0, 'widowControl': 0}.items():
+            require(attributes(p.find('w:pPr/w:' + prop, NS)).get('val') == str(value),
+                    'paragraph pagination changed: ' + block['id'] + '/' + prop)
         if section == 'claims' and role == 'body':
             require(attributes(p.find('w:pPr/w:spacing', NS)) == {'before': '0', 'after': '0', 'line': '240', 'lineRule': 'auto'},
                     'claim line spacing changed')
@@ -914,17 +958,22 @@ def verify_document(context, path):
                             'paragraph bold changed')
         if block['type'] == 'figure':
             figure = context['figures'][block['figure_id']]
+            require(not word_text(p).strip(), 'unexpected text inside image paragraph')
             blips = p.xpath('.//a:blip', namespaces=NS)
             require(len(blips) == 1, 'figure needs one embedded image')
             media_part = rels[blips[0].get(qn('r:embed'))]
             require(digest(parts[media_part]) == figure['sha256'], 'embedded image differs from source')
-            caption_index, caption, caption_section = observed[block['bookmark'] + 'c']
-            require(caption_index == index + 1 and caption_section == section, 'caption detached from image')
-            require(word_text(caption) == '图' + str(figure['number']), 'figure number changed')
-            require(p.find('w:pPr/w:keepNext', NS) is not None and caption.find('w:pPr/w:keepLines', NS) is not None,
-                    'image/caption pagination controls missing')
-            row.update(caption_locator=f'word/document.xml body/w:p[{caption_index}]', caption_text=word_text(caption),
-                       same_page='requires_rendered_page_review')
+            if section == 'figures':
+                caption_index, caption, caption_section = observed[block['bookmark'] + 'c']
+                require(caption_index == index + 1 and caption_section == section, 'caption detached from image')
+                require(word_text(caption) == '图' + str(figure['number']), 'figure number changed')
+                for prop, value in {'keepNext':'0', 'keepLines':'1', 'pageBreakBefore':'0', 'widowControl':'0'}.items():
+                    require(attributes(caption.find('w:pPr/w:' + prop, NS)).get('val') == value,
+                            'figure caption pagination changed')
+                row.update(caption_locator=f'word/document.xml body/w:p[{caption_index}]', caption_text=word_text(caption),
+                           same_page='requires_rendered_page_review')
+            else:
+                row.update(caption_locator=None, caption_text=None, same_page='abstract_image_has_no_caption')
             object_rows.append({'kind': 'figure', 'id': figure['id'], 'source_file': context['sources'][figure['source_id']]['file'],
                                 'source_sha256': context['sources'][figure['source_id']]['sha256'], 'source_media': figure.get('media_part'),
                                 'media_sha256': figure['sha256'], 'target_part': media_part, 'target_locator': locator,
@@ -977,6 +1026,15 @@ def verify_document(context, path):
     marked = {id(value[1]) for value in observed.values()}
     for p in paragraphs:
         require(id(p) in marked or (not word_text(p) and p.find('w:pPr/w:sectPr', NS) is not None), 'unregistered body content')
+        if id(p) not in marked:
+            previous = p.getprevious()
+            require(previous is None or previous.find('w:pPr/w:sectPr', NS) is not None,
+                    'redundant blank section carrier after content')
+            require(attributes(p.find('w:pPr/w:spacing', NS)) ==
+                    {'before':'0', 'after':'0', 'line':'20', 'lineRule':'exact'},
+                    'empty section carrier consumes body line height')
+            require(attributes(p.find('w:pPr/w:snapToGrid', NS)).get('val') == '0',
+                    'empty section carrier snaps to body grid')
         for run in p.findall('w:r', NS):
             if run.find('w:t', NS) is not None:
                 props = run.find('w:rPr', NS)

@@ -49,5 +49,6 @@
   "output_contract": "wording_title_v18",
   "prose_contract": "clean_prose_v19",
   "model_policy": "sol_review_xhigh_v20",
-  "benefit_contract": "numbered_benefits_v21"
+  "benefit_contract": "numbered_benefits_v21",
+  "layout_contract": "manual_flow_abstract_v22"
 }

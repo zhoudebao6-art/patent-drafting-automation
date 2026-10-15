@@ -204,7 +204,10 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(readback['counts']['image_occurrences_including_abstract_reuse'], 2)
         self.assertEqual(len(readback['source_objects']), 2)
         self.assertEqual([r['abstract_reuse'] for r in readback['source_objects']], [True, False])
-        self.assertTrue(all(b['caption_text'] == '图1' for b in readback['blocks'] if b['type'] == 'figure'))
+        figures = [b for b in readback['blocks'] if b['type'] == 'figure']
+        self.assertIsNone(figures[0]['caption_text'])
+        self.assertIsNone(figures[0]['caption_locator'])
+        self.assertEqual(figures[1]['caption_text'], '图1')
 
     def test_embedded_source_docx_media_can_be_reused_without_reencoding(self):
         image = self.add_figure()

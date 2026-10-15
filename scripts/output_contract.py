@@ -9,6 +9,7 @@ import batch_tool as b
 MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
 BENEFIT_MODE = 'numbered_benefits_v21'
+LAYOUT_MODE = 'manual_flow_abstract_v22'
 KNOWN_YIYI = re.compile(r'一一(?:地)?(?:对应|相应|匹配|映射|配对|关联|绑定|核对|对齐|连接|比较|列出|验证|校验|检查|处理|进行|执行|标记|登记|记录|确认|说明)')
 
 
@@ -26,7 +27,7 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False):
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -105,11 +106,35 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         if (issues or not items or any(n is None for n in numbers) or
                 [int(n[1]) for n in numbers]!=list(range(1,len(items)+1))):
             raise b.BatchError('Final benefit numbering contract not satisfied; require consecutive 1.,2.,... effect paragraphs')
+    if strict_layout:
+        flow=report.get('page_flow_evidence')
+        if (not isinstance(flow,dict) or flow.get('schema_version')!=1 or
+                flow.get('extraction_complete') is not True or flow.get('artifact_sha256')!=report['sha256'] or
+                any(not isinstance(flow.get(k),list) for k in
+                    ('paragraphs','ordinary_violations','abstract_labels','final_captions','empty_candidates','review_candidates','sections'))):
+            raise b.BatchError('Final page flow inspection is missing, incomplete or bound to another artifact')
+        if flow['ordinary_violations']:
+            where=', '.join(f'{h["part"]} {h["path"]}:{h["property"]}' for h in flow['ordinary_violations'][:6])
+            raise b.BatchError('Final page flow contract not satisfied: '+where)
+        if flow['abstract_labels']:
+            where=', '.join(f'{h["part"]} {h["path"]}' for h in flow['abstract_labels'][:6])
+            raise b.BatchError('Final abstract figure must contain its image without extra caption or label: '+where)
+        for candidate in flow['review_candidates']:
+            resolved=any(isinstance(f,dict) and f.get('rule_id')=='FORMAT-03' and
+                         f.get('classification')=='page_flow_reviewed' and f.get('status')=='closed' and
+                         f.get('artifact_sha256')==report['sha256'] and
+                         all(f.get(k)==candidate.get(k) for k in ('part','paragraph','path')) and
+                         isinstance(f.get('reason'),str) and f['reason'].strip()
+                         for f in findings)
+            if not resolved:
+                raise b.BatchError('Final page flow needs a current artifact and located review finding: '+
+                                   candidate['part']+' '+candidate['path']+' '+candidate['reason'])
     result={'mode':MODE,'artifact_sha256':report['sha256'],'document_title':expected_title,
             'delivery_filename':filename(expected_title),'title_paragraph':title['paragraph'],
-            'scope':'Objective title, located wording and enabled numbering checks only; original six reviews remain required'}
+            'scope':'Objective title, located wording and enabled numbering/page-flow checks only; original six reviews and final-page acceptance remain required'}
     if strict_prose:result['prose_contract']=PROSE_MODE
     if strict_benefits:result['benefit_contract']=BENEFIT_MODE
+    if strict_layout:result['layout_contract']=LAYOUT_MODE
     return result
 
 
@@ -129,4 +154,5 @@ def verify(m,case,attempt,receipt):
         raise b.BatchError('Final wording/title report refers to another artifact')
     return check(report,case['title'],receipt.get('findings',[]),
                  m['policy'].get('prose_contract')==PROSE_MODE, [s['sha256'] for s in case.get('sources',[])],
-                 m['policy'].get('benefit_contract')==BENEFIT_MODE)
+                 m['policy'].get('benefit_contract')==BENEFIT_MODE,
+                 m['policy'].get('layout_contract')==LAYOUT_MODE)

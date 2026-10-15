@@ -150,7 +150,7 @@
 {"id":"fig_image1","type":"figure","figure_id":"fig1"}
 ```
 
-工具将附图说明输出为“图N为本发明的图名。”，图片后另起相邻段“图N”，图片段`keepNext`、图题段`keepLines`。末尾图片本体不插入实施方式；实施方式用`figure_ref`引用并写核实后的解读。自由文字内出现未登记图号会拒绝；复杂编号、全文所有隐式引用、图内文字和新旧图号语义对应仍需审查。`same_page`明确记`requires_rendered_page_review`，控制属性和高度预估不冒充真实同页证明。
+工具将附图说明输出为“图N为本发明的图名。”，仅文末figures的图片后另起相邻段“图N”，图片段`keepNext`、图题段`keepLines`；abstract_figure复用图像但不生成caption，也不与后续文字keepNext。末尾图片本体不插入实施方式；实施方式用`figure_ref`引用并写核实后的解读。自由文字内出现未登记图号会拒绝；复杂编号、全文所有隐式引用、图内文字和新旧图号语义对应仍需审查。`same_page`明确记`requires_rendered_page_review`，控制属性和高度预估不冒充真实同页证明。
 
 ## 模板、读回与审查边界
 
@@ -173,3 +173,6 @@
 这些运行秒数只能说明本地确定性生成/检查的开销，不能声称端到端撰写或复查提升了某个倍数；完整速度须对同样案件范围、质量门禁、模型与重试统计。
 
 版本5.2沿用本生成器的原式复制与树SHA读回。新的标点/话术线索由同一次inspect_docx提供；公式中的引号和括号保留，不作全局字符删除。普通文字的改写由指定写稿/修稿模型完成，只有最终独立复查及交付门禁通过才作为成稿。
+
+
+v5.5的manual-v22-natural-flow-v3按角色控制分页：body的keepLines/keepNext/pageBreakBefore/widowControl为0，短标题与文末图片采用必要的keepNext，完整公式及图下号保持keepLines。分节直接附在本节最后内容段；空逻辑节才保留最小1pt结构载体。没有减少或拆分技术文字、重排公式节点，也没有改变页脚定位空段。摘要图的客观记录caption_locator/caption_text为null，文末图仍有图号定位。读回拒绝普通正文重新启用分页束缚、摘要多出图号、额外满行高分节载体；后续验收复用page_flow_evidence，实际页面仍须查看。

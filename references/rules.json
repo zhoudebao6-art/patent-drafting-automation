@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 21,
-  "updated_at": "2026-10-15T03:58:41Z",
+  "version": 22,
+  "updated_at": "2026-10-15T05:42:55Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -27,14 +27,18 @@
       "scope": "global",
       "section": "abstract_figure",
       "level": "must",
-      "instruction": "摘要附图采用当前项目整体流程图，核对与说明书相同图的一致性。",
+      "instruction": "摘要附图采用当前项目整体流程图，核对与说明书相同图的一致性。 摘要附图图外不添加图1、图一、其他图号或图名；图内真实技术标记保留。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
           "locator": "第2行"
+        },
+        {
+          "source": "references/page-flow-user-requirement.txt",
+          "locator": "2026-10-15两项合并通用要求"
         }
       ],
-      "check": "确认图意、来源、图像身份和状态。",
+      "check": "确认图意、来源、图像身份和状态。 分别核对摘要图外无编号、文末图下号完整及媒体身份不变。",
       "exceptions": []
     },
     {
@@ -212,7 +216,7 @@
       "scope": "global",
       "section": "figure",
       "level": "must",
-      "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。",
+      "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。 摘要附图复用图像但不生成外置图号或图名；单独居中的图N仅用于文末说明书附图，不能全稿删除图下号。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
@@ -225,9 +229,13 @@
         {
           "source": "references/reference-style-standard.md",
           "locator": "正式净稿；所述；四处同步的图序"
+        },
+        {
+          "source": "references/page-flow-user-requirement.txt",
+          "locator": "2026-10-15两项合并通用要求"
         }
       ],
-      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。",
+      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及媒体身份不变。",
       "exceptions": []
     },
     {
@@ -1421,6 +1429,31 @@
         {
           "source": "references/claim-families-and-benefits.md",
           "locator": "先核准本案保护对象；权利要求的写法；摘要、发明内容与实施方式联动"
+        }
+      ]
+    },
+    {
+      "id": "FORMAT-03",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "按manual-format-and-wording.md版本22执行自然分页：普通正文及权项关闭keepLines、keepNext、pageBreakBefore、widowControl，利用本页可排空间自然续到下页；不改变字体、行距网格、页边距或页脚来填满页面。真实末段承载分节，不加正文高度空段；只有空逻辑节才保留最小结构载体。摘要附图只放核定图像，文末图下号保留。",
+      "check": "生成后独立读回实际分页属性、分节载体与摘要/文末图号。一次预检page_flow_evidence合入现有figures/rendered_pages审查；明确普通正文强制分页及摘要外置标签不得豁免，未知继承/范围或复杂对象按精确位置与稿SHA的page_flow_reviewed finding核定。最终新稿逐页检查自然续排、对象完整、摘要无外置图号、文末图号同页；结构检查不冒充可见页面正确，不新增模型阶段。",
+      "exceptions": [
+        "短标题可与下一段同页，独立公式、文末图片及图下号保持必要完整性；章末、摘要短文、分区边界及确实放不下的不可拆对象允许自然留白。",
+        "不以无w:t判空段，不删除数学、图像、OLE、域、符号和锚点；既有页脚横线定位的空段仍保留。",
+        "原稿只读；旧批次保留冻结策略，不静默迁移。"
+      ],
+      "evidence": [
+        {
+          "source": "references/page-flow-user-requirement.txt",
+          "locator": "全文"
+        },
+        {
+          "source": "references/manual-format-and-wording.md",
+          "locator": "版本22新增正文自然分页和摘要附图无图下号"
         }
       ]
     }
@@ -3810,6 +3843,98 @@
               {
                 "source": "references/claim-families-and-benefits.md",
                 "locator": "先核准本案保护对象；权利要求的写法；摘要、发明内容与实施方式联动"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 22,
+      "previous_version": 21,
+      "updated_at": "2026-10-15T05:42:55Z",
+      "summary": "合并通用修复普通正文整段不跨页造成的页尾留白、空分节载体及摘要附图多余图号；保留源内容和文末图号，复用一次预检与既有验收。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "abstract_figure",
+            "level": "must",
+            "instruction": "摘要附图采用当前项目整体流程图，核对与说明书相同图的一致性。 摘要附图图外不添加图1、图一、其他图号或图名；图内真实技术标记保留。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/page-flow-user-requirement.txt",
+                "locator": "2026-10-15两项合并通用要求"
+              }
+            ],
+            "check": "确认图意、来源、图像身份和状态。 分别核对摘要图外无编号、文末图下号完整及媒体身份不变。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-11",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。 摘要附图复用图像但不生成外置图号或图名；单独居中的图N仅用于文末说明书附图，不能全稿删除图下号。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第9行"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              },
+              {
+                "source": "references/page-flow-user-requirement.txt",
+                "locator": "2026-10-15两项合并通用要求"
+              }
+            ],
+            "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及媒体身份不变。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "FORMAT-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "按manual-format-and-wording.md版本22执行自然分页：普通正文及权项关闭keepLines、keepNext、pageBreakBefore、widowControl，利用本页可排空间自然续到下页；不改变字体、行距网格、页边距或页脚来填满页面。真实末段承载分节，不加正文高度空段；只有空逻辑节才保留最小结构载体。摘要附图只放核定图像，文末图下号保留。",
+            "check": "生成后独立读回实际分页属性、分节载体与摘要/文末图号。一次预检page_flow_evidence合入现有figures/rendered_pages审查；明确普通正文强制分页及摘要外置标签不得豁免，未知继承/范围或复杂对象按精确位置与稿SHA的page_flow_reviewed finding核定。最终新稿逐页检查自然续排、对象完整、摘要无外置图号、文末图号同页；结构检查不冒充可见页面正确，不新增模型阶段。",
+            "exceptions": [
+              "短标题可与下一段同页，独立公式、文末图片及图下号保持必要完整性；章末、摘要短文、分区边界及确实放不下的不可拆对象允许自然留白。",
+              "不以无w:t判空段，不删除数学、图像、OLE、域、符号和锚点；既有页脚横线定位的空段仍保留。",
+              "原稿只读；旧批次保留冻结策略，不静默迁移。"
+            ],
+            "evidence": [
+              {
+                "source": "references/page-flow-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本22新增正文自然分页和摘要附图无图下号"
               }
             ]
           }

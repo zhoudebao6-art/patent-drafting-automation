@@ -225,6 +225,95 @@ def paragraph_layout_evidence(paragraph):
             'boundary': 'Direct properties only; resolve style inheritance, section/table width and renderer output before deciding fit or clipping.'}
 
 
+FLOW_DEFAULTS = {'keepLines': False, 'keepNext': False, 'pageBreakBefore': False, 'widowControl': True}
+
+
+def page_flow_reader(styles_root):
+    """Resolve only pagination on/off properties, with their actual provenance.
+
+    A missing style, a cycle or an invalid on/off value is unresolved rather
+    than silently becoming a safe default. This does not simulate pagination.
+    """
+    w = '{'+NS['w']+'}'
+    catalog = {s.get(w+'styleId'):s for s in styles_root.findall('./w:style',NS)}
+    defaults = styles_root.find('./w:docDefaults/w:pPrDefault/w:pPr',NS)
+    normal = [s.get(w+'styleId') for s in catalog.values()
+              if s.get(w+'type')=='paragraph' and s.get(w+'default') in {'1','true','on'}]
+    def read(paragraph):
+        props=paragraph.find('./w:pPr',NS); style=props.find('./w:pStyle',NS) if props is not None else None
+        sid=style.get(w+'val') if style is not None else (normal[0] if len(normal)==1 else None)
+        chain=[('direct',props)]; seen=set(); unresolved=[]; heading=False
+        if len(normal)>1 and style is None:unresolved.append('multiple_default_paragraph_styles')
+        while sid:
+            if sid in seen:unresolved.append('style_cycle:'+sid);break
+            seen.add(sid);st=catalog.get(sid)
+            if st is None:unresolved.append('missing_style:'+sid);break
+            chain.append(('style:'+sid,st.find('./w:pPr',NS)))
+            name=st.find('./w:name',NS);label=(name.get(w+'val','') if name is not None else sid)
+            if re.search(r'^(?:heading\s*\d*|title|subtitle|标题\s*\d*|副标题)$',label,re.I):heading=True
+            base=st.find('./w:basedOn',NS);sid=base.get(w+'val') if base is not None else None
+        for _,pr in chain:
+            outline=pr.find('./w:outlineLvl',NS) if pr is not None else None
+            if outline is not None and outline.get(w+'val','9')!='9':heading=True
+        result={};chain_unresolved=bool(unresolved)
+        for key,default in FLOW_DEFAULTS.items():
+            found=None
+            for source,pr in chain:
+                nodes=pr.findall('./w:'+key,NS) if pr is not None else []
+                if len(nodes)>1:
+                    unresolved.append('duplicate_property:'+source+':'+key)
+                    found={'value':None,'source':source,'raw':None};break
+                if nodes:
+                    raw=nodes[0].get(w+'val','1')
+                    value=True if raw in {'1','true','on'} else False if raw in {'0','false','off'} else None
+                    if value is None:unresolved.append('invalid_on_off:'+source+':'+key)
+                    found={'value':value,'source':source,'raw':raw};break
+            if found is None and chain_unresolved:
+                found={'value':None,'source':'unresolved_style_chain','raw':None}
+            if found is None:
+                node=defaults.find('./w:'+key,NS) if defaults is not None else None
+                raw=node.get(w+'val','1') if node is not None else None
+                value=(True if raw in {'1','true','on'} else False if raw in {'0','false','off'} else None) if node is not None else default
+                if node is not None and value is None:unresolved.append('invalid_on_off:docDefaults:'+key)
+                found={'value':value,'source':'docDefaults' if node is not None else 'ooxml_default','raw':raw}
+            result[key]=found
+        return {'effective':result,'unresolved':sorted(set(unresolved)),'heading_style':heading}
+    return read
+
+
+def paragraph_content_evidence(paragraph):
+    """Distinguish empty carriers from formulas, images, OLE, fields and glyphs.
+
+    No deletion decision is returned. Textless content is never treated as an
+    empty paragraph merely because it has no w:t descendant.
+    """
+    w='{'+NS['w']+'}';m='{'+NS['m']+'}'
+    objects=set();chunks=[];manual_breaks=0;rendered_breaks=0
+    def walk(node,math=False,graphic=False):
+        nonlocal manual_breaks,rendered_breaks
+        if node is not paragraph and node.tag==w+'p':return
+        if node.tag in {w+'del',w+'moveFrom'}:return
+        if node.tag in {m+'oMath',m+'oMathPara'}:objects.add('omml');math=True
+        if node.tag in {w+'drawing',w+'pict','{'+NS['a']+'}blip'} | {'{'+NS['v']+'}'+n for n in ('imagedata','shape','group','line')}:
+            objects.add('image_or_shape');graphic=True
+        if node.tag in {w+'object','{'+NS['o']+'}OLEObject'}:objects.add('ole');graphic=True
+        if node.tag in {w+'fldChar',w+'fldSimple',w+'instrText',w+'footnoteReference',w+'endnoteReference'}:objects.add('field')
+        if node.tag==w+'sym':objects.add('symbol')
+        if node.tag==w+'br':
+            objects.add('break_or_tab')
+            if node.get(w+'type')=='page':manual_breaks+=1
+        if node.tag in {w+'tab',w+'cr'}:objects.add('break_or_tab')
+        if node.tag==w+'lastRenderedPageBreak':rendered_breaks+=1
+        if node.tag==w+'t' and not math and not graphic:chunks.append(node.text or '')
+        for child in node:walk(child,math,graphic)
+    walk(paragraph)
+    plain=''.join(chunks);boundary=paragraph.find('./w:pPr/w:sectPr',NS) is not None
+    kind='text' if plain.strip() else 'object' if objects else 'empty'
+    if not plain.strip(' \t\r\n；;。.') and objects=={'omml'}:kind='display_formula'
+    return {'kind':kind,'plain_text':plain,'objects':sorted(objects),'section_boundary':boundary,
+            'manual_page_breaks':manual_breaks,'last_rendered_page_breaks':rendered_breaks}
+
+
 def math_evidence(math):
     """Record exact glyph/structure evidence, not a count of source formulas.
 
@@ -449,7 +538,7 @@ def attach_section_headers(root, paragraphs, rels, z):
     sections = [(i + 1, p.find('./w:pPr/w:sectPr', NS)) for i, p in enumerate(nodes)]
     sections.append((len(nodes), root.find('./w:body/w:sectPr', NS)))
     headers = {}
-    start = 0
+    start = 0; evidence=[]
     for end, section in sections:
         if section is None:
             continue
@@ -465,7 +554,13 @@ def attach_section_headers(root, paragraphs, rels, z):
         for paragraph in paragraphs[start:end]:
             paragraph['section_headers'] = list(headers.values())
             paragraph['default_header'] = headers.get('default', '')
+            paragraph['section_index'] = len(evidence)+1
+        evidence.append({'section':len(evidence)+1,'start_paragraph':start+1,'end_paragraph':end,
+                         'default_header':headers.get('default',''),
+                         'properties':{n.tag.split('}')[-1]:{k.split('}')[-1]:v for k,v in n.attrib.items()}
+                                       for n in section if n.tag.split('}')[-1] in {'type','pgSz','pgMar','docGrid'}}})
         start = end
+    return evidence
 
 
 def color_reader(z):
@@ -557,7 +652,7 @@ def inspect(path):
             raise ValueError('DOCX ZIP CRC failure')
         read_colors = color_reader(z)
         numbering_root=ET.fromstring(z.read('word/numbering.xml')) if 'word/numbering.xml' in names else None
-        applied_styles={}
+        applied_styles={};styles_root=ET.Element('styles')
         # Keep compact style definitions so paragraph/header inheritance can be
         # resolved without reopening the ZIP. This is not an effective-style verdict.
         if 'word/styles.xml' in names:
@@ -572,6 +667,7 @@ def inspect(path):
                             'xml': ET.tostring(s, encoding='unicode')}
                            for s in styles_root.findall('./w:style', NS)],
                 'boundary': 'Definitions, not applied formatting. Resolve actual styles, inheritance, direct overrides and final renderer output.'}
+        read_page_flow=page_flow_reader(styles_root)
         parts = [n for n in names if re.fullmatch(r'word/(document|header\d+|footer\d+|footnotes|endnotes|comments)\.xml', n)]
         parts.sort(key=lambda n: (n != 'word/document.xml', n))
         for part in parts:
@@ -618,12 +714,19 @@ def inspect(path):
                     'numbering_applied':applied_numbering(p,applied_styles),
                     'font_encoded_symbols':symbols,
                     'word_run_formats':word_run_formats(p),
-                    'layout_evidence':paragraph_layout_evidence(p)})
+                    'layout_evidence':paragraph_layout_evidence(p),
+                    'page_flow':read_page_flow(p),
+                    'content_evidence':paragraph_content_evidence(p)})
+            section_evidence=[]
             if part == 'word/document.xml':
-                attach_section_headers(root, paragraphs, rels, z)
+                section_evidence=attach_section_headers(root, paragraphs, rels, z)
             revisions = {kind:len(root.findall('.//w:'+kind, NS)) for kind in ['ins','del','moveFrom','moveTo']}
             result['parts'].append({'part':part,'paragraphs':paragraphs,'relationships':rels,'revisions':revisions,
-                'section_properties':[ET.tostring(s,encoding='unicode') for s in root.findall('.//w:sectPr',NS)]})
+                'section_properties':[ET.tostring(s,encoding='unicode') for s in root.findall('.//w:sectPr',NS)],
+                'page_flow_sections':section_evidence,
+                'body_objects':[{'path':f'body/{n.tag.split("}")[-1]}[{i}]','element':n.tag.split('}')[-1]}
+                                for i,n in enumerate(root.findall('./w:body/*',NS),1)
+                                if n.tag not in {f'{{{NS["w"]}}}p',f'{{{NS["w"]}}}sectPr'}] if part=='word/document.xml' else []})
         # DrawingML/chart text can live outside Word paragraph parts. Do not
         # inspect relationships, field instructions or XML syntax as prose.
         extra_parts=[n for n in names if n not in parts and
@@ -695,6 +798,95 @@ def benefit_numbering_evidence(body):
             result['issues'].append(dict(locator,code='native_list_label_requires_literal_conversion'))
     if not result['items']:result['issues'].append({'code':'empty_benefit_group'})
     return result
+
+
+def page_flow_evidence(result, body, claims):
+    """Located structural candidates only; never infer the filled area of a page."""
+    part=next(p for p in result['parts'] if p['part']=='word/document.xml')
+    out={'schema_version':1,'artifact_sha256':result['sha256'],'extraction_complete':True,
+         'paragraphs':[],'ordinary_violations':[],'abstract_labels':[],'final_captions':[],
+         'empty_candidates':[],'review_candidates':[],'sections':part.get('page_flow_sections',[]),
+         'boundary':'Effective pagination and located content only. No page-fill, clipping or visual-acceptance verdict; existing six reviews and final rendered pages remain required.'}
+    roles=[('说明书摘要','abstract'),('摘要附图','abstract_figure'),('权利要求书','claims'),
+           ('说明书附图','figures'),('说明书','description')]
+    def role(text):
+        clean=re.sub(r'\s+','',text)
+        return next((value for label,value in roles if clean.startswith(label)),None)
+    headings={'技术领域','背景技术','发明内容','有益效果','附图说明','具体实施方式'}|{r[0] for r in roles}
+    contract=result.get('document_contract_evidence',{})
+    title_p=(contract.get('title') or {}).get('paragraph')
+    claim_ps={p for c in claims for p in c['paragraphs']}
+    first_description=title_p or next((p['p'] for p in body if p['text'].strip()=='技术领域'),None)
+    explicit=None;seen_scopes={role(s.get('default_header','')) for s in out['sections']}
+    for p in body:
+        text=p['text'].strip();content=p.get('content_evidence',{})
+        plain=content.get('plain_text','').strip();flow=p.get('page_flow',{})
+        if p.get('body_direct') and text in {r[0] for r in roles}:explicit=role(text)
+        section=role(p.get('default_header','')) or explicit
+        if section is None and p['p'] in claim_ps:section='claims'
+        if section is None and first_description is not None and p['p']>=first_description:section='description'
+        if section:seen_scopes.add(section)
+        locator={'part':'word/document.xml','paragraph':p['p'],'path':f'paragraph[{p["p"]}]'}
+        objects=set(content.get('objects',[]));kind=content.get('kind')
+        formats=p.get('word_run_formats',[])
+        bold_candidate=bool(formats) and all(any(prop['name']=='b' and
+            prop['attributes'].get('val','1') in {'1','true','on'}
+            for prop in (group.get('properties_explicit') or [])) for group in formats)
+        if kind=='empty':classification='section_carrier' if content.get('section_boundary') else 'empty'
+        elif section=='abstract_figure':
+            # A caption cannot bypass the abstract-image rule by using a heading
+            # style. Only the literal section heading is a scope delimiter.
+            classification=('heading' if p.get('body_direct',False) and text=='摘要附图' and not objects else
+                'complex' if not p.get('body_direct',False) else
+                'abstract_label' if plain else 'abstract_image' if objects=={'image_or_shape'} else 'complex')
+        elif text in headings or p['p']==title_p or flow.get('heading_style') or benefit_introduction(text):classification='heading'
+        elif section=='figures':classification='final_caption' if re.fullmatch(r'图\s*[1-9][0-9]*',plain) else 'final_image' if objects=={'image_or_shape'} and not plain else 'complex'
+        elif section in {'claims','description'}:
+            if kind=='display_formula':classification='display_formula'
+            elif not p.get('body_direct',False):classification='complex'
+            elif re.fullmatch(r'图\s*[1-9][0-9]*',plain):classification='caption'
+            elif objects & {'ole','field','symbol','image_or_shape'}:classification='complex'
+            elif not plain:classification='complex'
+            # An OMML display equation may have an external ordinary-text
+            # equation label. Preserve its keepLines until source-bound review.
+            elif 'omml' in objects and not re.search(r'[\u3400-\u9fff]',plain):classification='complex'
+            elif bold_candidate:classification='complex'
+            elif not re.search(r'[\u3400-\u9fff]',plain) and re.search(r'[=≠≤≥∑∫]',plain):classification='complex'
+            else:classification='ordinary'
+        else:classification='outside_ordinary_scope'
+        row=dict(locator,section=section,classification=classification,text=text[:120],
+                 effective=flow.get('effective',{}),unresolved=flow.get('unresolved',[]),
+                 content={k:v for k,v in content.items() if k!='plain_text'})
+        out['paragraphs'].append(row)
+        if kind=='empty':out['empty_candidates'].append(row)
+        if classification=='abstract_label':out['abstract_labels'].append(dict(locator,text=plain))
+        if classification=='final_caption':out['final_captions'].append(dict(locator,text=plain))
+        if classification=='ordinary':
+            for key in FLOW_DEFAULTS:
+                value=flow.get('effective',{}).get(key,{})
+                if value.get('value') is True:
+                    out['ordinary_violations'].append(dict(locator,property=key,**value))
+                elif value.get('value') is None:
+                    out['review_candidates'].append(dict(locator,path=locator['path']+'/pPr/'+key,reason='unresolved_flow_property'))
+            if content.get('manual_page_breaks'):
+                out['ordinary_violations'].append(dict(locator,property='manual_page_break',value=True,source='direct'))
+        if flow.get('unresolved') and section in {'claims','description'}:
+            out['review_candidates'].append(dict(locator,path=locator['path']+'/pPr/style_chain',reason='unresolved_style_chain'))
+        if classification=='complex' and section in {'claims','description','abstract_figure','figures'}:
+            out['review_candidates'].append(dict(locator,reason='complex_body_content'))
+        if section=='abstract_figure' and p.get('numbering_applied',{}).get('numId') not in {None,'0'}:
+            out['review_candidates'].append(dict(locator,path=locator['path']+'/pPr/numPr',reason='generated_abstract_label'))
+    # Alternate/unknown structures can be reviewed at their actual document
+    # position. No unlocated global exception can stand in for these findings.
+    for missing in sorted({'claims','description','abstract_figure','figures'}-seen_scopes):
+        paragraph=body[0]['p'] if body else 0
+        out['review_candidates'].append({'part':'word/document.xml','paragraph':paragraph,
+            'path':f'paragraph[{paragraph}]/section_scope/{missing}','reason':'unresolved_section_scope'})
+    for obj in part.get('body_objects',[]):
+        if obj['element']!='tbl':
+            out['review_candidates'].append({'part':'word/document.xml','paragraph':0,
+                'path':obj['path'],'reason':'unparsed_body_object'})
+    return out
 
 
 def precheck(result, kind):
@@ -805,6 +997,16 @@ def precheck(result, kind):
     result['claims_detected']=claims
     result['wording_evidence']=wording_evidence(body, claims)
     result['document_contract_evidence']=document_contract_evidence(body)
+    result['page_flow_evidence']=page_flow_evidence(result,body,claims)
+    for hit in result['page_flow_evidence']['ordinary_violations']:
+        add('PAGE_FLOW_REVIEW','Rule v22 ordinary prose must permit natural page flow: '+hit['property']+' is enabled; preserve font, margins, grid and content.',
+            f'{hit["part"]} {hit["path"]}')
+    for hit in result['page_flow_evidence']['abstract_labels']:
+        add('ABSTRACT_FIGURE_LABEL','Rule v22 abstract figure contains extra literal text/caption; keep final numbered figure captions in their own section.',
+            f'{hit["part"]} {hit["path"]}')
+    for hit in result['page_flow_evidence']['review_candidates']:
+        add('PAGE_FLOW_STRUCTURE_REVIEW','Located structure requires the existing six-check review; '+hit['reason']+'. This does not prove a page is full or authorize content deletion.',
+            f'{hit["part"]} {hit["path"]}')
     result['benefit_numbering_evidence']=benefit_numbering_evidence(body)
     for issue in result['benefit_numbering_evidence']['issues']:
         add('BENEFIT_NUMBERING_REVIEW','Rule v21: each effect prose paragraph needs consecutive literal 1.,2.,... labels. Keep the introduction unnumbered and preserve source formulas; '+issue['code'],
