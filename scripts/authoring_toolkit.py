@@ -29,6 +29,7 @@ from PIL import Image
 
 import inspect_docx
 import math_fragments
+import invention_contract
 
 
 class AuthoringError(ValueError):
@@ -354,7 +355,7 @@ def validate(case_root, spec):
     if not root.is_dir():
         fail('Case root must be a directory')
     fields(spec, ('schema_version', 'case_id', 'project_title', 'protected_names', 'sources',
-                  'formula_policy', 'formulas', 'figures', 'sections'), where='document')
+                  'formula_policy', 'formulas', 'figures', 'sections'), ('invention_from_claims',), where='document')
     if type(spec['schema_version']) is not int or spec['schema_version'] != 1:
         fail('Unsupported schema_version')
     identifier(spec['case_id'], 'case_id')
@@ -362,6 +363,8 @@ def validate(case_root, spec):
     for key in ('sources', 'protected_names', 'formulas', 'figures', 'sections'):
         if not isinstance(spec[key], list):
             fail(key + ' must be an array')
+    try:invention_contract.expand(spec)
+    except (ValueError,KeyError,TypeError) as exc:fail('Invention from claims: '+str(exc))
     sources = {}
     for row in spec['sources']:
         fields(row, ('id', 'file', 'sha256'), where='source')

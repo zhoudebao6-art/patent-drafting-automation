@@ -1181,6 +1181,10 @@ def precheck(result, kind):
     result['claims_detected']=claims
     result['wording_evidence']=wording_evidence(body, claims)
     result['document_contract_evidence']=document_contract_evidence(body)
+    import invention_contract
+    result['invention_evidence']=invention_contract.evidence(result,body,claims,result['document_contract_evidence']['title'])
+    for hit in result['invention_evidence']['issues']:
+        add('INVENTION_CLAIM_ALIGNMENT','Rule v27 fixed wording and current claim projection: '+hit['code'],str(hit.get('paragraph')))
     result['page_flow_evidence']=page_flow_evidence(result,body,claims)
     for hit in result['page_flow_evidence']['ordinary_violations']:
         add('PAGE_FLOW_REVIEW','Rule v22 ordinary prose must permit natural page flow: '+hit['property']+' is enabled; preserve font, margins, grid and content.',
@@ -1335,10 +1339,20 @@ def verified_cache(directory, identity):
     return result
 
 
+def extractor_dependencies():
+    import invention_contract
+    return {'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve())}
+
+
+def extractor_unchanged(identity):
+    return file_sha(Path(__file__).resolve())==identity['extractor_sha256'] and extractor_dependencies()==identity.get('extractor_dependencies')
+
+
 def cache_identity(input_path, kind, extract_media):
     source = local_path(input_path)
     return {'input': str(source), 'source_sha256': file_sha(source),
             'extractor_sha256': file_sha(Path(__file__).resolve()),
+            'extractor_dependencies':extractor_dependencies(),
             'kind': kind, 'extract_media': bool(extract_media)}
 
 
@@ -1370,7 +1384,7 @@ def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=
                 summary = inspection_summary(result, candidate, 'hit', 'verified_all_artifacts')
             except (OSError, ValueError, KeyError, TypeError):
                 continue  # Preserve incomplete or damaged evidence; never overwrite it.
-            if file_sha(source) != identity['source_sha256'] or file_sha(extractor) != identity['extractor_sha256']:
+            if file_sha(source) != identity['source_sha256'] or not extractor_unchanged(identity):
                 raise ValueError('Source or extractor changed during cache verification')
             return summary
         output = bucket/('generation-' + uuid.uuid4().hex[:16])
@@ -1403,7 +1417,7 @@ def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=
         lines.extend(f'P{p["p"]:04}: {p["text"]}' for p in part['paragraphs'])
     content = local_path(output/'content.txt')
     content.write_text('\n'.join(lines),encoding='utf-8')
-    if file_sha(source) != identity['source_sha256'] or file_sha(extractor) != identity['extractor_sha256']:
+    if file_sha(source) != identity['source_sha256'] or not extractor_unchanged(identity):
         raise ValueError('Source or extractor changed during inspection; no reusable cache committed')
     if reuse:
         artifacts.extend([report, content])

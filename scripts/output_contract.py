@@ -5,6 +5,7 @@ Only new batches whose frozen policy explicitly selects MODE use this contract.
 """
 import re
 import batch_tool as b
+import invention_contract
 
 MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
@@ -29,7 +30,7 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False):
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -184,6 +185,9 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
             where=', '.join(f'{h.get("part","?")} {h.get("path","?")} offset {h.get("offset","?")}:{h.get("codepoint","?")}'
                             if isinstance(h,dict) else 'malformed spacing hit' for h in spacing['hits'][:6])
             raise b.BatchError('Final content spacing contract not satisfied: '+where)
+    if strict_invention:
+        try:invention_contract.validate_evidence(report,findings)
+        except ValueError as exc:raise b.BatchError(str(exc)) from exc
     result={'mode':MODE,'artifact_sha256':report['sha256'],'document_title':expected_title,
             'delivery_filename':filename(expected_title),'title_paragraph':title['paragraph'],
             'scope':'Objective title, located wording and enabled numbering/page-flow checks only; original six reviews and final-page acceptance remain required'}
@@ -196,6 +200,7 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     if strict_spacing:
         result['spacing_contract']=SPACING_MODE
         result['scope']='Objective title, located wording and enabled numbering/page-flow/formula-prose/literal-spacing checks only; original six reviews and final-page acceptance remain required'
+    if strict_invention:result['invention_contract']=invention_contract.MODE
     return result
 
 
@@ -219,4 +224,5 @@ def verify(m,case,attempt,receipt):
                  m['policy'].get('benefit_contract')==BENEFIT_MODE,
                  m['policy'].get('layout_contract')==LAYOUT_MODE,
                  m['policy'].get('formula_contract')==FORMULA_MODE,
-                 m['policy'].get('spacing_contract')==SPACING_MODE)
+                 m['policy'].get('spacing_contract')==SPACING_MODE,
+                 m['policy'].get('invention_contract')==invention_contract.MODE)

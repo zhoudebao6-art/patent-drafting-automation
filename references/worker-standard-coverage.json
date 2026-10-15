@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim applicable rules; v26 complete symbols, stacked relations and no literal spaces included with full-reference boundaries. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim applicable rules; v27 fixed invention wording and current-claim projection covered. Source edits require renewed coverage review.",
   "files": {
-    "writing-standard.md": "21ff68421ab75d1635816b8b7738a4d853064f8e5b79a77297393827fff54ef9",
+    "writing-standard.md": "40448a2ba6c47329c73415c636d36b7211f813327e5d277cb669eb28a12840cb",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
     "terminology-and-formula.md": "f7b88878130e9b5f20a007974f53a54c09b134bb6e9dac62e961075ea52f7af3",
     "reference-style-standard.md": "f7415d99bef8ce8c9bf64815355f739130c657eb356174343d1d497f5e89c028",
     "manual-format-and-wording.md": "0e061689cde46865de611958842be5ae221d71c29542f9ea4850dbffd178c278",
-    "worker-standard.md": "360d968c1a6d36ec1229887212939d038f0e0fae247084c09aeef6a613b4c258"
+    "worker-standard.md": "c620081df96da700e54708a5b5e11f8b36881eebeece82332c23501e233c84f1"
   }
 }

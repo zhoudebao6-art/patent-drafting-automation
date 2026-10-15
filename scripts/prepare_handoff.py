@@ -62,7 +62,7 @@ def read_existing_inspection(source, cache_root, kind):
         except (OSError, ValueError, KeyError, TypeError):
             continue
         if (inspector.file_sha(source) != identity['source_sha256']
-                or inspector.file_sha(inspector.__file__) != identity['extractor_sha256']):
+                or not inspector.extractor_unchanged(identity)):
             raise ValueError('Artifact or extractor changed during handoff preparation')
         return inspector.inspection_summary(result, candidate, 'hit', 'prior_writer_verified_cache')
     return None
@@ -185,7 +185,7 @@ def verify_inspection(summary, source, expected_sha, kind, allowed_roots):
         raise ValueError('Prepared cache metadata changed')
     report = inspector.verified_cache(directory, identity)
     if (inspector.file_sha(source) != expected_sha
-            or inspector.file_sha(inspector.__file__) != identity['extractor_sha256']):
+            or not inspector.extractor_unchanged(identity)):
         raise ValueError('Prepared source or extractor changed during binding')
     return report
 

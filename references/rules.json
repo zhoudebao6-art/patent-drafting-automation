@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 26,
-  "updated_at": "2026-10-15T08:24:01Z",
+  "version": 27,
+  "updated_at": "2026-10-15T08:51:02Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -136,14 +136,22 @@
       "scope": "global",
       "section": "invention",
       "level": "must",
-      "instruction": "发明内容取自本案权利要求，沿用定稿格式与衔接话术，技术内容不移植旧案。",
+      "instruction": "发明内容技术方案直接取自本案当前最终权利要求，逐项按顺序映射。仅独立项去编号和其特征在于、从属项去完整引用头换优选的，其余技术文字及内部合法所述、对象、条件、否定词、动作顺序、公式符号和自然续段保留，不另行概括润色、不批量删除所述。修改权项同步更新对应方案；不得移植旧案技术内容。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
           "locator": "第6行"
+        },
+        {
+          "source": "user:2026-10-15-fixed-purpose-and-claim-solution",
+          "locator": "固定话术及正确人工稿通用修复要求"
+        },
+        {
+          "source": "references/invention-content-standard.md",
+          "locator": "固定话术与允许的转换；生成与同次检查"
         }
       ],
-      "check": "逐权项对照正文限定，检查去掉引用头后的指代。",
+      "check": "同一次提取按逐权项自然段核对允许去头后的文字和原生数学结构；缺段、删所述、改条件或新增技术内容不得通过。纯文字权项优先invention_from_claims复用生成；真实跨权项技术引用及复杂对象按STYLE-02定位审查，不静默展平或盲删引用词。对照本案来源复核技术正确性，不把内部文本相等当作来源支持。",
       "exceptions": []
     },
     {
@@ -297,7 +305,7 @@
       "scope": "global",
       "section": "invention",
       "level": "must",
-      "instruction": "采用目的句、为实现上述目的技术方案衔接、优选的从属方案、与现有技术相比的有益效果骨架；多类别的独立方案分别转为直接叙述，仅真正的从属限定使用优选的衔接，不遗漏系统或存储介质，也不将其一律改成方法的优选段。",
+      "instruction": "发明内容标题后目的段固定为本发明的目的在于提供本案完整名称，可以有效解决上述背景技术中的问题。仅名称槽位可变，结尾可以有效解决上述背景技术中的问题不得改写、删减或被具体问题替代。下一自然段固定为为实现上述目的，本发明采取的技术方案为：。随后按当前权项展开技术方案，真正从属限定用优选的，多类别独立方案直接叙述；不遗漏系统或有来源的存储介质，不将独立类别一律变为方法优选段。最后另起与现有技术相比，本发明的有益效果在于：及编号效果。",
       "evidence": [
         {
           "source": "references/corpus/wearable-final.docx",
@@ -318,9 +326,17 @@
         {
           "source": "references/claim-families-and-benefits.md",
           "locator": "按对应章节执行"
+        },
+        {
+          "source": "user:2026-10-15-fixed-purpose-and-claim-solution",
+          "locator": "固定话术及正确人工稿通用修复要求"
+        },
+        {
+          "source": "references/invention-content-standard.md",
+          "locator": "固定话术与允许的转换；生成与同次检查"
         }
       ],
-      "check": "逐权项映射发明内容并核对类别完整；去编号、引用头及其特征在于后重新核对术语前置和否定/条件，保留仅、否则、不参与等限制，说明书不留禁用引用词。",
+      "check": "复用当前SHA的invention_evidence核对目的段、技术衔接原句及位置、全部权项和方案段落对应；普通技术差异不能用泛化finding豁免。内部合法所述保留，重新核对去头后的前置；确有正文技术跨权项引用或复杂对象时，现有claims_alignment按当前稿SHA、claim、双方段号、part/path、双方文字SHA及具体理由记录STYLE-02/claim_solution_mapping/closed，只关闭精确候选，不关闭固定句错误、普通删词或数学结构改变。不新增复查模型轮次，独立复查及最终页面验收保持。",
       "exceptions": []
     },
     {
@@ -4378,6 +4394,86 @@
                 "locator": "全部可见内容不插字面空格"
               }
             ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 27,
+      "previous_version": 26,
+      "updated_at": "2026-10-15T08:51:02Z",
+      "summary": "通用固定发明内容目的话术并直接复用本案权项，保留内部合法所述及全部技术条件，现有检查增加逐段对应。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-07",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "invention",
+            "level": "must",
+            "instruction": "发明内容技术方案直接取自本案当前最终权利要求，逐项按顺序映射。仅独立项去编号和其特征在于、从属项去完整引用头换优选的，其余技术文字及内部合法所述、对象、条件、否定词、动作顺序、公式符号和自然续段保留，不另行概括润色、不批量删除所述。修改权项同步更新对应方案；不得移植旧案技术内容。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第6行"
+              },
+              {
+                "source": "user:2026-10-15-fixed-purpose-and-claim-solution",
+                "locator": "固定话术及正确人工稿通用修复要求"
+              },
+              {
+                "source": "references/invention-content-standard.md",
+                "locator": "固定话术与允许的转换；生成与同次检查"
+              }
+            ],
+            "check": "同一次提取按逐权项自然段核对允许去头后的文字和原生数学结构；缺段、删所述、改条件或新增技术内容不得通过。纯文字权项优先invention_from_claims复用生成；真实跨权项技术引用及复杂对象按STYLE-02定位审查，不静默展平或盲删引用词。对照本案来源复核技术正确性，不把内部文本相等当作来源支持。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "STYLE-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "invention",
+            "level": "must",
+            "instruction": "发明内容标题后目的段固定为本发明的目的在于提供本案完整名称，可以有效解决上述背景技术中的问题。仅名称槽位可变，结尾可以有效解决上述背景技术中的问题不得改写、删减或被具体问题替代。下一自然段固定为为实现上述目的，本发明采取的技术方案为：。随后按当前权项展开技术方案，真正从属限定用优选的，多类别独立方案直接叙述；不遗漏系统或有来源的存储介质，不将独立类别一律变为方法优选段。最后另起与现有技术相比，本发明的有益效果在于：及编号效果。",
+            "evidence": [
+              {
+                "source": "references/corpus/wearable-final.docx",
+                "locator": "word/document.xml P0039-P0070"
+              },
+              {
+                "source": "references/corpus/alloy-final.docx",
+                "locator": "word/document.xml P0039-P0070"
+              },
+              {
+                "source": "references/corpus/bolt-final.docx",
+                "locator": "word/document.xml P0047-P0086"
+              },
+              {
+                "source": "references/claim-families-user-requirement.txt",
+                "locator": "2026-10-15用户通用要求"
+              },
+              {
+                "source": "references/claim-families-and-benefits.md",
+                "locator": "按对应章节执行"
+              },
+              {
+                "source": "user:2026-10-15-fixed-purpose-and-claim-solution",
+                "locator": "固定话术及正确人工稿通用修复要求"
+              },
+              {
+                "source": "references/invention-content-standard.md",
+                "locator": "固定话术与允许的转换；生成与同次检查"
+              }
+            ],
+            "check": "复用当前SHA的invention_evidence核对目的段、技术衔接原句及位置、全部权项和方案段落对应；普通技术差异不能用泛化finding豁免。内部合法所述保留，重新核对去头后的前置；确有正文技术跨权项引用或复杂对象时，现有claims_alignment按当前稿SHA、claim、双方段号、part/path、双方文字SHA及具体理由记录STYLE-02/claim_solution_mapping/closed，只关闭精确候选，不关闭固定句错误、普通删词或数学结构改变。不新增复查模型轮次，独立复查及最终页面验收保持。",
+            "exceptions": []
           }
         }
       ]

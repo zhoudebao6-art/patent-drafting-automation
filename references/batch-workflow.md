@@ -2,7 +2,9 @@
 
 # 多项目滚动并行
 
-v5.9新批次增加spacing_contract=no_literal_spaces_v26，使用同次封存预检拦截可见空格；完整符号解释与同组公式分行并入既有formulas/rendered_pages，不增加模型阶段。既有冻结批次不自动迁移。
+v6.0新批次增加invention_contract=claims_mirror_v27，固定发明内容目的句及衔接句，复用当前权项展开方案；当前稿双方段落和数学结构的对应检查复用同次封存预检，语义仍由原claims_alignment核定，不增加模型阶段。既有冻结批次不自动迁移。
+
+v5.9起spacing_contract=no_literal_spaces_v26使用同次封存预检拦截可见空格；完整符号解释与同组公式分行并入既有formulas/rendered_pages。
 
 v5.8新批次增加post_review_optimization=single_closeout_v25，合并复检后的机械收尾；未变稿通过后直接交付，不重复启动模型或渲染。主控初次完整格式核验后绑定页面证据，发布前仍逐文件核字节；来源变化按案隔离，旧稿和旧冻结批次不迁移。具体强校验及恢复边界见[复检后收尾](fast-execution.md#复检后收尾-v58)。
 
