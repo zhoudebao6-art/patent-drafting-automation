@@ -251,6 +251,7 @@ def source_formula(row, sources):
 
 
 def validate(case_root, spec):
+    spec = deepcopy(spec)  # Generated ordinal prefixes must not mutate caller input.
     root = Path(case_root).resolve(strict=True)
     if not root.is_dir():
         fail('Case root must be a directory')
@@ -359,6 +360,9 @@ def validate(case_root, spec):
     formula_uses, figure_uses = Counter(), Counter()
     abstract_uses, title_count = [], 0
     block_texts = {}
+    benefit_count = 0
+    benefit_region = False
+    invention_region = False
     for section in spec['sections']:
         fields(section, ('kind', 'blocks'), where='section')
         if not isinstance(section['blocks'], list):
@@ -377,7 +381,7 @@ def validate(case_root, spec):
                 fields(block, ('id', 'type', 'role'), ('text', 'runs'), 'paragraph')
                 if kind in {'abstract_figure', 'figures'}:
                     fail('Figure sections accept figure blocks only')
-                if block['role'] not in {'body', 'heading', 'project_title'}:
+                if block['role'] not in {'body', 'heading', 'project_title', 'benefit'}:
                     fail('Unsupported paragraph role')
                 if ('text' in block) == ('runs' in block):
                     fail('Paragraph requires exactly one of text/runs')
@@ -408,6 +412,35 @@ def validate(case_root, spec):
                         string += '图' + str(figures[run['figure_id']]['number'])
                     else:
                         fail('Unsupported run type: ' + str(rtype))
+                if block['role'] == 'benefit':
+                    if kind != 'description' or not benefit_region:
+                        fail('Benefit paragraphs must follow the invention benefit introduction')
+                    if re.match(r'^\s*(?:[0-9]+[.．、]|[（(]|[一二三四五六七八九十]+[、.])', string):
+                        fail('Benefit role accepts unnumbered prose; do not supply a second list prefix')
+                    text_value(string, 'benefit prose')
+                    if string[0].isspace():
+                        fail('Benefit prose must begin immediately after its generated ordinal')
+                    benefit_count += 1
+                    prefix = str(benefit_count)+'.'
+                    if 'text' in block:
+                        block['text'] = prefix+block['text']
+                    else:
+                        block['runs'] = [{'type':'text', 'text':prefix}]+block['runs']
+                    string = prefix+string
+                    block['role'] = 'body'
+                elif kind == 'description':
+                    if block['role'] == 'heading':
+                        invention_region = string.strip() == '发明内容'
+                        benefit_region = False
+                    if inspect_docx.benefit_introduction(string):
+                        if not invention_region or benefit_region or benefit_count:
+                            fail('Benefit introduction must occur once within invention content')
+                        benefit_region = True
+                    elif benefit_region and block['role'] == 'body':
+                        ordinal = re.fullmatch(r'([1-9][0-9]*)\.([^\s].*)', string, re.S)
+                        if not ordinal or int(ordinal[1]) != benefit_count+1:
+                            fail('Use benefit role for unnumbered effects or supply consecutive literal ordinals')
+                        benefit_count += 1
                 if block['role'] == 'project_title':
                     title_count += 1
                     if kind != 'description' or string != spec['project_title'] or any(r['type'] != 'text' for r in runs):

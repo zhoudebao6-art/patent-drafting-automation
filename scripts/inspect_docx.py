@@ -105,13 +105,8 @@ def punctuation_evidence(root, part):
     return {'hits':hits,'formula_protected_candidates':formula_hits,'review_candidates':candidates,'preferred_wording_hits':wording}
 
 
-def numbered_punctuation(paragraph, numbering, styles):
-    """Resolve directly applied or paragraph-style inherited list label fences.
-
-    Linked numbering styles and renderer-specific labels remain visual evidence;
-    unused list definitions must never become automatic document violations.
-    """
-    if numbering is None:return []
+def applied_numbering(paragraph, styles):
+    """Resolve numId/ilvl without pretending to render Word list labels."""
     style_map=styles
     vals={};props=paragraph.find('./w:pPr',NS);seen=set()
     st=props.find('./w:pStyle',NS) if props is not None else None
@@ -128,6 +123,17 @@ def numbered_punctuation(paragraph, numbering, styles):
         for key in ('numId','ilvl'):
             n=prop.find('./w:numPr/w:'+key,NS)
             if n is not None and key not in vals:vals[key]=n.get(f'{{{NS["w"]}}}val')
+    return vals
+
+
+def numbered_punctuation(paragraph, numbering, styles):
+    """Resolve directly applied or paragraph-style inherited list label fences.
+
+    Linked numbering styles and renderer-specific labels remain visual evidence;
+    unused list definitions must never become automatic document violations.
+    """
+    if numbering is None:return []
+    vals=applied_numbering(paragraph, styles)
     num_id=vals.get('numId');level=vals.get('ilvl','0')
     if not num_id or num_id=='0':return []
     num=next((n for n in numbering.findall('./w:num',NS) if n.get(f'{{{NS["w"]}}}numId')==num_id),None)
@@ -609,6 +615,7 @@ def inspect(path):
                 paragraphs.append({'p':index, 'text':visible_text(p, skip_nested_paragraphs=True), 'formulas':formula_ids, 'media':media_refs,
                     'formula_text_spans':formula_text_spans(p),
                     'body_direct':id(p) in direct_paragraphs,
+                    'numbering_applied':applied_numbering(p,applied_styles),
                     'font_encoded_symbols':symbols,
                     'word_run_formats':word_run_formats(p),
                     'layout_evidence':paragraph_layout_evidence(p)})
@@ -638,6 +645,55 @@ def inspect(path):
                 result['media'].append({'part':name,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)})
             elif name.startswith('word/embeddings/') and not name.endswith('/'):
                 result['embeddings'].append({'part':name,'bytes':z.getinfo(name).file_size,'status':'requires_object_review'})
+    return result
+
+
+def benefit_introduction(text):
+    value=re.sub(r'\s+', '', text)
+    return bool(re.fullmatch(r'(?:与现有技术相比[，,])?本发明的有益效果(?:在于|如下)?[：:]?|有益效果[：:]?',value))
+
+
+def benefit_numbering_evidence(body):
+    """Locate the invention's effect paragraphs; never rewrite text or math."""
+    result={'schema_version':1,'scope_resolved':False,'items':[], 'formula_paragraphs':[], 'issues':[],
+            'boundary':'Literal paragraph ordinals only; claim-family support and final display still need independent review.'}
+    direct=[p for p in body if p.get('body_direct')]
+    headings=[p for p in direct if p['text'].strip()=='发明内容']
+    if len(headings)!=1:
+        result['issues'].append({'code':'invention_heading_unresolved'});return result
+    start=headings[0]['p']
+    ends=[p['p'] for p in direct if p['p']>start and p['text'].strip() in {'附图说明','具体实施方式'}]
+    if not ends:
+        result['issues'].append({'code':'invention_end_unresolved'});return result
+    end=min(ends)
+    leads=[p for p in direct if start<p['p']<end and benefit_introduction(p['text'])]
+    if len(leads)!=1:
+        result['issues'].append({'code':'benefit_introduction_unresolved'});return result
+    lead=leads[0]['p'];result.update(scope_resolved=True,introduction_paragraph=lead,end_paragraph=end)
+    for p in body:
+        if not lead<p['p']<end:continue
+        text=p['text'].strip()
+        if not text and not p.get('formulas') and not p.get('media'):continue
+        locator={'part':'word/document.xml','paragraph':p['p'],
+                 'path':f'paragraph[{p["p"]}]/visible_text','offset':0,'text':text}
+        if not p.get('body_direct') or p.get('media'):
+            result['issues'].append(dict(locator,code='effect_container_requires_rewrite_or_review'));continue
+        # A source formula on its own remains attached to the preceding effect;
+        # never turn its operands, indices or source equation number into a list number.
+        if p.get('formulas') and (p.get('layout_evidence') or {}).get('math_only_text_candidate'):
+            result['formula_paragraphs'].append(locator)
+            if not result['items']:result['issues'].append(dict(locator,code='formula_without_effect'))
+            continue
+        match=re.fullmatch(r'([1-9][0-9]*)\.([^\s].*)',text,re.S)
+        number=int(match[1]) if match else None
+        row=dict(locator,number=number,text=text,expected_number=len(result['items'])+1)
+        result['items'].append(row)
+        if not match:result['issues'].append(dict(locator,code='missing_or_noncanonical_effect_number'))
+        elif number!=row['expected_number']:
+            result['issues'].append(dict(locator,code='nonconsecutive_effect_number'))
+        if (p.get('numbering_applied') or {}).get('numId') not in (None,'0'):
+            result['issues'].append(dict(locator,code='native_list_label_requires_literal_conversion'))
+    if not result['items']:result['issues'].append({'code':'empty_benefit_group'})
     return result
 
 
@@ -749,6 +805,10 @@ def precheck(result, kind):
     result['claims_detected']=claims
     result['wording_evidence']=wording_evidence(body, claims)
     result['document_contract_evidence']=document_contract_evidence(body)
+    result['benefit_numbering_evidence']=benefit_numbering_evidence(body)
+    for issue in result['benefit_numbering_evidence']['issues']:
+        add('BENEFIT_NUMBERING_REVIEW','Rule v21: each effect prose paragraph needs consecutive literal 1.,2.,... labels. Keep the introduction unnumbered and preserve source formulas; '+issue['code'],
+            'P'+str(issue['paragraph']) if 'paragraph' in issue else None)
     for hit in result.get('punctuation_evidence',{}).get('hits',[]):
         add('QUOTE_BRACKET_REVIEW','Final v19 prose must not contain quotation marks or brackets. Preserve formula content exactly; source-backed text formula spans require position-bound independent review, not automatic deletion.',
             f'{hit["part"]} {hit["path"]} {hit["codepoint"]}')

@@ -8,6 +8,7 @@ import batch_tool as b
 
 MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
+BENEFIT_MODE = 'numbered_benefits_v21'
 KNOWN_YIYI = re.compile(r'一一(?:地)?(?:对应|相应|匹配|映射|配对|关联|绑定|核对|对齐|连接|比较|列出|验证|校验|检查|处理|进行|执行|标记|登记|记录|确认|说明)')
 
 
@@ -25,7 +26,7 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=()):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False):
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -34,7 +35,7 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         raise b.BatchError('Description scope unresolved; cannot certify scoped wording')
     def source_bound(hit,classification,rule_id):
         # Reuse the actual independent review finding, bound to exact source
-        # and output positions. No paragraph-wide exemption is accepted.
+        # and output positions. Only a verified whole-formula finding uses a paragraph locator.
         if classification=='source_formula' and hit.get('representation') in {'applied_numbering','drawing_bullet'}:
             return False
         return any(isinstance(f,dict) and f.get('rule_id')==rule_id and
@@ -85,10 +86,30 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         if wording:
             where=', '.join(f'{h["part"]} {h["path"]}:{h["text"]} -> {h["replacement"]}' for h in wording[:6])
             raise b.BatchError('Final preferred wording contract not satisfied: '+where)
+    if strict_benefits:
+        benefits=report.get('benefit_numbering_evidence')
+        if (not isinstance(benefits,dict) or benefits.get('schema_version')!=1 or
+                benefits.get('scope_resolved') is not True or
+                not isinstance(benefits.get('items'),list) or not isinstance(benefits.get('issues'),list)):
+            raise b.BatchError('Final benefit numbering contract evidence missing or unresolved')
+        # Text/image/OLE equations and external equation labels need a complete,
+        # source-bound independent finding. It protects only this whole formula
+        # paragraph, never ordinary effect prose containing an inline equation.
+        protected={h.get('paragraph') for h in benefits['items']+benefits['issues']
+                   if source_bound(h,'source_formula_paragraph','STYLE-07')}
+        items=[h for h in benefits['items'] if h.get('paragraph') not in protected]
+        ordinary_codes={'missing_or_noncanonical_effect_number','nonconsecutive_effect_number'}
+        issues=[h for h in benefits['issues'] if h.get('paragraph') not in protected
+                and h.get('code') not in ordinary_codes]
+        numbers=[re.fullmatch(r'([1-9][0-9]*)\.([^\s].*)',h.get('text',''),re.S) for h in items]
+        if (issues or not items or any(n is None for n in numbers) or
+                [int(n[1]) for n in numbers]!=list(range(1,len(items)+1))):
+            raise b.BatchError('Final benefit numbering contract not satisfied; require consecutive 1.,2.,... effect paragraphs')
     result={'mode':MODE,'artifact_sha256':report['sha256'],'document_title':expected_title,
             'delivery_filename':filename(expected_title),'title_paragraph':title['paragraph'],
-            'scope':'Objective title and located wording checks only; original six reviews remain required'}
+            'scope':'Objective title, located wording and enabled numbering checks only; original six reviews remain required'}
     if strict_prose:result['prose_contract']=PROSE_MODE
+    if strict_benefits:result['benefit_contract']=BENEFIT_MODE
     return result
 
 
@@ -107,4 +128,5 @@ def verify(m,case,attempt,receipt):
     if report.get('sha256') != attempt['input_artifact_sha256']:
         raise b.BatchError('Final wording/title report refers to another artifact')
     return check(report,case['title'],receipt.get('findings',[]),
-                 m['policy'].get('prose_contract')==PROSE_MODE, [s['sha256'] for s in case.get('sources',[])])
+                 m['policy'].get('prose_contract')==PROSE_MODE, [s['sha256'] for s in case.get('sources',[])],
+                 m['policy'].get('benefit_contract')==BENEFIT_MODE)

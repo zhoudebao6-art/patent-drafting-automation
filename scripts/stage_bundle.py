@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 MODE = 'frozen_stage_packet_v1'
-CORE = ('writing-standard.md', 'terminology-and-formula.md',
+CORE = ('writing-standard.md', 'claim-families-and-benefits.md', 'terminology-and-formula.md',
         'reference-style-standard.md', 'manual-format-and-wording.md')
 MATH = ('technical-review.md', 'formula-layout-standard.md')
 STAGES = ('draft', 'review', 'revise')

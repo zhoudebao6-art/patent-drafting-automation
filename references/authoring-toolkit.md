@@ -78,7 +78,7 @@
 {"id":"p001","type":"paragraph","role":"body","text":"已经核对的正文。"}
 ```
 
-`role`为`body`、`heading`或`project_title`。栏目标题与项目标题只能在说明书分区；全稿恰好一个`project_title`，其纯文本必须精确等于顶层`project_title`。标题中“装置/组件/引擎”原词保留。工具不运行任何全文替换；本发明自称、模块称谓、权项禁词仍由模型按作用域修改JSON，现有`inspection.json`只列候选。
+`role`为`body`、`heading`、`project_title`或`benefit`。`benefit`只用于description分区内发明内容的有益效果引导句之后；提供不带编号的text或runs，工具按段生成1.、2.等文字前缀且不插空格，保留原run和OMML顺序，使用body的宋体14pt正体及2字符首缩进。已有序号的benefit输入拒绝；手写编号body也须连续，可与benefit按当前序号衔接。引导句不编号，离开该栏目不得继续使用benefit。栏目标题与项目标题只能在说明书分区；全稿恰好一个`project_title`，其纯文本必须精确等于顶层`project_title`。标题中“装置/组件/引擎”原词保留。工具不运行任何全文替换；本发明自称、模块称谓、权项禁词仍由模型按作用域修改JSON，现有`inspection.json`只列候选。
 
 `text`与`runs`二选一。`runs`按序组合以下四种对象：
 

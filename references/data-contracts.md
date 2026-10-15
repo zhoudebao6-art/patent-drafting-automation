@@ -24,6 +24,8 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 
 版本16起terms的每个claim增加paragraphs、literal_shushu_count、valid_shushu_count、reference_head_count和valid_count_at_least_3；只有完整前置和引用核对后才填有效计数。wording记录protected_names（精确名称/标题及位置）、occurrences（词语/位置/权项或章节/适用范围/改前改后或不适用依据）；替换装置/组件/引擎不得破坏受保护完整名称。formulas的symbol_reference记representation=plain_run|OMML、完整符号身份及普通run例外依据。rendered_pages同时记录人工定稿的权项分段、首行缩进、行网格、五分区实际页眉、线条和页码。以上合入既有evidence.json和六项审查，不另增审核阶段；脚本的wording_evidence、style_evidence和isolated_symbol_evidence仅定位线索。
 
+版本21起在既有source_map或evidence.json登记claim_families：本案已核定类别、完整名称、来源定位、相关权项号及真实引用关系、对应的摘要名称/发明内容/实施方式位置。方法与系统/介质必要步骤以同一特征ID映射，保留条件和输出；记录有益效果每个序号、段落、技术手段和效果依据。不因类别或范例固定项数、段数，不另建重复登记文件。
+
 各案默认可把这些记录合成一份evidence.json；必要对应关系不能省略，已有定位使用引用避免重复抄写正文。记录中的 null 代表未核定，不用零或空字符串掩盖。
 
 规则版本10起，formula_registry的format_check另含array_classification（每个eqArr路径、显示续行/独立多式/条件/矩阵等）、layout_changes（源/稿结构定位及依据）、diagnostic_dispositions（预检code/locator、结论、证据），以及visual_locations（最终页码与公式/解释显示记录）。未知保持unresolved；语义不适用的警告凭源关闭，不能自动全忽略。这些证据合入formulas/rendered_pages，不另加状态机通道。

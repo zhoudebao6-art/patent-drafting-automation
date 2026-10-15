@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 20,
-  "updated_at": "2026-10-15T02:46:46Z",
+  "version": 21,
+  "updated_at": "2026-10-15T03:58:41Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -252,11 +252,11 @@
     {
       "id": "STYLE-01",
       "status": "active",
-      "origin": "example",
+      "origin": "user",
       "scope": "global",
       "section": "claims",
-      "level": "preferred",
-      "instruction": "独立项使用方法名称、其特征在于和必要步骤，从属项使用根据权利要求N所述的完整名称并展开限定。",
+      "level": "must",
+      "instruction": "方法独立项使用完整方法名称、其特征在于和必要步骤，从属项使用根据权利要求N所述的完整名称展开限定；系统和存储介质采用各自名称及有来源的执行主体、连接或程序执行关系，不能把方法句式强套其他类别或机械每步拆成模块。各类别保留自然分段、必要条件与数据流。",
       "evidence": [
         {
           "source": "references/corpus/wearable-final.docx",
@@ -269,19 +269,27 @@
         {
           "source": "references/corpus/bolt-final.docx",
           "locator": "word/document.xml P0003-P0037"
+        },
+        {
+          "source": "references/claim-families-user-requirement.txt",
+          "locator": "2026-10-15用户通用要求"
+        },
+        {
+          "source": "references/claim-families-and-benefits.md",
+          "locator": "按对应章节执行"
         }
       ],
-      "check": "句式和技术依赖同时审核。",
+      "check": "结合本案来源和真实引用关系核对类别专属名称、执行主体、条件、分支及输出；每个独立类别重新检查所述前置，不借同级项补定义；每项至少3处合法所述规则仍保留。",
       "exceptions": []
     },
     {
       "id": "STYLE-02",
       "status": "active",
-      "origin": "example",
+      "origin": "user",
       "scope": "global",
       "section": "invention",
-      "level": "preferred",
-      "instruction": "采用目的句、为实现上述目的技术方案衔接、优选的从属方案、与现有技术相比的有益效果骨架。",
+      "level": "must",
+      "instruction": "采用目的句、为实现上述目的技术方案衔接、优选的从属方案、与现有技术相比的有益效果骨架；多类别的独立方案分别转为直接叙述，仅真正的从属限定使用优选的衔接，不遗漏系统或存储介质，也不将其一律改成方法的优选段。",
       "evidence": [
         {
           "source": "references/corpus/wearable-final.docx",
@@ -294,9 +302,17 @@
         {
           "source": "references/corpus/bolt-final.docx",
           "locator": "word/document.xml P0047-P0086"
+        },
+        {
+          "source": "references/claim-families-user-requirement.txt",
+          "locator": "2026-10-15用户通用要求"
+        },
+        {
+          "source": "references/claim-families-and-benefits.md",
+          "locator": "按对应章节执行"
         }
       ],
-      "check": "检查骨架与本案权项映射，避免遗漏仅、否则、不参与等限制。",
+      "check": "逐权项映射发明内容并核对类别完整；去编号、引用头及其特征在于后重新核对术语前置和否定/条件，保留仅、否则、不参与等限制，说明书不留禁用引用词。",
       "exceptions": []
     },
     {
@@ -402,11 +418,11 @@
     {
       "id": "STYLE-07",
       "status": "active",
-      "origin": "example",
+      "origin": "user",
       "scope": "global",
       "section": "effects",
-      "level": "preferred",
-      "instruction": "有益效果说明技术手段通过何种机制产生何种有条件效果。",
+      "level": "must",
+      "instruction": "有益效果说明技术手段通过何种机制产生何种有条件效果；引导句单独保留且不编号，其后每个独立效果文字自然段从1.起连续编号，序号后直接接文字，不加括号、引号或空格；不漏号、重号、跳号。沿用宋体14pt正体黑字、左对齐、首行2字符；跨页续排不另编号。效果段数由内容决定，不固定两段或按保护类别/权项数量凑段。",
       "evidence": [
         {
           "source": "references/corpus/wearable-final.docx",
@@ -419,10 +435,20 @@
         {
           "source": "references/corpus/bolt-final.docx",
           "locator": "word/document.xml P0084-P0086"
+        },
+        {
+          "source": "references/claim-families-user-requirement.txt",
+          "locator": "2026-10-15用户通用要求"
+        },
+        {
+          "source": "references/claim-families-and-benefits.md",
+          "locator": "按对应章节执行"
         }
       ],
-      "check": "对照本案方案与证据，不制造数值改善率。",
-      "exceptions": []
+      "check": "对照本案方案与证据，不制造数值改善率。检查发明内容效果范围、连续正文序号及全部最终页面；生成role=benefit自动编号，最终验收复用封存benefit_numbering_evidence。原生列表核准后改为对应文字序号防重复，不改变原公式或符号。",
+      "exceptions": [
+        "公式专用段保持源数学结构，不给公式操作数、公式号、上下标添加效果编号；归属和文本/图片/OLE公式仍由原六项审查核对。旧批次保留冻结规则与验收契约。"
+      ]
     },
     {
       "id": "QA-01",
@@ -1374,6 +1400,27 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "版本19新增：普通文字净化与公式保护"
+        }
+      ]
+    },
+    {
+      "id": "STYLE-08",
+      "status": "active",
+      "origin": "user",
+      "scope": "global",
+      "section": "all",
+      "level": "must",
+      "instruction": "依据本案材料及用户指定范围确认保护类别；双权、三权表示类别组合而非权项数量，技术名称中的双模型或三阶段不能决定类别。方法、系统及有来源的存储介质保留各自完整名称，必要技术特征跨类别与摘要、发明内容、实施方式关联一致；摘要概括主处理链，不为类别数重复多遍；实施方式按实现逻辑说明各类别，不固定按权项号排序。不得无源增加类别、控制器、处理器、存储器、模块、步骤或图，不照搬10项或固定类别配比。",
+      "check": "在既有source_map/evidence.json登记claim_families的类别、来源、权项及章节定位，复核必要步骤、对象、条件、分支和输出；缺少类别技术支持时记录缺口。源公式N对应N，不能因多权重复或新增公式；后续明确用词及每项至少3个合法所述优先于历史样本差异。",
+      "exceptions": [],
+      "evidence": [
+        {
+          "source": "references/claim-families-user-requirement.txt",
+          "locator": "2026-10-15用户通用要求"
+        },
+        {
+          "source": "references/claim-families-and-benefits.md",
+          "locator": "先核准本案保护对象；权利要求的写法；摘要、发明内容与实施方式联动"
         }
       ]
     }
@@ -3621,6 +3668,148 @@
               {
                 "source": "references/model-policy-user-requirement.txt",
                 "locator": "2026-10-15用户最新要求及通用执行解释"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 21,
+      "previous_version": 20,
+      "updated_at": "2026-10-15T03:58:41Z",
+      "summary": "对照用户三权、双权和方法完成稿提炼多类别撰写与章节映射，明确有益效果每个文字段连续编号，接入生成器及封存预检验收；原稿只读、模型策略及独立六项验收不变。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "STYLE-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "claims",
+            "level": "must",
+            "instruction": "方法独立项使用完整方法名称、其特征在于和必要步骤，从属项使用根据权利要求N所述的完整名称展开限定；系统和存储介质采用各自名称及有来源的执行主体、连接或程序执行关系，不能把方法句式强套其他类别或机械每步拆成模块。各类别保留自然分段、必要条件与数据流。",
+            "evidence": [
+              {
+                "source": "references/corpus/wearable-final.docx",
+                "locator": "word/document.xml P0003-P0029"
+              },
+              {
+                "source": "references/corpus/alloy-final.docx",
+                "locator": "word/document.xml P0003-P0029"
+              },
+              {
+                "source": "references/corpus/bolt-final.docx",
+                "locator": "word/document.xml P0003-P0037"
+              },
+              {
+                "source": "references/claim-families-user-requirement.txt",
+                "locator": "2026-10-15用户通用要求"
+              },
+              {
+                "source": "references/claim-families-and-benefits.md",
+                "locator": "按对应章节执行"
+              }
+            ],
+            "check": "结合本案来源和真实引用关系核对类别专属名称、执行主体、条件、分支及输出；每个独立类别重新检查所述前置，不借同级项补定义；每项至少3处合法所述规则仍保留。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "STYLE-02",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "invention",
+            "level": "must",
+            "instruction": "采用目的句、为实现上述目的技术方案衔接、优选的从属方案、与现有技术相比的有益效果骨架；多类别的独立方案分别转为直接叙述，仅真正的从属限定使用优选的衔接，不遗漏系统或存储介质，也不将其一律改成方法的优选段。",
+            "evidence": [
+              {
+                "source": "references/corpus/wearable-final.docx",
+                "locator": "word/document.xml P0039-P0070"
+              },
+              {
+                "source": "references/corpus/alloy-final.docx",
+                "locator": "word/document.xml P0039-P0070"
+              },
+              {
+                "source": "references/corpus/bolt-final.docx",
+                "locator": "word/document.xml P0047-P0086"
+              },
+              {
+                "source": "references/claim-families-user-requirement.txt",
+                "locator": "2026-10-15用户通用要求"
+              },
+              {
+                "source": "references/claim-families-and-benefits.md",
+                "locator": "按对应章节执行"
+              }
+            ],
+            "check": "逐权项映射发明内容并核对类别完整；去编号、引用头及其特征在于后重新核对术语前置和否定/条件，保留仅、否则、不参与等限制，说明书不留禁用引用词。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "STYLE-07",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "effects",
+            "level": "must",
+            "instruction": "有益效果说明技术手段通过何种机制产生何种有条件效果；引导句单独保留且不编号，其后每个独立效果文字自然段从1.起连续编号，序号后直接接文字，不加括号、引号或空格；不漏号、重号、跳号。沿用宋体14pt正体黑字、左对齐、首行2字符；跨页续排不另编号。效果段数由内容决定，不固定两段或按保护类别/权项数量凑段。",
+            "evidence": [
+              {
+                "source": "references/corpus/wearable-final.docx",
+                "locator": "word/document.xml P0068-P0070"
+              },
+              {
+                "source": "references/corpus/alloy-final.docx",
+                "locator": "word/document.xml P0068-P0070"
+              },
+              {
+                "source": "references/corpus/bolt-final.docx",
+                "locator": "word/document.xml P0084-P0086"
+              },
+              {
+                "source": "references/claim-families-user-requirement.txt",
+                "locator": "2026-10-15用户通用要求"
+              },
+              {
+                "source": "references/claim-families-and-benefits.md",
+                "locator": "按对应章节执行"
+              }
+            ],
+            "check": "对照本案方案与证据，不制造数值改善率。检查发明内容效果范围、连续正文序号及全部最终页面；生成role=benefit自动编号，最终验收复用封存benefit_numbering_evidence。原生列表核准后改为对应文字序号防重复，不改变原公式或符号。",
+            "exceptions": [
+              "公式专用段保持源数学结构，不给公式操作数、公式号、上下标添加效果编号；归属和文本/图片/OLE公式仍由原六项审查核对。旧批次保留冻结规则与验收契约。"
+            ]
+          }
+        },
+        {
+          "action": "add",
+          "rule": {
+            "id": "STYLE-08",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "依据本案材料及用户指定范围确认保护类别；双权、三权表示类别组合而非权项数量，技术名称中的双模型或三阶段不能决定类别。方法、系统及有来源的存储介质保留各自完整名称，必要技术特征跨类别与摘要、发明内容、实施方式关联一致；摘要概括主处理链，不为类别数重复多遍；实施方式按实现逻辑说明各类别，不固定按权项号排序。不得无源增加类别、控制器、处理器、存储器、模块、步骤或图，不照搬10项或固定类别配比。",
+            "check": "在既有source_map/evidence.json登记claim_families的类别、来源、权项及章节定位，复核必要步骤、对象、条件、分支和输出；缺少类别技术支持时记录缺口。源公式N对应N，不能因多权重复或新增公式；后续明确用词及每项至少3个合法所述优先于历史样本差异。",
+            "exceptions": [],
+            "evidence": [
+              {
+                "source": "references/claim-families-user-requirement.txt",
+                "locator": "2026-10-15用户通用要求"
+              },
+              {
+                "source": "references/claim-families-and-benefits.md",
+                "locator": "先核准本案保护对象；权利要求的写法；摘要、发明内容与实施方式联动"
               }
             ]
           }
