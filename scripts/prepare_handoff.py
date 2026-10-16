@@ -103,7 +103,7 @@ def render_candidates(artifact, expected_sha):
 
 
 def prepare(m, case, attempt):
-    """Called under the controller lock, before dispatch and reservation commit."""
+    """Prepare case-local evidence before dispatch; caller commits its metadata."""
     case_root = inspector.local_path(Path(m['batch_dir'])/'cases'/case['id'])
     attempt_root = inspector.local_path(attempt['directory'])
     if not attempt_root.is_relative_to(case_root/'stages'):

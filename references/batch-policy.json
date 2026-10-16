@@ -37,7 +37,8 @@
     "Deliver each accepted case immediately to the same desktop batch folder while other workers continue. Partial delivery must not close the batch; preserve prior outputs and update the delivery ledger.",
     "Accepted DOCX files are published directly in one desktop batch folder; no accepted/per-case delivery subdirectories. Keep case workspaces isolated and detailed receipts/pending notes in the work batch directory; freeze collision-safe filenames.",
     "New batches follow efficiency.md: verified case-local inspection cache, same-artifact render reuse, compact CLI replies, content review before final rendering, and tests scoped to the actual skill change. Acceptance and model policies remain mandatory.",
-    "New batches prefer cli_pool.py: bounded actual CLI workers, durable launch intent, independent process/session evidence, completion-first recovery and immediate refill. Old frozen batches do not gain CLI authorization automatically. Never relax sandbox, global configuration, model/effort or acceptance requirements."
+    "New batches prefer cli_pool.py: bounded actual CLI workers, durable launch intent, independent process/session evidence, completion-first recovery and immediate refill. Old frozen batches do not gain CLI authorization automatically. Never relax sandbox, global configuration, model/effort or acceptance requirements.",
+    "Independent stage-local preparation/collection lanes and a single publication lane keep slow I/O outside the shared queue lock. Accepted work never blocks other stage reservations; validate exact case context and merge only its changes. Publish new accepted files before terminal history audit; close only after that audit succeeds."
   ],
   "concurrency": {
     "target_workers": 12,
@@ -62,5 +63,6 @@
     "review": 3,
     "revise": 3
   },
-  "figure_description_contract": "named_figures_v32"
+  "figure_description_contract": "named_figures_v32",
+  "pool_execution": "nonblocking_handoff_v36"
 }

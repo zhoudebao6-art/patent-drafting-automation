@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Persistent rolling queue. Dispatch evidence is controller evidence, not model attestation."""
 from __future__ import annotations
-import argparse, copy, hashlib, json, os, shutil, sys, tempfile, time, uuid
+import argparse, copy, hashlib, json, os, shutil, stat, sys, tempfile, time, uuid
 from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
 import batch_tool as b
@@ -14,6 +14,11 @@ NEXT = {'pending': 'draft', 'drafted': 'review', 'revised': 'review', 'fix_requi
 TERMINAL = b.TERMINAL
 IMMEDIATE_STAGES = 'overlapped_pipeline_v29'
 THREE_POOLS = 'separate_stage_pools_v35'
+NONBLOCKING_POOLS = 'nonblocking_handoff_v36'
+
+
+def nonblocking_pools(policy):
+    return policy.get('pool_execution') == NONBLOCKING_POOLS
 
 
 def immediate_stages(policy):
@@ -36,7 +41,8 @@ def digest(value):
 
 def file_path(path, root):
     p = b.clean_path(path, root)
-    if not p.is_file() or p.stat().st_nlink != 1:
+    attributes = p.stat()
+    if not stat.S_ISREG(attributes.st_mode) or attributes.st_nlink != 1:
         raise BatchError('Regular independent file required; hardlinks prohibited')
     return p
 
@@ -117,6 +123,12 @@ def validate_policy(p):
         raise BatchError('Stage pools require the separate-stage scheduling policy')
     if p.get('stage_scheduling') and p['delivery'].get('timing') != 'after_each_acceptance':
         raise BatchError('Immediate stages require per-case delivery')
+    if p.get('pool_execution') not in (None, NONBLOCKING_POOLS):
+        raise BatchError('Invalid pool execution policy')
+    if nonblocking_pools(p) and (p.get('stage_scheduling') != THREE_POOLS
+                                or p['delivery'].get('layout') != 'flat_final_files'
+                                or p.get('worker_preparation') != 'frozen_stage_packet_v1'):
+        raise BatchError('Nonblocking pools require prepared three-stage flat delivery')
 
 @contextmanager
 def locked(path, timeout=10):
@@ -217,6 +229,22 @@ def init(root, work, selection, desktop=None, controller='controller'):
     return batch / 'manifest.json'
 
 def load_manifest(path):
+    expected = os.path.normcase(os.path.abspath(path))
+    for retry in range(8):
+        try:
+            return _load_manifest(path)
+        except OSError as exc:
+            # ReplaceFileW can briefly move the old name before installing the
+            # new one. Retry the entire validation, only for this manifest and
+            # these transient Windows errors; never skip any identity checks.
+            if (os.name != 'nt' or getattr(exc, 'winerror', None) not in {2, 32, 33}
+                    or not exc.filename or os.path.normcase(os.path.abspath(exc.filename)) != expected
+                    or retry == 7):
+                raise
+            time.sleep(.005)
+
+
+def _load_manifest(path):
     m = b.read(file_path(path, Path(path).parent))
     if m.get('schema_version') != 2 or m.get('execution') != 'rolling_parallel':
         raise BatchError('Serial batch must use batch_tool.py; no implicit migration')
@@ -324,7 +352,7 @@ def plan_manifest(m, capacity, first_only=False):
     if pools and any(active_by_stage[stage] > limit for stage, limit in pools.items()):
         raise BatchError('Active stages exceed the frozen pool limits')
     accepted = [c['id'] for c in m['projects'] if c['status'] == 'accepted' and not c['active_attempt']]
-    if immediate and accepted:
+    if immediate and accepted and not nonblocking_pools(m['policy']):
         return {'action': 'deliver', 'reason': 'Publish accepted cases before reserving another stage',
                 'active_workers': len(active), 'capacity': capacity, 'ready': [], 'blocked': [],
                 'accepted_case_ids': accepted, 'pool_status': pool_status}
@@ -400,10 +428,92 @@ def mutate(path, controller, operation):
         m['sequence'] += 1; b.atomic(path, m)
         return result
 
-def reserve(path, capacity, case_id=None, stage=None, controller='controller', prepare=False, transport='collaboration'):
+
+def case_mutate(path, controller, case_id, operation):
+    """Validate one case off the batch lock; merge without losing peer progress."""
+    m = load_manifest(path)
+    if not nonblocking_pools(m['policy']):
+        return mutate(path, controller, operation)
+    if controller != m['controller'] or m.get('delivery_closed'):
+        raise BatchError('Controller mismatch or closed batch')
+    with locked(case_root(m, case_by_id(m, case_id)) / 'case-operation.json'):
+        m = load_manifest(path)
+        before = copy.deepcopy(case_by_id(m, case_id))
+        result = operation(m)
+        after = case_by_id(m, case_id)
+        with locked(path):
+            current = load_manifest(path)
+            if (current['controller'] != controller or current.get('delivery_closed')
+                    or current['policy'] != m['policy'] or current['rules_sha256'] != m['rules_sha256']
+                    or case_by_id(current, case_id) != before):
+                raise BatchError('Case changed during independent validation; no stale merge')
+            sessions = {a['cli_session_id'] for c in current['projects'] if c['id'] != case_id
+                        for a in c['attempts'] if a.get('cli_session_id')}
+            sessions.update(s for c in current['projects'] if c['id'] != case_id
+                            for s in c.get('recovered_cli_session_ids', []))
+            if any(a.get('cli_session_id') in sessions for a in after['attempts']):
+                raise BatchError('CLI session already used by another case')
+            agents = {a['agent_id'] for c in current['projects'] if c['id'] != case_id
+                      for a in c['attempts'] if a.get('agent_id')}
+            if any(a.get('agent_id') in agents for a in after['attempts']):
+                raise BatchError('Worker dispatch already used by another case')
+            if after.get('ready_sequence') != before.get('ready_sequence'):
+                after['ready_sequence'] = current['sequence'] + 1
+            target = case_by_id(current, case_id)
+            target.clear(); target.update(copy.deepcopy(after))
+            current['peak_bound_workers'] = max(current.get('peak_bound_workers', 0),
+                sum(a['state'] == 'bound' for c in current['projects'] for a in c['attempts']))
+            current['sequence'] += 1
+            b.atomic(path, current)
+            return copy.deepcopy(target) if result.get('id') == case_id else result
+
+
+def prepare_reserved(path, case_id, attempt, controller='controller'):
+    """Local I/O only. No model launch and no write to the shared manifest."""
+    from prepare_handoff import prepare as prepare_data, SOURCE_ERRORS
+    m = load_manifest(path)
+    if controller != m['controller'] or not nonblocking_pools(m['policy']):
+        raise BatchError('Deferred preparation is not authorized')
+    c = case_by_id(m, case_id); a = attempt_by_id(c, attempt)
+    if a.get('preparation_state') != 'pending' or a['state'] != 'reserved':
+        raise BatchError('Attempt is not awaiting preparation')
+    verify_case(m, c, original=True)
+    try:
+        prepared, seal = prepare_data(m, c, a)
+    except SOURCE_ERRORS as exc:
+        raise PreparationError(case_id, 'Invalid DOCX source: '+str(exc)) from exc
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise PreparationError(case_id, str(exc)) from exc
+    return {'case_id': case_id, 'attempt': attempt, 'context': a['context'],
+            'prepared': prepared, 'seal': seal, 'source_navigation': c.get('source_navigation', {})}
+
+
+def finish_preparation(path, result, controller='controller'):
+    def apply(m):
+        from prepare_handoff import verify_prepared
+        c = case_by_id(m, result['case_id']); a = attempt_by_id(c, result['attempt'])
+        if (not nonblocking_pools(m['policy']) or a.get('preparation_state') != 'pending'
+                or a['state'] != 'reserved' or result['context'] != context(m, c, a)):
+            raise BatchError('Stale deferred preparation result')
+        verify_case(m, c, original=True)
+        old = c.get('source_navigation', {})
+        if any(result['source_navigation'].get(k) != v for k, v in old.items()):
+            raise BatchError('Prepared navigation changed existing evidence')
+        c['source_navigation'] = copy.deepcopy(result['source_navigation'])
+        a['prepared_handoff'] = copy.deepcopy(result['seal'])
+        verify_prepared(m, c, a)
+        if b.read(file_path(result['seal']['path'], a['directory'])) != result['prepared']:
+            raise BatchError('Preparation payload differs from sealed handoff')
+        a['preparation_state'] = 'ready'
+        return reservation_payload(m, c, a, result['prepared'])
+    return case_mutate(path, controller, result['case_id'], apply)
+
+def reserve(path, capacity, case_id=None, stage=None, controller='controller', prepare=False, transport='collaboration', defer_preparation=False):
     def apply(m):
         if transport not in m['policy'].get('dispatch_transports', ['collaboration']):
             raise BatchError('Transport not authorized in this frozen policy')
+        if defer_preparation and not nonblocking_pools(m['policy']):
+            raise BatchError('Deferred preparation requires nonblocking pools')
         p = plan_manifest(m, capacity, first_only=True)
         if not p['ready']: raise NoReadyWork(p)
         row = p['ready'][0]
@@ -422,7 +532,9 @@ def reserve(path, capacity, case_id=None, stage=None, controller='controller', p
         m['last_reserved_stage'] = row['stage']
         a['context'] = context(m, c, a)
         prepared = None
-        if prepare or m['policy'].get('worker_preparation') == 'frozen_stage_packet_v1':
+        if defer_preparation:
+            a['preparation_state'] = 'pending'
+        elif prepare or m['policy'].get('worker_preparation') == 'frozen_stage_packet_v1':
             from prepare_handoff import prepare as prepare_data, SOURCE_ERRORS
             try:
                 prepared, a['prepared_handoff'] = prepare_data(m, c, a)
@@ -432,32 +544,41 @@ def reserve(path, capacity, case_id=None, stage=None, controller='controller', p
                 raise PreparationError(c['id'], str(exc)) from exc
         b.atomic(folder / 'reservation.json', a)
         a['reservation_sha256'] = b.sha(folder / 'reservation.json')
-        latest_review = next((r for r in reversed(c['receipts']) if r.get('stage') == 'review'), None)
-        model = m['policy']['models'][row['stage']]
-        receipt_template = dict(model, context=a['context'], stage=row['stage'], agent_id='<successful spawn result.task_name>')
-        if row['stage'] in {'draft', 'revise'}:
-            receipt_template.update(verdict='complete', artifact=str(folder / 'output.docx'), artifact_sha256='<SHA256 of output.docx>')
-        else:
-            receipt_template.update(verdict='<pass or fix_required>', reviewed_sha256=a['input_artifact_sha256'],
-                                    checks={k: '<passed or concrete failure>' for k in sorted(b.CHECKS)}, findings=[],
-                                    render={'artifact_sha256': a['input_artifact_sha256'], 'evidence': str(folder / 'render' / 'render.json'), 'evidence_sha256': '<SHA256 of render.json>'})
-            if m['policy'].get('review_mode') == 'review_fix_then_recheck':
-                receipt_template['verdict'] = '<pass, revised, fix_required or needs_input>'
-        return {'case_id': c['id'], 'attempt': copy.deepcopy(a), 'spawn_arguments': dict(m['policy']['models'][row['stage']], fork_turns='none', task_name=a['task_name']),
-                'source_snapshots': copy.deepcopy(c['sources']), 'receipt_template': receipt_template,
-                'worker_context': {'title': c['title'], 'context': a['context'], 'case_directory': str(case_root(m, c)),
-                                   'writable_directory': str(folder), 'rules_snapshot': str(Path(m['batch_dir']) / 'rules.snapshot.json'),
-                                   'primary_snapshot': next(s['snapshot_path'] for s in c['sources'] if s['original_path'] == c['primary_source']),
-                                   'input_artifact': a['input_artifact'], 'input_artifact_sha256': a['input_artifact_sha256'],
-                                   'review_mode': m['policy'].get('review_mode', 'review_only'),
-                                   'prepared': prepared,
-                                   'latest_review': copy.deepcopy(latest_review),
-                                   'receipt_path': str(folder / 'receipt.json'), 'dispatch_path': str(folder / 'dispatch.json'),
-                                   'boundary': 'Read only source/rules/prior outputs; write only this attempt directory; never write manifest; render evidence does not substitute visual six-check acceptance'}}
+        return reservation_payload(m, c, a, prepared)
     return mutate(path, controller, apply)
+
+
+def reservation_payload(m, c, a, prepared=None):
+    row = {"stage": a["stage"]}
+    folder = Path(a["directory"])
+    latest_review = next((r for r in reversed(c['receipts']) if r.get('stage') == 'review'), None)
+    model = m['policy']['models'][row['stage']]
+    receipt_template = dict(model, context=a['context'], stage=row['stage'], agent_id='<successful spawn result.task_name>')
+    if row['stage'] in {'draft', 'revise'}:
+        receipt_template.update(verdict='complete', artifact=str(folder / 'output.docx'), artifact_sha256='<SHA256 of output.docx>')
+    else:
+        receipt_template.update(verdict='<pass or fix_required>', reviewed_sha256=a['input_artifact_sha256'],
+                                checks={k: '<passed or concrete failure>' for k in sorted(b.CHECKS)}, findings=[],
+                                render={'artifact_sha256': a['input_artifact_sha256'], 'evidence': str(folder / 'render' / 'render.json'), 'evidence_sha256': '<SHA256 of render.json>'})
+        if m['policy'].get('review_mode') == 'review_fix_then_recheck':
+            receipt_template['verdict'] = '<pass, revised, fix_required or needs_input>'
+    return {'case_id': c['id'], 'attempt': copy.deepcopy(a), 'spawn_arguments': dict(m['policy']['models'][row['stage']], fork_turns='none', task_name=a['task_name']),
+            'source_snapshots': copy.deepcopy(c['sources']), 'receipt_template': receipt_template,
+            'worker_context': {'title': c['title'], 'context': a['context'], 'case_directory': str(case_root(m, c)),
+                               'writable_directory': str(folder), 'rules_snapshot': str(Path(m['batch_dir']) / 'rules.snapshot.json'),
+                               'primary_snapshot': next(s['snapshot_path'] for s in c['sources'] if s['original_path'] == c['primary_source']),
+                               'input_artifact': a['input_artifact'], 'input_artifact_sha256': a['input_artifact_sha256'],
+                               'review_mode': m['policy'].get('review_mode', 'review_only'),
+                               'prepared': prepared,
+                               'latest_review': copy.deepcopy(latest_review),
+                               'receipt_path': str(folder / 'receipt.json'), 'dispatch_path': str(folder / 'dispatch.json'),
+                               'boundary': 'Read only source/rules/prior outputs; write only this attempt directory; never write manifest; render evidence does not substitute visual six-check acceptance'}}
+
 
 def bind(path, case_id, attempt, dispatch, controller='controller'):
     def apply(m):
+        if attempt_by_id(case_by_id(m, case_id), attempt).get('preparation_state') == 'pending':
+            raise BatchError('Preparation must finish before model dispatch')
         c = case_by_id(m, case_id); a = attempt_by_id(c, attempt)
         if a['state'] != 'reserved': raise BatchError('Attempt already bound')
         if a.get('prepared_handoff'):
@@ -489,7 +610,7 @@ def bind(path, case_id, attempt, dispatch, controller='controller'):
         a.update(state='bound', agent_id=agent, dispatch_evidence=str(evp), dispatch_sha256=b.sha(evp), dispatch_record=ev)
         m['peak_bound_workers'] = max(m.get('peak_bound_workers', 0), sum(old['state'] == 'bound' for row in m['projects'] for old in row['attempts']))
         return copy.deepcopy(a)
-    return mutate(path, controller, apply)
+    return case_mutate(path, controller, case_id, apply)
 
 def render_validation(m, c, a, render):
     return {'schema_version': 1, 'context': context(m,c,a), 'input': a['input_artifact'],
@@ -623,7 +744,7 @@ def record(path, case_id, attempt, receipt, controller='controller'):
         c['active_attempt'] = None; c['ready_sequence'] = m['sequence'] + 1
         quarantine_changed_input(m, c)
         return copy.deepcopy(c)
-    return mutate(path, controller, apply)
+    return case_mutate(path, controller, case_id, apply)
 
 def cancel(path, case_id, attempt, reason, stop_evidence=None, controller='controller'):
     def apply(m):
@@ -662,52 +783,63 @@ def defer(path, case_id, status, reason, controller='controller'):
     return mutate(path, controller, apply)
 
 def deliver(path, controller='controller', *, audit_history=False):
+    m = load_manifest(path)
+    if nonblocking_pools(m['policy']):
+        from independent_delivery import deliver as publish
+        return publish(path, controller, audit_history=audit_history)
     import incremental_delivery as incremental
     import flat_delivery as flat
     with locked(path):
         m = load_manifest(path)
         if controller != m['controller']: raise BatchError('Only batch controller may deliver')
-        publisher = flat if flat.enabled(m) else incremental
         legacy = not flat.enabled(m) and m.get('delivery_mode') != incremental.MODE and all(c['status'] in TERMINAL and not c['active_attempt'] for c in m['projects'])
         if not legacy:
-            def verify(c):
-                original = case_by_id(m, c['id'])
-                if c['status'] == 'accepted' and quarantine_changed_input(m, original):
-                    b.atomic(path, m)
-                    if m['policy'].get('post_review_optimization') == 'single_closeout_v25':
-                        raise flat.QuarantinedInput(c['id'])
-                    raise BatchError('Input changed during delivery; case quarantined; retry delivers remaining cases')
-                verify_case(m, c)
-                if c.get('active_attempt'): raise BatchError('Accepted case has active attempt')
-                if b.sha(file_path(c['artifact'], case_root(m, c))) != c.get('passed_review_sha256'):
-                    raise BatchError('Artifact changed after acceptance')
-                r = c['receipts'][-1]
-                a = next(x for x in c['attempts'] if x['id'] == r['context']['attempt'])
-                validation = (r.get('render_validation') if c['status']=='accepted'
-                              and m['policy'].get('post_review_optimization')=='single_closeout_v25' else None)
-                verify_render(m, c, a, r.get('render'), validation=validation)
-                if m['policy'].get('output_contract'):
-                    import output_contract
-                    if output_contract.verify(m,c,a,r) != r.get('document_contract'):
-                        raise BatchError('Final document title/wording contract changed after acceptance')
-            recovered = publisher.recover_published_cases(m, verify)
-            for c in recovered:
-                event = {'event': 'controller_delivery_recovery', 'case_id': c['id'],
-                         'artifact_sha256': c['passed_review_sha256'], 'original_inputs_changed': False}
-                try: verify_original(m, c)
-                except (BatchError, OSError) as exc:
-                    event.update(original_inputs_changed=True, reason=str(exc))
-                m.setdefault('delivery_recovery_events', []).append(event)
-            quarantined = False
-            if m['policy'].get('post_review_optimization') != 'single_closeout_v25':
-                for c in m['projects']:
-                    if c['status'] == 'accepted': quarantined = quarantine_changed_input(m, c) or quarantined
-            if quarantined or recovered: b.atomic(path, m)
-            if audit_history and flat.enabled(m):
-                return publisher.deliver(path, m, verify, force_history_audit=True)
-            return publisher.deliver(path, m, verify)
-    # The legacy implementation owns its lock and preserves old completed batches.
+            return deliver_snapshot(path, m, audit_history=audit_history)
     return _deliver_legacy(path, controller)
+
+
+def deliver_snapshot(path, m, *, audit_history=False, write_metadata=True):
+    import incremental_delivery as incremental
+    import flat_delivery as flat
+    publisher = flat if flat.enabled(m) else incremental
+    options = {'write_metadata': write_metadata} if flat.enabled(m) else {}
+    def verify(c):
+        original = case_by_id(m, c['id'])
+        if c['status'] == 'accepted' and quarantine_changed_input(m, original):
+            b.atomic(path, m)
+            if m['policy'].get('post_review_optimization') == 'single_closeout_v25':
+                raise flat.QuarantinedInput(c['id'])
+            raise BatchError('Input changed during delivery; case quarantined; retry delivers remaining cases')
+        verify_case(m, c)
+        if c.get('active_attempt'): raise BatchError('Accepted case has active attempt')
+        if b.sha(file_path(c['artifact'], case_root(m, c))) != c.get('passed_review_sha256'):
+            raise BatchError('Artifact changed after acceptance')
+        r = c['receipts'][-1]
+        a = next(x for x in c['attempts'] if x['id'] == r['context']['attempt'])
+        validation = (r.get('render_validation') if c['status']=='accepted'
+                      and m['policy'].get('post_review_optimization')=='single_closeout_v25' else None)
+        verify_render(m, c, a, r.get('render'), validation=validation)
+        if m['policy'].get('output_contract'):
+            import output_contract
+            if output_contract.verify(m,c,a,r) != r.get('document_contract'):
+                raise BatchError('Final document title/wording contract changed after acceptance')
+    recovered = publisher.recover_published_cases(m, verify)
+    for c in recovered:
+        event = {'event': 'controller_delivery_recovery', 'case_id': c['id'],
+                 'artifact_sha256': c['passed_review_sha256'], 'original_inputs_changed': False}
+        try: verify_original(m, c)
+        except (BatchError, OSError) as exc:
+            event.update(original_inputs_changed=True, reason=str(exc))
+        m.setdefault('delivery_recovery_events', []).append(event)
+    quarantined = False
+    if m['policy'].get('post_review_optimization') != 'single_closeout_v25':
+        for c in m['projects']:
+            if c['status'] == 'accepted': quarantined = quarantine_changed_input(m, c) or quarantined
+    if quarantined or recovered: b.atomic(path, m)
+    if audit_history and flat.enabled(m):
+        return publisher.deliver(path, m, verify, force_history_audit=True, **options)
+    return publisher.deliver(path, m, verify, **options)
+
 
 def _deliver_legacy(path, controller='controller'):
     with locked(path):

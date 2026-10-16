@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim applicable rules; v35 read-only review and separate revision pools covered; prior v34 math sizing, v32 figure, v31 title and other content standards retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v36 independent stage handoff covered; prior v35 pool and all content standards retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
     "terminology-and-formula.md": "af0045c646513b31bb3f4bdc0ab5c598cb561dec24acadbe67cac1295ec579dd",
     "reference-style-standard.md": "ed1e9f7d75f7fe09e7375fb32d78743425b04911b0a0feb07f41e6978dcb556f",
     "manual-format-and-wording.md": "d3146a25704ce8716129cbe1da1a39c23bbcf87d1635b73c28b7fcb65bc2fdad",
-    "worker-standard.md": "6a5954b3499bac9c0927bf3964f899b1f480262aade331e1fbd0ada426a68a14"
+    "worker-standard.md": "e168f6236115377c96b07186dec2b32c843799ff9d5a879d73bac21a75f5e6ec"
   }
 }

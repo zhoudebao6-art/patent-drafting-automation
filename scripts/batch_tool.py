@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serial batch ledger. The controller invokes models; dispatch logs are not attestations."""
 from __future__ import annotations
-import argparse, copy, ctypes, hashlib, json, os, re, shutil, stat, sys, tempfile, uuid, zipfile
+import argparse, copy, ctypes, hashlib, json, os, re, shutil, stat, sys, tempfile, time, uuid, zipfile
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 from xml.etree import ElementTree as ET
@@ -12,17 +12,79 @@ CHECKS = {'source_support', 'antecedents', 'claims_alignment', 'formulas', 'figu
 POLICY = Path(__file__).resolve().parent.parent / 'references' / 'batch-policy.json'
 RULES = Path(__file__).resolve().parent.parent / 'references' / 'rules.json'
 
+def shared_reader(path):
+    """A reader sees one complete version without blocking atomic replacement."""
+    if os.name != 'nt':
+        return Path(path).open('r', encoding='utf-8-sig')
+    import msvcrt
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
+                       ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+    create.restype = ctypes.c_void_p
+    close = kernel.CloseHandle
+    close.argtypes = [ctypes.c_void_p]; close.restype = ctypes.c_int
+    # GENERIC_READ; FILE_SHARE_READ | WRITE | DELETE; OPEN_EXISTING.
+    for retry in range(8):
+        handle = create(str(Path(path)), 0x80000000, 7, None, 3, 0x80, None)
+        if handle != ctypes.c_void_p(-1).value:
+            break
+        error = ctypes.get_last_error()
+        if error not in {32, 33} or retry == 7:
+            exc = ctypes.WinError(error); exc.filename = str(path)
+            raise exc
+        time.sleep(.005)  # A replacing handle briefly owns the new file exclusively.
+    try:
+        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+    except BaseException:
+        close(handle)
+        raise
+    try:
+        return os.fdopen(fd, 'r', encoding='utf-8-sig')
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def read(path):
-    return json.loads(Path(path).read_text(encoding='utf-8-sig'))
+    with shared_reader(path) as stream:
+        return json.load(stream)
 def atomic(path, data):
     path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(dir=path.parent, prefix='.batch-', suffix='.tmp')
+    backup = None
+    committed = False
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2); f.flush(); os.fsync(f.fileno())
-        os.replace(name, path)
+        if os.name == 'nt' and path.exists():
+            # MoveFileEx (os.replace) can reject an open destination even with
+            # shared DELETE. ReplaceFile supports these snapshot readers and
+            # preserves the existing file's ACLs; never ignore merge errors.
+            backup = path.with_name('.batch-previous-'+uuid.uuid4().hex+'.tmp')
+            kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+            replace = kernel.ReplaceFileW
+            replace.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_wchar_p,
+                                ctypes.c_uint32, ctypes.c_void_p, ctypes.c_void_p]
+            replace.restype = ctypes.c_int
+            for retry in range(8):
+                if replace(str(path), str(name), str(backup), 0, None, None):
+                    break
+                error = ctypes.get_last_error()
+                if error not in {32, 33} or retry == 7:
+                    # 1176/1177 can partially move a replacement. Never retry
+                    # those or permission errors; preserve both versions.
+                    exc = ctypes.WinError(error); exc.filename = str(path); exc.filename2 = str(name)
+                    raise exc
+                time.sleep(.005)
+        else:
+            os.replace(name, path)
+        committed = True
     finally:
-        if os.path.exists(name): os.unlink(name)
+        if backup is None and os.path.exists(name): os.unlink(name)
+        if committed and backup is not None and backup.exists():
+            try: backup.unlink()
+            except OSError: pass  # A reader may still hold this obsolete version.
 def sha(path):
     h = hashlib.sha256()
     with Path(path).open('rb') as f:
@@ -40,7 +102,10 @@ def clean_path(path, root):
     for part in [p, *p.parents]:
         if (part.exists() or part.is_symlink()) and linked(part): raise BatchError('Links and reparse points are prohibited')
         if part == r: break
-    return p.resolve()
+    # All components were checked for links above. Keep the requested name:
+    # Windows handle-based resolve() can follow a concurrently replaced file
+    # to its temporary backup name, which is not a stable future read target.
+    return Path(os.path.abspath(p))
 def root_path(path, required=False):
     # Inspect the original spelling before resolve() can hide junctions or links.
     p = Path(path).absolute()

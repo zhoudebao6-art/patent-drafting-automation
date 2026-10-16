@@ -17,7 +17,7 @@ python scripts/cli_pool.py status --manifest 批次manifest.json
 
 版本35默认配置6个初稿、3个只读复查、3个独立修改worker，总目标12，在制最多24。上例--workers 12仅在本批确有12个可用名额时使用，主控先核实际CLI账户与机器资源；不足时填写更低值。新三池省略--workers会拒绝启动，旧批次省略时保持历史默认4。reserved与bound、CLI与本批collaboration均共同占槽，不跨池借到超限。已有4路实测不证明12路容量，状态和派发记录才说明实际运行数；不在普通批次额外付费探针。
 
-版本35三个池重叠工作：每件初稿收取即排review，有问题排revise，修订后回review池新会话独立重验。某池满时其他池继续。单件收稿及必要交付后立即回run补位，不等全部退出稿核完；bind-only不提前返回，已知故障和已halted轮继续drain。旧版本29双区按原冻结语义运行。详见[三池执行](three-stage-pools.md)。
+版本36新批次由stage_pool_runner维持三个独立准备/收稿通道及独立单写交付通道。初稿完成即排review，fix_required即排revise，修订后回review新会话重验；通过稿即排桌面交付，有空闲名额立即接手。长I/O在主清单锁外，单案短事务合并，accepted不阻塞reserve；准备中占槽，完整证据门禁不变。旧v29/v35无pool_execution标记时保留单件收取、交付后补位及故障drain。具体规则见[三池执行](three-stage-pools.md)。
 
 启动时一次非模型预检核验Windows、CLI必要参数和登录状态；这不等于文档工具验收。仅环境首次配置或变动时需要小样，不逐案做付费探针。渲染环境沿用runtime.md；模型与文档工具都不可用时如实报告，不写虚假成功。CLI执行使用workspace-write，完整保留宿主安全约束和用户配置，不注入ignore-rules、忽略配置、full-access或bypass参数。
 

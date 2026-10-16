@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import threading
 import uuid
 
 import batch_tool as b
@@ -16,6 +17,7 @@ import cli_evidence as evidence
 from worker_receipt import CaseReceiptError, MODE as LEAN_MODE
 
 SKILL = Path(__file__).resolve().parent.parent
+EVENT_LOCK = threading.Lock()
 
 
 def emit(data):
@@ -143,6 +145,8 @@ review的checks必须明确source_support、antecedents、claims_alignment、for
 
 def prepare_job(reserved, executable):
     a = reserved['attempt']; root = Path(a['directory'])
+    if a.get('preparation_state') == 'pending':
+        raise queue.BatchError('Finish preparation before creating a paid CLI launch intent')
     with (root/'prompt.txt').open('x', encoding='utf-8', newline='') as stream:
         stream.write(worker_prompt(reserved))
     model = {k: reserved['spawn_arguments'][k] for k in ('model', 'reasoning_effort')}
@@ -241,9 +245,10 @@ def start_supervisor(job_path):
 def event(manifest, kind, **values):
     row = {'time': time.time(), 'event': kind, **values}
     path = Path(manifest).parent/'cli-pool/events.jsonl'
-    with path.open('a', encoding='utf-8') as stream:
-        stream.write(json.dumps(row, ensure_ascii=False)+'\n')
-    emit(row)
+    with EVENT_LOCK:
+        with path.open('a', encoding='utf-8') as stream:
+            stream.write(json.dumps(row, ensure_ascii=False)+'\n')
+        emit(row)
 
 
 def observe_identity(record):
@@ -290,11 +295,13 @@ def release_failed(manifest, c, a, reason, controller):
     queue.defer(manifest, c['id'], 'failed', reason, controller)
 
 
-def collect(manifest, controller, *, state=None, suppress_delivery=False, drain=False):
+def collect(manifest, controller, *, state=None, suppress_delivery=False, drain=False, case_ids=None):
     """Collect each exited worker once; never accept an early receipt from a live CLI."""
     changed = False; stop_launching = False
     m = queue.load_manifest(manifest) if state is None else state
     for c in m['projects']:
+        if case_ids is not None and c['id'] not in case_ids:
+            continue
         if not c['active_attempt']:
             continue
         a = queue.attempt_by_id(c, c['active_attempt'])
@@ -426,6 +433,11 @@ def run(manifest, controller, workers=None, executable=None):
         if not history_audit_failed:
             executable = preflight(executable)
         event(manifest, 'pool_started', workers=workers, executable=executable)
+        if queue.nonblocking_pools(m['policy']):
+            from stage_pool_runner import run_pipeline
+            return run_pipeline(manifest, controller, workers, executable,
+                                halted=halted, blocking_reasons=blocking_reasons,
+                                history_audit_failed=history_audit_failed)
         while True:
             m = queue.load_manifest(manifest)
             drained_this_iteration = drain_before_stop or history_audit_failed or (

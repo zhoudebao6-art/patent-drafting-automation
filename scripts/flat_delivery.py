@@ -228,9 +228,14 @@ class QuarantinedInput(b.BatchError):
         super().__init__('Original input changed; case quarantined before publication')
 
 
-def deliver(path, m, verify, *, force_history_audit=False):
+def deliver(path, m, verify, *, force_history_audit=False, write_metadata=True):
     selected = [c for c in m['projects'] if c['status'] in {'accepted', 'delivered'}]
     closed = all(c['status'] in b.TERMINAL and not c.get('active_attempt') for c in m['projects'])
+    if m['policy'].get('pool_execution') == 'nonblocking_handoff_v36' and any(
+            c['status'] == 'accepted' for c in m['projects']):
+        # Publish new independently accepted bytes before the terminal history
+        # audit; the next publication tick performs that audit before closure.
+        closed = False
     if not selected and not closed and m.get('delivery_mode') != MODE:
         raise b.BatchError('No accepted case is ready for flat delivery')
     lean = m['policy'].get('execution_optimization') == 'lean_execution_v24'
@@ -277,6 +282,15 @@ def deliver(path, m, verify, *, force_history_audit=False):
         final['delivery_items'][c['id']] = entry
         c.update(status='delivered', delivered_artifact=str(dest / entry['relative_path']))
     final.update(delivery_path=str(dest), delivery_closed=closed)
+    if write_metadata:
+        sync_metadata(final)
+    if final != m: b.atomic(path, final)
+    return str(dest)
+
+
+def sync_metadata(final):
+    m = final
+    closed = final.get('delivery_closed', False)
     work = work_directory(m)
     labels = {'delivered': '已完成', 'needs_input': '待补材料', 'failed': '执行失败', 'pending': '待撰写',
               'drafted': '待复查', 'revised': '待重验', 'fix_required': '待修正', 'accepted': '待交付'}
@@ -288,5 +302,3 @@ def deliver(path, m, verify, *, force_history_audit=False):
     # Existing transactional summary writer remains recoverable, now wholly in work storage.
     inc.sync_metadata(final, work, {'批次清单.json': json.dumps(final, ensure_ascii=False, indent=2),
                                     '交付清单.txt': '\n'.join(lines)})
-    if final != m: b.atomic(path, final)
-    return str(dest)

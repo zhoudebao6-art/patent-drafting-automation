@@ -32,7 +32,7 @@ python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目
 
 版本35新批次采用stage_scheduling=separate_stage_pools_v35、review_mode=review_only，顶层stage_pools指定draft=6、review=3、revise=3；总目标12，最多24案在制。各池独立上限，初检和重验共享review池，空池不能借成其他池超限；有待办且未满的池按占用比例补位。--capacity/--workers必须填写本批实际可用总worker容量，包含已占槽，不计总控或无关任务；可低于12，不能把目标当容量证据。CLI和本批collaboration共用计数，1槽顺序执行。旧overlapped_pipeline_v29按原两区借槽规则，未标记旧策略按原min_draft_slots，不改旧快照。完整边界见[三池执行](three-stage-pools.md)。
 
-总控维护事件循环：启动时连续reserve并派发多个不同项目；每个worker完成即登记回执；本案最终验收通过就立即deliver，然后直接reserve推进复查/修正并补位，不等待整批完成。plan仅用于需要观察队列的情况，不在每次reserve前后重复调用。版本35每件初稿收取就进入复查池队列，修改单独排revise池，修改后重验回review池；按各池占用和待办补位，不抢占运行任务。旧双区仍按原规则执行。初稿与复查同时推进；仅1槽时当前案修改/重验不中插别案初稿。达到在制上限或来源有问题时跳过不可派案，其他可用阶段继续。每收完一件就返回调度，不先验完其他已退出worker；已发现池级故障仍停止派发并继续收稿。accepted无活跃attempt时plan返回deliver，reserve不另开阶段，先调用deliver后继续。满槽时等待完成事件，避免紧密轮询及固定长时间睡眠。单案缺资料或输入变化要具体记录，其他案继续。
+版本36新批次由stage_pool_runner维持三个独立准备/收稿通道及独立单写交付通道。初稿完成即排review，fix_required即排revise，修订后回review新会话重验；通过稿即排桌面交付，有空闲名额立即接手。长I/O在主清单锁外，单案短事务合并，accepted不阻塞reserve；准备中占槽，完整证据门禁不变。旧v29/v35无pool_execution标记时保留单件收取、交付后补位及故障drain。具体规则见[三池执行](three-stage-pools.md)。
 
 每案内部最多一个活跃attempt。版本35为draft→review→revise(需要时)→review；旧冻结review_fix_then_recheck策略允许review内一次有依据的修正返回revised，再由新Sol/xhigh review独立重验，仍可在需要时使用独立revise路径。不同案可以同时处于不同阶段。各案按实际验收完成时间直接交付到同一文件夹根目录，交付台账保留原队列ID；规则版本18起正式名称须唯一且与文内主标题一致，冲突先解决，不自动加案号；旧快照保持旧命名。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
 
@@ -48,7 +48,7 @@ reserve持久保存占槽并返回case_id、attempt、directory、task_name、co
 
 message包含本案来源快照及哈希、rules.snapshot.json、当前稿和哈希、attempt目录、阶段输出及上一轮问题。不得传入别案正文。worker不下派、不改共享规则或manifest，不写其他案目录。主控只编排，不能冒充指定模型写稿。
 
-规则版本11起默认使用--prepare：同一条reserve命令同时返回worker_context.prepared，包含本案验证后的来源inspection/content/index路径、精简的冻结active规则、当前稿结构缓存及允许范围内的render候选。总控原样传入prepared；不再要求worker从整批文件夹重新寻找缓存。准备失败不提交占槽/派发，保留分析产物并处理具体错误。prepared仅是数据交接，不是复查通过。普通worker先读content和index，再按公式ID/段落定位读取完整OMML与来源，不能以索引替代原结构；使用rules.active.json，不加载冻结库history。细节见[提效流程](efficiency.md)。
+同步手工reserve及旧批次：规则版本11起默认使用--prepare：同一条reserve命令同时返回worker_context.prepared，包含本案验证后的来源inspection/content/index路径、精简的冻结active规则、当前稿结构缓存及允许范围内的render候选。总控原样传入prepared；不再要求worker从整批文件夹重新寻找缓存。准备失败不提交占槽/派发，保留分析产物并处理具体错误。prepared仅是数据交接，不是复查通过。普通worker先读content和index，再按公式ID/段落定位读取完整OMML与来源，不能以索引替代原结构；使用rules.active.json，不加载冻结库history。细节见[提效流程](efficiency.md)。
 
 ```text
 python scripts/parallel_batch.py bind --manifest 批次清单 --case 项目ID --attempt attempt_id --dispatch 本attempt/dispatch.json --controller 本批控制器标识
