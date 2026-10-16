@@ -90,18 +90,18 @@ class VerifiedJsonReadTests(unittest.TestCase):
     def verify_cache(self):
         return inspector.verified_cache(self.cache, self.identity)
 
-    def test_snapshot_normal_result_and_one_read(self):
+    def _case_snapshot_normal_result_and_one_read(self):
         self.assertEqual(self.read_once(self.snapshot, lambda: bundle.verify(self.manifest)), self.snapshot_root)
 
-    def test_handoff_normal_result_and_one_read(self):
+    def _case_handoff_normal_result_and_one_read(self):
         self.assertEqual(self.read_once(self.handoff, self.verify_handoff),
                          {'handoff': self.handoff_data, 'input_report': None})
 
-    def test_inspection_normal_result_and_one_read(self):
+    def _case_inspection_normal_result_and_one_read(self):
         expected = json.loads(self.report.read_text(encoding='utf-8'))
         self.assertEqual(self.read_once(self.report, self.verify_cache), expected)
 
-    def test_snapshot_parses_hashed_bytes_and_next_call_rechecks_actual_file(self):
+    def _case_snapshot_parses_hashed_bytes_and_next_call_rechecks_actual_file(self):
         altered = json.loads(self.snapshot.read_text(encoding='utf-8'))
         altered['rules_sha256'] = 'b'*64
         self.assertEqual(self.replace_after_read(self.snapshot, altered,
@@ -109,21 +109,21 @@ class VerifiedJsonReadTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'manifest changed'):
             bundle.verify(self.manifest)
 
-    def test_handoff_parses_hashed_bytes_and_next_call_rechecks_actual_file(self):
+    def _case_handoff_parses_hashed_bytes_and_next_call_rechecks_actual_file(self):
         altered = dict(self.handoff_data, context={'case_id': '002'})
         result = self.replace_after_read(self.handoff, altered, self.verify_handoff)
         self.assertEqual(result['handoff'], self.handoff_data)
         with self.assertRaisesRegex(ValueError, 'handoff changed'):
             self.verify_handoff()
 
-    def test_report_parses_hashed_bytes_and_next_call_rechecks_actual_file(self):
+    def _case_report_parses_hashed_bytes_and_next_call_rechecks_actual_file(self):
         expected = json.loads(self.report.read_text(encoding='utf-8'))
         altered = dict(expected, unverified_marker=True)
         self.assertEqual(self.replace_after_read(self.report, altered, self.verify_cache), expected)
         with self.assertRaisesRegex(ValueError, 'Cache artifact changed'):
             self.verify_cache()
 
-    def test_each_snapshot_check_still_verifies_runtime_and_identity(self):
+    def _case_each_snapshot_check_still_verifies_runtime_and_identity(self):
         bundle.verify(self.manifest)
         self.runtime.write_text('# changed', encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'file changed'):
@@ -132,7 +132,7 @@ class VerifiedJsonReadTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'identity mismatch'):
             bundle.verify(wrong, full=False)
 
-    def test_foreign_handoff_path_and_resigned_context_are_rejected(self):
+    def _case_foreign_handoff_path_and_resigned_context_are_rejected(self):
         foreign = self.root/'handoff.json'; foreign.write_bytes(self.handoff.read_bytes())
         self.attempt['prepared_handoff']['path'] = str(foreign)
         with self.assertRaisesRegex(ValueError, 'handoff changed'):
@@ -143,7 +143,7 @@ class VerifiedJsonReadTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'context mismatch'):
             self.verify_handoff()
 
-    def test_resigned_foreign_report_and_changed_cache_metadata_are_rejected(self):
+    def _case_resigned_foreign_report_and_changed_cache_metadata_are_rejected(self):
         metadata = self.cache/'cache.json'
         altered = json.loads(self.report.read_text(encoding='utf-8'))
         altered['input'] = str(self.root/'other.docx')
@@ -156,6 +156,24 @@ class VerifiedJsonReadTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'cache metadata changed'):
             handoff.verify_inspection(self.summary, self.source, self.identity['source_sha256'],
                                       'proposal', [self.root/'cache'])
+
+    def test_valid_json_family_reads_and_returns_each_object_once(self):
+        # Independent error paths retain their assertions; setup is shared within this family.
+        for name in ('_case_snapshot_normal_result_and_one_read', '_case_handoff_normal_result_and_one_read', '_case_inspection_normal_result_and_one_read'):
+            with self.subTest(case=name):
+                getattr(self, name)()
+
+    def test_hash_parse_race_family_uses_verified_bytes_and_rechecks_next_call(self):
+        # Independent error paths retain their assertions; setup is shared within this family.
+        for name in ('_case_snapshot_parses_hashed_bytes_and_next_call_rechecks_actual_file', '_case_handoff_parses_hashed_bytes_and_next_call_rechecks_actual_file', '_case_report_parses_hashed_bytes_and_next_call_rechecks_actual_file'):
+            with self.subTest(case=name):
+                getattr(self, name)()
+
+    def test_integrity_family_rejects_tamper_foreign_identity_and_resealing(self):
+        # Independent error paths retain their assertions; setup is shared within this family.
+        for name in ('_case_each_snapshot_check_still_verifies_runtime_and_identity', '_case_foreign_handoff_path_and_resigned_context_are_rejected', '_case_resigned_foreign_report_and_changed_cache_metadata_are_rejected'):
+            with self.subTest(case=name):
+                getattr(self, name)()
 
 
 if __name__ == '__main__':
