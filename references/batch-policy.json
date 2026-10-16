@@ -64,5 +64,6 @@
     "revise": 3
   },
   "figure_description_contract": "named_figures_v32",
-  "pool_execution": "nonblocking_handoff_v36"
+  "pool_execution": "nonblocking_handoff_v36",
+  "figure_caption_contract": "number_only_v38"
 }

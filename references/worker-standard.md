@@ -30,6 +30,8 @@
 
 版本32复用同次figure_description_evidence逐条核对附图说明图名尾字及标点，同段多条也分别核对；范围不明、缺尾图或重复图不得通过。新批次named_figures_v32复用封存报告，合入原figures复查；不把补图扩展到摘要附图、文末图号、普通正文、公式或源图技术内容。图名字段不带句末标点，详见reference-style-standard.md版本32。
 
+版本38文末附图区只有图像及单独居中的图N；不得在图号同行、下一段、图前图后或两图之间追加图名、单位、解释、注释，表格及外置文本框也不例外。普通图外说明须移除；有来源且理解技术必需的说明仅在对应具体实施方式中安置一次，不能原地改名或再造说明。保留图内真实坐标、单位、图例、节点、技术标记，正文附图说明及摘要无外置图号规则不变。同次figure_caption_evidence提供硬错和复杂图内文字候选；硬错不得以page_flow_reviewed或来源公式等finding放行。文本框祖先为drawing/pict不等于视觉处于图内，候选须在原figures/rendered_pages实际核定，沿用现有findings写TXT-11/figure_internal_label并绑定当前SHA、part/paragraph/path/text、现存figure_number、label_role、source_sha256/source_locator/registry_id、visual_locator及reason。角色限axis_label/axis_unit/legend/flow_node/technical_mark，明确图内身份而非图外说明；该记录同时关闭同位置普通分页候选，不重复写台账。新批次number_only_v38复用封存提取，无新模型轮次；旧冻结批次不迁移。详见reference-style-standard.md版本38及data-contracts.md。
+
 版本28图的技术正确性只审流程图。实际看图与本案文字，核对节点、顺序、箭头方向与起止、分支条件/归属、回路退出及输入输出；不只凭图名或有箭头分类，混合图只审流程部分。正确图复用；错图据本案已核定内容修复并同步摘要复用，不默认删图、反改正确文字或补造流程。来源冲突/看不清记未解决，不签通过。非流程图技术状态not_in_scope，保留基本身份/图号/位置/显示检查，公式图片仍审公式；无流程图注明该子项不适用，不阻塞已完成的figures检查。记录复用原台账，修改仍经Sol/xhigh新上下文复查，不增加模型轮次。具体按technical-review.md的图的身份和检查及流程图按本案内容修正执行。
 
 ## 一次生成与检查

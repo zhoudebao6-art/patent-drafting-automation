@@ -343,7 +343,7 @@ def paragraph_content_evidence(paragraph):
     empty paragraph merely because it has no w:t descendant.
     """
     w='{'+NS['w']+'}';m='{'+NS['m']+'}'
-    objects=set();chunks=[];manual_breaks=0;rendered_breaks=0
+    objects=set();chunks=[];graphic_text=[];manual_breaks=0;rendered_breaks=0
     def walk(node,math=False,graphic=False):
         nonlocal manual_breaks,rendered_breaks
         if node is not paragraph and node.tag==w+'p':return
@@ -360,12 +360,14 @@ def paragraph_content_evidence(paragraph):
         if node.tag in {w+'tab',w+'cr'}:objects.add('break_or_tab')
         if node.tag==w+'lastRenderedPageBreak':rendered_breaks+=1
         if node.tag==w+'t' and not math and not graphic:chunks.append(node.text or '')
+        if graphic and not math and node.tag in {w+'t','{'+NS['a']+'}t'} and node.text:
+            graphic_text.append(node.text)
         for child in node:walk(child,math,graphic)
     walk(paragraph)
     plain=''.join(chunks);boundary=paragraph.find('./w:pPr/w:sectPr',NS) is not None
     kind='text' if plain.strip() else 'object' if objects else 'empty'
     if not plain.strip(' \t\r\n；;。.') and objects=={'omml'}:kind='display_formula'
-    return {'kind':kind,'plain_text':plain,'objects':sorted(objects),'section_boundary':boundary,
+    return {'kind':kind,'plain_text':plain,'graphic_text':graphic_text,'objects':sorted(objects),'section_boundary':boundary,
             'manual_page_breaks':manual_breaks,'last_rendered_page_breaks':rendered_breaks}
 
 
@@ -763,6 +765,19 @@ def paragraph_owned_nodes(paragraph):
             yield from paragraph_owned_nodes(child)
 
 
+def paragraph_containers(root):
+    """One traversal records graphic ancestry without treating it as visual proof."""
+    result={}
+    w='{'+NS['w']+'}'
+    def walk(node,graphic=False,deleted=False):
+        graphic=graphic or node.tag in {w+'drawing',w+'pict',w+'object'}
+        deleted=deleted or node.tag in {w+'del',w+'moveFrom'}
+        if node.tag==w+'p':result[id(node)]={'in_graphic':graphic,'deleted':deleted}
+        for child in node:walk(child,graphic,deleted)
+    walk(root)
+    return result
+
+
 def formula_text_spans(paragraph):
     """Map native formula ranges into the existing accepted visible-text view."""
     spans=[];position=0
@@ -977,6 +992,7 @@ def inspect(path):
             paragraphs = []
             operators = {}
             direct_paragraphs = {id(p) for p in root.findall('./w:body/w:p', NS)} if part == 'word/document.xml' else set()
+            containers = paragraph_containers(root)
             for index, p in enumerate(root.findall('.//w:p', NS), 1):
                 result['punctuation_evidence']['hits'].extend(dict(h,part=part,paragraph=index)
                     for h in numbered_punctuation(p,numbering_root,applied_styles))
@@ -1024,6 +1040,7 @@ def inspect(path):
                     'word_run_formats':word_run_formats(p),
                     'layout_evidence':paragraph_layout_evidence(p),
                     'page_flow':read_page_flow(p),
+                    'container_evidence':containers[id(p)],
                     'content_evidence':paragraph_content_evidence(p)})
             section_evidence=[]
             if part == 'word/document.xml':
@@ -1349,6 +1366,12 @@ def precheck(result, kind):
     for hit in result['invention_evidence']['issues']:
         add('INVENTION_CLAIM_ALIGNMENT','Rule v27 fixed wording and current claim projection: '+hit['code'],str(hit.get('paragraph')))
     result['page_flow_evidence']=page_flow_evidence(result,body,claims)
+    import figure_caption_contract
+    result['figure_caption_evidence']=figure_caption_contract.evidence(result,body)
+    for hit in result['figure_caption_evidence']['issues']:
+        add('FINAL_FIGURE_CAPTION','Rule v38 final drawings allow images and number-only 图N captions: '+hit['code'],hit.get('path'))
+    for hit in result['figure_caption_evidence']['review_candidates']:
+        add('FINAL_FIGURE_INTERNAL_LABEL','Rule v38 graphic text requires source-bound visual identity; not an outside annotation.',hit['path'])
     for hit in result['page_flow_evidence']['ordinary_violations']:
         add('PAGE_FLOW_REVIEW','Rule v22 ordinary prose must permit natural page flow: '+hit['property']+' is enabled; preserve font, margins, grid and content.',
             f'{hit["part"]} {hit["path"]}')
@@ -1509,7 +1532,9 @@ def verified_cache(directory, identity):
 def extractor_dependencies():
     import invention_contract
     import figure_description_contract
+    import figure_caption_contract
     return {'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve()),
+            'figure_caption_contract.py':file_sha(Path(figure_caption_contract.__file__).resolve()),
             'single_line_math.py':file_sha(Path(single_line_math.__file__).resolve()),
             'figure_description_contract.py':file_sha(Path(figure_description_contract.__file__).resolve())}
 

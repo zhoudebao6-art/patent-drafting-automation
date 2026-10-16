@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 37,
-  "updated_at": "2026-10-16T03:07:16Z",
+  "version": 38,
+  "updated_at": "2026-10-16T03:28:01Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -244,7 +244,7 @@
       "scope": "global",
       "section": "figure",
       "level": "must",
-      "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。 摘要附图复用图像但不生成外置图号或图名；单独居中的图N仅用于文末说明书附图，不能全稿删除图下号。",
+      "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。 摘要附图复用图像但不生成外置图号或图名；单独居中的图N仅用于文末说明书附图，不能全稿删除图下号。 版本38文末附图区图外只允许单独居中的图N，不在图号同行、下一段、图前图后或两图之间加入图名、单位、解释、注释；表格及外置文本框也不例外。保留图内真实坐标、单位、图例、节点和技术标记；正文附图说明仍按完整图名，摘要图外仍无编号。普通图外说明移除，有来源且技术理解必需的解释仅在对应具体实施方式安置一次，不补造内容。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
@@ -265,9 +265,13 @@
         {
           "source": "user:2026-10-15-flowchart-only-general-repair",
           "locator": "流程图有错按文件内容修正并通用生效；图版本同步"
+        },
+        {
+          "source": "references/figure-caption-v38-user-requirement.txt",
+          "locator": "2026-10-16 图4下额外单位说明通用修复"
         }
       ],
-      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及摘要与文末使用同一核定版本的图像。依据本案文字修图时，登记原图到修正图的哈希映射，不要求修正图与原图哈希相同。",
+      "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及摘要与文末使用同一核定版本的图像。依据本案文字修图时，登记原图到修正图的哈希映射，不要求修正图与原图哈希相同。 同次figure_caption_evidence及原figures/rendered_pages核对文末范围、单行纯图号和全部图外内容。明确图外文字、图号混排对象/换行/域/自动编号不可用generic closed finding豁免；标题样式或伪正文标题不能逃出文末范围。图内复杂文字候选须在原findings用TXT-11/figure_internal_label绑定当前SHA、精确part/paragraph/path/text、现存figure_number、允许label_role及source_sha256/source_locator/registry_id/visual_locator/reason，逐页确认真实图内标注，不能凭drawing祖先或标签角色自行放行。同位置分页候选复用此记录，不增模型阶段、提取或台账。无法确证范围或缺证据不得通过；无源图不造图。",
       "exceptions": []
     },
     {
@@ -1608,7 +1612,7 @@
       "section": "all",
       "level": "must",
       "instruction": "按manual-format-and-wording.md版本22执行自然分页：普通正文及权项关闭keepLines、keepNext、pageBreakBefore、widowControl，利用本页可排空间自然续到下页；不改变字体、行距网格、页边距或页脚来填满页面。真实末段承载分节，不加正文高度空段；只有空逻辑节才保留最小结构载体。摘要附图只放核定图像，文末图下号保留。",
-      "check": "生成后独立读回实际分页属性、分节载体与摘要/文末图号。一次预检page_flow_evidence合入现有figures/rendered_pages审查；明确普通正文强制分页及摘要外置标签不得豁免，未知继承/范围或复杂对象按精确位置与稿SHA的page_flow_reviewed finding核定。最终新稿逐页检查自然续排、对象完整、摘要无外置图号、文末图号同页；结构检查不冒充可见页面正确，不新增模型阶段。",
+      "check": "生成后独立读回实际分页属性、分节载体与摘要/文末图号。一次预检page_flow_evidence合入现有figures/rendered_pages审查；明确普通正文强制分页及摘要外置标签不得豁免，未知继承/范围或复杂对象按精确位置与稿SHA的page_flow_reviewed finding核定。最终新稿逐页检查自然续排、对象完整、摘要无外置图号、文末图号同页；结构检查不冒充可见页面正确，不新增模型阶段。 版本38文末图外文字及混排图号属于不可豁免格式错误，按TXT-11及number_only_v38修正；page_flow_reviewed不能关闭，真实图内复杂标注只复用已通过专属验证的同位置finding。",
       "exceptions": [
         "短标题可与下一段同页，独立公式、文末图片及图下号保持必要完整性；章末、摘要短文、分区边界及确实放不下的不可拆对象允许自然留白。",
         "不以无w:t判空段，不删除数学、图像、OLE、域、符号和锚点；既有页脚横线定位的空段仍保留。",
@@ -1622,6 +1626,10 @@
         {
           "source": "references/manual-format-and-wording.md",
           "locator": "版本22新增正文自然分页和摘要附图无图下号"
+        },
+        {
+          "source": "references/figure-caption-v38-user-requirement.txt",
+          "locator": "2026-10-16 图4下额外单位说明通用修复"
         }
       ]
     },
@@ -5904,6 +5912,86 @@
             ],
             "check": "登记每处完整名词、句内位置、首次引入、合法父链、对象身份和修正；引用头另查。真新对象优先删除多余所述，不造定义或步骤，也不以删词掩盖实质依赖缺口。详见terminology-and-formula.md。 核对reference_kind、head_span、原文位置与实际父链；原稿句式只是参考，不继承任何前置缺口。 记录每项literal_count、valid_count、引用头数及每处依据；有效数至少3且无非法前置才通过，脚本计数不代替语义。 在既有逐处记录保存完整前置原句、字符范围、独立引入依据、实际名词范围及两字判定；不以字符串包含或字面出现代替对象身份。合法引用头单列，说明书下文所述方式等旧两字行文指引不再照抄；公式及符号不因名词规则改写。修正须保留源技术内容，必要时使用来源已有完整名称、先据源独立引入或无歧义地去掉多余所述；修改后同步技术方案等关联位置并重计合法所述。预检只给候选线索，所有所述仍在原antecedents阶段语义复核，不新增模型阶段或重复提取。",
             "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 38,
+      "previous_version": 37,
+      "updated_at": "2026-10-16T03:28:01Z",
+      "summary": "文末附图区图外仅保留单行纯图N，堵住额外说明的交付豁免，保留真实图内标注并复用现有复查。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-11",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "正文下方的图片按附图说明顺序排列。 摘要附图单独放在摘要之后、权利要求之前；说明书图片本体集中于文末附图区，居中且其下单独居中“图N”。图与自己的图下号同页，允许一页多图，以清晰可读为准；不按媒体文件名猜序、不固定图数/图型/页数；作为公式表达的图片另按公式身份核对。 摘要附图复用图像但不生成外置图号或图名；单独居中的图N仅用于文末说明书附图，不能全稿删除图下号。 版本38文末附图区图外只允许单独居中的图N，不在图号同行、下一段、图前图后或两图之间加入图名、单位、解释、注释；表格及外置文本框也不例外。保留图内真实坐标、单位、图例、节点和技术标记；正文附图说明仍按完整图名，摘要图外仍无编号。普通图外说明移除，有来源且技术理解必需的解释仅在对应具体实施方式安置一次，不补造内容。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第9行"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              },
+              {
+                "source": "references/page-flow-user-requirement.txt",
+                "locator": "2026-10-15两项合并通用要求"
+              },
+              {
+                "source": "user:2026-10-15-flowchart-only-general-repair",
+                "locator": "流程图有错按文件内容修正并通用生效；图版本同步"
+              },
+              {
+                "source": "references/figure-caption-v38-user-requirement.txt",
+                "locator": "2026-10-16 图4下额外单位说明通用修复"
+              }
+            ],
+            "check": "核对文末媒体身份与图下编号，不用图片文件名猜图号。 逐图比对媒体hash、正文首引、说明、图下号及实际页码；摘要复用不新增技术图号。 分别核对摘要图外无编号、文末图下号完整及摘要与文末使用同一核定版本的图像。依据本案文字修图时，登记原图到修正图的哈希映射，不要求修正图与原图哈希相同。 同次figure_caption_evidence及原figures/rendered_pages核对文末范围、单行纯图号和全部图外内容。明确图外文字、图号混排对象/换行/域/自动编号不可用generic closed finding豁免；标题样式或伪正文标题不能逃出文末范围。图内复杂文字候选须在原findings用TXT-11/figure_internal_label绑定当前SHA、精确part/paragraph/path/text、现存figure_number、允许label_role及source_sha256/source_locator/registry_id/visual_locator/reason，逐页确认真实图内标注，不能凭drawing祖先或标签角色自行放行。同位置分页候选复用此记录，不增模型阶段、提取或台账。无法确证范围或缺证据不得通过；无源图不造图。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMAT-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "按manual-format-and-wording.md版本22执行自然分页：普通正文及权项关闭keepLines、keepNext、pageBreakBefore、widowControl，利用本页可排空间自然续到下页；不改变字体、行距网格、页边距或页脚来填满页面。真实末段承载分节，不加正文高度空段；只有空逻辑节才保留最小结构载体。摘要附图只放核定图像，文末图下号保留。",
+            "check": "生成后独立读回实际分页属性、分节载体与摘要/文末图号。一次预检page_flow_evidence合入现有figures/rendered_pages审查；明确普通正文强制分页及摘要外置标签不得豁免，未知继承/范围或复杂对象按精确位置与稿SHA的page_flow_reviewed finding核定。最终新稿逐页检查自然续排、对象完整、摘要无外置图号、文末图号同页；结构检查不冒充可见页面正确，不新增模型阶段。 版本38文末图外文字及混排图号属于不可豁免格式错误，按TXT-11及number_only_v38修正；page_flow_reviewed不能关闭，真实图内复杂标注只复用已通过专属验证的同位置finding。",
+            "exceptions": [
+              "短标题可与下一段同页，独立公式、文末图片及图下号保持必要完整性；章末、摘要短文、分区边界及确实放不下的不可拆对象允许自然留白。",
+              "不以无w:t判空段，不删除数学、图像、OLE、域、符号和锚点；既有页脚横线定位的空段仍保留。",
+              "原稿只读；旧批次保留冻结策略，不静默迁移。"
+            ],
+            "evidence": [
+              {
+                "source": "references/page-flow-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本22新增正文自然分页和摘要附图无图下号"
+              },
+              {
+                "source": "references/figure-caption-v38-user-requirement.txt",
+                "locator": "2026-10-16 图4下额外单位说明通用修复"
+              }
+            ]
           }
         }
       ]

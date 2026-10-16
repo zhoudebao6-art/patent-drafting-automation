@@ -1168,6 +1168,10 @@ def verify_document(context, path):
                 caption_index, caption, caption_section = observed[block['bookmark'] + 'c']
                 require(caption_index == index + 1 and caption_section == section, 'caption detached from image')
                 require(word_text(caption) == '图' + str(figure['number']), 'figure number changed')
+                forbidden_caption_tags = {qn('w:'+tag) for tag in
+                    ('br','cr','tab','fldChar','fldSimple','instrText','drawing','pict','object','sym','numPr')}
+                require(not any(node.tag in forbidden_caption_tags or node.tag in {qn('m:oMath'),qn('m:oMathPara')}
+                                for node in caption.iter()), 'figure caption must be one plain number-only line')
                 for prop, value in {'keepNext':'0', 'keepLines':'1', 'pageBreakBefore':'0', 'widowControl':'0'}.items():
                     require(attributes(caption.find('w:pPr/w:' + prop, NS)).get('val') == value,
                             'figure caption pagination changed')

@@ -28,14 +28,14 @@ class FlowEvidenceTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
 
-    def report(self, body='', flow=FALSE_FLOW, abstract_label='', styles='', abstract_content=None, abstract_label_props=''):
+    def report(self, body='', flow=FALSE_FLOW, abstract_label='', styles='', abstract_content=None, abstract_label_props='', final_content=None):
         sections=[paragraph('摘要内容。',FALSE_FLOW),paragraph('',FALSE_FLOW, abstract_content or '<w:r><w:drawing/></w:r>')+
                   (paragraph(abstract_label,FALSE_FLOW+abstract_label_props) if abstract_label else ''),
                   paragraph('1.一种记录处理方法，其特征在于，取得记录。',FALSE_FLOW),
                   paragraph(TITLE,FALSE_FLOW)+paragraph('技术领域',FALSE_FLOW)+
                   paragraph('本发明涉及记录处理。',FALSE_FLOW)+paragraph('具体实施方式',FALSE_FLOW)+
                   (body or paragraph('保存更新后的记录。',flow)),
-                  paragraph('',FALSE_FLOW,'<w:r><w:drawing/></w:r>')+paragraph('图1',FALSE_FLOW)]
+                  final_content if final_content is not None else paragraph('',FALSE_FLOW,'<w:r><w:drawing/></w:r>')+paragraph('图1',FALSE_FLOW)]
         headers=['说明书摘要','摘要附图','权利要求书','说明书','说明书附图']
         rels=[];parts={};complete=''
         for i,(section,header) in enumerate(zip(sections,headers),1):

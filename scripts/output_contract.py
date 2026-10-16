@@ -7,6 +7,7 @@ import re
 import batch_tool as b
 import invention_contract
 import figure_description_contract
+import figure_caption_contract
 
 MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
@@ -31,7 +32,7 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False, strict_captions=False):
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -110,6 +111,9 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         if (issues or not items or any(n is None for n in numbers) or
                 [int(n[1]) for n in numbers]!=list(range(1,len(items)+1))):
             raise b.BatchError('Final benefit numbering contract not satisfied; require consecutive 1.,2.,... effect paragraphs')
+    if strict_captions:
+        try:figure_caption_contract.validate(report,findings,source_hashes)
+        except ValueError as exc:raise b.BatchError(str(exc)) from exc
     if strict_layout:
         flow=report.get('page_flow_evidence')
         if (not isinstance(flow,dict) or flow.get('schema_version')!=1 or
@@ -124,13 +128,16 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
             where=', '.join(f'{h["part"]} {h["path"]}' for h in flow['abstract_labels'][:6])
             raise b.BatchError('Final abstract figure must contain its image without extra caption or label: '+where)
         for candidate in flow['review_candidates']:
+            internal_label_reviewed = strict_captions and candidate.get('reason')=='complex_body_content' and any(
+                all(hit.get(k)==candidate.get(k) for k in ('part','paragraph','path'))
+                for hit in report['figure_caption_evidence']['review_candidates'])
             resolved=any(isinstance(f,dict) and f.get('rule_id')=='FORMAT-03' and
                          f.get('classification')=='page_flow_reviewed' and f.get('status')=='closed' and
                          f.get('artifact_sha256')==report['sha256'] and
                          all(f.get(k)==candidate.get(k) for k in ('part','paragraph','path')) and
                          isinstance(f.get('reason'),str) and f['reason'].strip()
                          for f in findings)
-            if not resolved:
+            if not resolved and not internal_label_reviewed:
                 raise b.BatchError('Final page flow needs a current artifact and located review finding: '+
                                    candidate['part']+' '+candidate['path']+' '+candidate['reason'])
     if strict_formulas:
@@ -212,6 +219,7 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         result['scope']='Objective title, located wording and enabled numbering/page-flow/formula-prose/literal-spacing checks only; original six reviews and final-page acceptance remain required'
     if strict_invention:result['invention_contract']=invention_contract.MODE
     if strict_figures:result['figure_description_contract']=figure_description_contract.MODE
+    if strict_captions:result['figure_caption_contract']=figure_caption_contract.MODE
     return result
 
 
@@ -237,4 +245,5 @@ def verify(m,case,attempt,receipt):
                  m['policy'].get('formula_contract')==FORMULA_MODE,
                  m['policy'].get('spacing_contract')==SPACING_MODE,
                  m['policy'].get('invention_contract')==invention_contract.MODE,
-                 m['policy'].get('figure_description_contract')==figure_description_contract.MODE)
+                 m['policy'].get('figure_description_contract')==figure_description_contract.MODE,
+                 m['policy'].get('figure_caption_contract')==figure_caption_contract.MODE)

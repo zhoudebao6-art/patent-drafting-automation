@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim rules; v37 independent complete-noun introductions and two-character noun restriction covered; v36 pools and other content standards retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v38 number-only final captions, protected internal labels and same-review findings covered; v37 antecedents and v36 pools retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
     "terminology-and-formula.md": "42bb22d607f134060ceac9efe897492692c4b01689cc1c3380eb4380c051b293",
-    "reference-style-standard.md": "bdfad6088237e3bfe586f5f93a142d40271725ead992bfd340e3eabb7c9fe1be",
+    "reference-style-standard.md": "9420c0062884394843cd5426b2cbcbccb4ad8c300985398c3e4e8aab526bb1c8",
     "manual-format-and-wording.md": "d3146a25704ce8716129cbe1da1a39c23bbcf87d1635b73c28b7fcb65bc2fdad",
-    "worker-standard.md": "429ef925cc1ca9d99251e73c8445fb21ecf9abdbab72a8263733984a30248d97"
+    "worker-standard.md": "fa262a1c7f87e915926f214e0d78e5232774a72b6002b0113c07cd59563bf334"
   }
 }

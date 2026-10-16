@@ -100,6 +100,11 @@ def validate_policy(p):
         raise BatchError('Invalid figure description contract')
     if p.get('figure_description_contract') and p.get('output_contract')!='wording_title_v18':
         raise BatchError('Figure description contract requires the frozen final output contract')
+    if p.get('figure_caption_contract') not in (None,'number_only_v38'):
+        raise BatchError('Invalid final figure caption contract')
+    if p.get('figure_caption_contract') and (p.get('output_contract')!='wording_title_v18' or
+                                            p.get('layout_contract')!='manual_flow_abstract_v22'):
+        raise BatchError('Final figure caption contract requires frozen output and page flow contracts')
     if p.get('execution_optimization') not in (None, 'lean_execution_v24'):
         raise BatchError('Invalid execution optimization contract')
     if p.get('execution_optimization') and (p.get('worker_preparation') != 'frozen_stage_packet_v1'

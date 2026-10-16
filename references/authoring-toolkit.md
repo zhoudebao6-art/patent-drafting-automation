@@ -218,3 +218,7 @@ equation_count必须为1。source_base_pt须由原式显式属性和继承核定
 字号只写入该式的数学run/控制属性、段落标记和同段收尾分号；显式原字号按font_size_pt/source_base_pt缩放，半磅取整，缺失字号用局部基准或同run已有字号补齐。字体族、粗体、花体、帽号、完整上下标和节点次序保持，正文及符号解释不缩小。原source_tree_sha256继续绑定未改源，display_tree_sha256绑定实际输出，source_objects记录single_line及主式数量；保存后读回逐树核对，并校验段落及分号字号。不能以改显示树为由改源内容或凑公式数。
 
 同次inspect_docx提供single_equation_continuation_hits，已识别的单式显示续行须改稿，不能用来源身份豁免；缓存绑定新增helper哈希。此检查不是自动视觉适配器，不检测所有自动折行或跨段续行。最终仍在原formulas/rendered_pages核对同一DOCX的公式及整页：一行、可读、无越界或裁切、分号同排。工具边界之外继续原保真修稿流程，不能强行展开矩阵、盲缩到小字、隐藏溢出或宣布通过。
+
+## 版本38文末图外文字
+
+figures分区只允许figure块，输出图像和单独居中的图N；不接受单位说明、注释或其他paragraph。保存读回同时拒绝图号段内br/cr/tab、域、自动编号、公式和其他对象，不能把看似图N的混排段当作合格图号。修订稿最终通过number_only_v38封存报告检查。源图内坐标、单位、图例和节点保持，正文figure_description继续写完整图名；abstract_figure仍无外置编号。工具不自动裁剪图片，不新增解释，最终页仍须人工标准复查。

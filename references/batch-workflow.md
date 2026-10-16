@@ -113,3 +113,7 @@ python scripts/parallel_batch.py deliver --manifest 批次清单 --controller �
 ## 版本32附图说明检查
 
 新批次冻结figure_description_contract=named_figures_v32。现有生成和封存预检逐条核对附图说明完整图名以图收尾、非末条分号及末条句号；交付验证复用同份figure_description_evidence，不重解析或新增复查阶段。原模型、并行和逐案交付策略保持，旧批次不静默迁移。
+
+## 版本38文末纯图号检查
+
+新批次冻结figure_caption_contract=number_only_v38。生成端文末只写figure块及单独图N，复查与最终交付复用同份figure_caption_evidence核对图外无多余说明；图内真实标注在原figures/rendered_pages核定，同位置候选只留一条有效记录。普通closed finding不能豁免明确图外文字。原模型、6/3/3工作池、六项审查和逐案交付不变；不增加模型阶段、重复提取或独立台账，旧批次不静默迁移。
