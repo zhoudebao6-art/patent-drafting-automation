@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim rules; v44 source-verified transpose uses U+22BA and Chinese math notation maps to English identifiers with synchronized explanations. Raw and normalized evidence preserved; non-transpose roles and ordinary Chinese prose retained. Existing stages and v39-v43 remain. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v45 complete objects must appear with their own meanings: component-only explanations do not cover the whole object, source function arguments, differentiation variables, constraint markers and independent index roles/ranges remain explicit. Same-object reuse and dedup preserve distinct meanings; v43/v44 identity and authorized normalization remain. No new stages or scans. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "9d2de630b193219309ac4b420e5805b36cd967f2cb66951243a9b7f34bccf335",
+    "terminology-and-formula.md": "06cf8c1820c53fd366b2908f11a3d58291cec2fb1543a69c1fa7e3c7d4381107",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
     "manual-format-and-wording.md": "82ed461ab7320d4c6ad42a3f4dfc5252c98bea9dd9fd8c2ae966116fe80df627",
-    "worker-standard.md": "4b67d8e17731013354b4a6a4ef5965f762c7f3f1d95ff7ef12cb7a73f36ea60d"
+    "worker-standard.md": "d31377ea8aae4d9e369ad664cd664b5a58c24afddaad64631534e8d1c75cb1fa"
   }
 }

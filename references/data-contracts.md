@@ -33,6 +33,8 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 
 版本44记号规范化复用公式台账现有raw_formula/normalized_formula、symbols完整身份、source_objects、format_check/layout_changes与explanation_occurrences。记录原→新符号、来源角色/含义/单位/作用域、全部公式和解释出现、原文件/原树SHA与规范树/当前稿SHA。说明正文采用规范后的英文完整记号与⊺；源依据和规范稿不能互相冒充。inspection的review_candidates中CJK数学文本须实际修稿；上标单T仅候选，只有已核非转置且finding带not_matrix_transpose、精确object_id/math_path及原有源/稿SHA才可关闭，不能整对象豁免多槽。复用原模型语义和最终页面证据，不新增台账/阶段，详见formula-detail-standard.md版本44。
 
+版本45复用symbols现有role区分完整对象、部件/独立索引及功能标识；沿canonical_math_fragment、formula_occurrences与explanation_occurrences核文中真实完整记号和含义。只写星号/基字/参数、只给无记号泛称不能将相应完整量列为explained，仍在已有symbol_coverage记missing/truncated直到据源补齐。索引角色/范围及约束标识作用绑定本案来源；同一完整对象同域说明可复用，去重保留独有信息，不把s.t.拆成两个物理变量。无新增必填字段或台账，完整边界见formula-detail-standard.md版本45。
+
 ## 批次记录
 
 版本29新批次策略stage_scheduling=overlapped_pipeline_v29绑定在原policy快照内，必须配合after_each_acceptance。撰写区为draft，复查修改区为review/revise及独立review；各自使用本案原有独立attempt工作目录，不复制整案到第二公共目录。已有阶段、来源、模型和哈希字段即为隔离依据，不新增worker回执必填字段。队列plan在accepted且无活跃attempt时先返回action=deliver及accepted_case_ids，ready为空，手工控制器先交付再占槽。缺少标记的旧批次保持原调度和收稿行为。
