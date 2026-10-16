@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim rules; v45 complete objects must appear with their own meanings: component-only explanations do not cover the whole object, source function arguments, differentiation variables, constraint markers and independent index roles/ranges remain explicit. Same-object reuse and dedup preserve distinct meanings; v43/v44 identity and authorized normalization remain. No new stages or scans. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v48 base names and derived-object names require complete independent antecedents, preserving mathematical/statistical qualifiers, actual head span and object identity. Source-supported base-reference plus an explicit operation is distinct from naming a derived object; no automatic split on de, invented definitions, dropped qualifiers or substring passes. Sync claims/solution and valid counts in existing checks. All v45/v43/v44 and earlier limits retained; source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "06cf8c1820c53fd366b2908f11a3d58291cec2fb1543a69c1fa7e3c7d4381107",
+    "terminology-and-formula.md": "ffe6b7909596a4650e141d61b8fd3c5e4e567f5d4888bd8f5c4d0d9efed48c57",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
     "manual-format-and-wording.md": "82ed461ab7320d4c6ad42a3f4dfc5252c98bea9dd9fd8c2ae966116fe80df627",
-    "worker-standard.md": "d31377ea8aae4d9e369ad664cd664b5a58c24afddaad64631534e8d1c75cb1fa"
+    "worker-standard.md": "84905b7798cd774e0462ce59cb0693732746f3f290c31fde0c140c9bd5477eb7"
   }
 }
