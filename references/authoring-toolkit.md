@@ -100,7 +100,7 @@ v5.9的manual-v26-complete-symbols-no-spaces-v5提前拒绝可见文字与源数
 |`formula`|`type,formula_id`|按注册身份导入来源：真实公式及全部来源绑定symbol_reference保留完整OMML；仅已核定prose_example或prose_label转普通w:r，并保留来源台账。|
 |`figure_ref`|`type,figure_id`|由同一图片映射输出“图N”，避免手工图号漂移。|
 
-特殊字形、上下标、向量粗体、帽号等不得塞入`symbol_reference`；用来源OMML。`protected_names`每项为`text`和非空`block_ids`数组，验证该精确名称在每个声明块中仍存在；自动项目标题核验不依赖这份数组。受保护名称的真实性、穷尽性及普通叙述对象不能过度豁免，仍由复查模型按[人工定稿规范](manual-format-and-wording.md)检查。
+特殊字形、上下标、向量粗体、帽号等不得塞入`symbol_reference`；用来源OMML。`protected_names`每项为`text`和非空`block_ids`数组，验证该精确名称在每个声明块中仍存在；自动项目标题核验不依赖这份数组。受保护名称的真实性、穷尽性及普通叙述对象不能过度豁免，仍由复查模型按[人工定稿规范](manual-format-and-wording.md)检查。protected_names在流程图范围外仍按原规则保护合法完整名称（包括非流程图及混合图独立非流程部分），不为流程图内装置/组件/引擎称谓豁免；图内实际文字（含图片像素和完整标题）须据源修正并独立查看最终图及全部复用页，生成器的块/名称校验不证明图内用词合规。
 
 工具保留权项多自然段，设置首行2字符（560twip）、左对齐、单倍240、312twip行网格，不生成或补齐“所述”。每权项至少3处合法“所述”是语义门禁，字符串计数不能由manifest签通过。
 
