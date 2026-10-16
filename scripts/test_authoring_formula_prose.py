@@ -74,15 +74,16 @@ class FormulaProseTests(unittest.TestCase):
         self.assertEqual(context['block_texts']['intro'], '其中，x表示内容。')
         self.assertIn('具体实施方式中，公式中的条件保持。', ''.join(doc.xpath('//w:t/text()', namespaces=t.NS)))
 
-    def test_latin_reference_and_numeric_prose_become_word_text_with_source_trace(self):
+    def test_bound_latin_symbol_stays_math_and_numeric_prose_stays_text(self):
         ids=self.source([flat('x'),flat('3−0+1=4')],['symbol_reference','prose_example'])
         self.inline(ids)
         source_sha=t.sha(self.root/'source.docx')
         _, _, result, doc=self.create()
-        self.assertEqual(result['counts']['omml_occurrences'],0)
-        self.assertEqual(result['counts']['source_text_occurrences'],2)
+        self.assertEqual(result['counts']['omml_occurrences'],1)
+        self.assertEqual(result['counts']['source_text_occurrences'],1)
         self.assertEqual(result['counts']['main_formula_occurrences'],0)
-        self.assertEqual([r['text'] for r in result['source_objects']],['x','3−0+1=4'])
+        self.assertEqual([r['text'] for r in result['source_objects'] if r['kind']=='source_text'],['3−0+1=4'])
+        self.assertEqual(''.join(doc.find('.//m:oMath',t.NS).xpath('.//m:t/text()',namespaces=t.NS)),'x')
         self.assertIn('3−0+1=4', ''.join(doc.xpath('//w:t/text()',namespaces=t.NS)))
         self.assertEqual(source_sha,t.sha(self.root/'source.docx'))
 

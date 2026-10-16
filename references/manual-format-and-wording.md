@@ -103,3 +103,5 @@ inspect_docx同一遍提取输出punctuation_evidence，包含schema_version=2�
 公共生成器按角色写入分页属性，独立读回核对实际属性、分节与图号；不只改默认样式。一次预检提供page_flow_evidence，按段落直接格式、样式继承及文档默认解析分页线索，空段与复杂结构只定位，不自动删正文或对象。新批次layout_contract=manual_flow_abstract_v22在最终pass与交付复用同稿封存预检；普通正文明确强制分页控制及摘要外置标签不能豁免。未解析范围/继承或复杂对象需要本次独立复查finding：rule_id=FORMAT-03、classification=page_flow_reviewed、status=closed、artifact_sha256、part、paragraph、path逐项对应候选，并用reason说明实际核验与处理依据，不接受泛泛通过。
 
 分页属性只说明风险，不能证明已顶满或图文实际同页。保留原figures和rendered_pages审查，最终逐页查看页尾能否继续容纳普通文字、跨页续段是否完整、摘要页无外置图号、文末图号未丢、公式/图片/页脚未裁切。任何版式修正后对新稿重新渲染；同稿有效缓存按既有规则复用，不新增模型阶段或逐案重读参考稿。已运行批次保留旧冻结版本。
+
+版本43对上述孤立字母格式例外的边界：来源绑定的同一公式量/算子引用优先复用原数学记号及字体正斜/粗细，不自动改成宋体或12pt正体；明确独立索引名字与普通文字提及仍可按原角色处理，不能用其覆盖完整量。详见formula-detail-standard.md版本43，保留长式局部字号例外。

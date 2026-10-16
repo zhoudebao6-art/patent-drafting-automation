@@ -109,21 +109,21 @@ class ReferenceTests(unittest.TestCase):
                 dict(type='source_symbol',formula_id=fid,node_path='./m:r[1]',representation='math'),dict(type='text',text='=4时继续。')])]
         _,_,result,doc=self.create()
         refs=doc.findall('.//m:oMath',t.NS)
-        self.assertEqual(len(refs),2)
+        self.assertEqual(len(refs),3)
         self.assertEqual(''.join(refs[-1].xpath('.//m:t/text()',namespaces=t.NS)),'x')
-        self.assertEqual(t.word_text(refs[-1].getparent()),'x表示索引，当=4时继续。')
+        self.assertEqual(t.word_text(refs[-1].getparent()),'表示索引，当=4时继续。')
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
         import inspect_docx
-        evidence=inspect_docx.formula_prose_paragraph_evidence(refs[-1].getparent(),'word/document.xml',1,{id(refs[-1]):'m1'})
+        evidence=inspect_docx.formula_prose_paragraph_evidence(refs[-1].getparent(),'word/document.xml',1,{id(n):f'm{i}' for i,n in enumerate(refs)})
         self.assertEqual([h['text'] for h in evidence['review_candidates']],['x=4'])
 
-    def test_operator_italic_word_override_is_removed_only_in_reference(self):
+    def test_operator_name_italic_word_override_is_preserved_in_reference(self):
         node=ET.fromstring(OPERATOR)
         name=node.findall('m:r',t.NS)[1]
         props=ET.SubElement(name,t.qn('w:rPr'));ET.SubElement(props,t.qn('w:i')).set(t.qn('w:val'),'1')
         before=t.tree_signature(node)
         ref=f.operator_reference(node,'./m:r[2]','./m:d[1]')
-        self.assertEqual(ref.find('m:r/w:rPr/w:i',t.NS).get(t.qn('w:val')),'0')
+        self.assertEqual(ref.find('m:r/w:rPr/w:i',t.NS).get(t.qn('w:val')),'1')
         self.assertEqual(t.tree_signature(node),before)
 
     def test_symbolic_inline_formula_with_numeric_constant_stays_complete(self):

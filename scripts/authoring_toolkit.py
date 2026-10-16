@@ -345,7 +345,9 @@ def source_formula(row, sources):
             fail('OMML has a paragraph-style/font dependency; manual source-preserving route required: ' + row['id'])
     if node.getparent() is not None and node.getparent().tag == qn('m:oMath'):
         fail('Nested oMath objects are unsupported')
-    plain = plain_source_text(node, row['category'])
+    # A source-bound mathematical symbol keeps its source typography even when
+    # it consists of one letter. Only explicitly ordinary prose is flattened.
+    plain = None if row['category'] == 'symbol_reference' else plain_source_text(node, row['category'])
     if row['category'] in {'prose_example', 'prose_label'} and plain is None:
         fail('Prose example is not safely representable as flat text; use the reviewed source-preserving route: ' + row['id'])
     return dict(row, node=node, plain_text=plain)
@@ -521,9 +523,20 @@ def validate(case_root, spec):
                         if fid in formulas and not formulas[fid].get('source_fragment_path'):
                             fail('Derived symbol id collides with a registered formula')
                         formulas[fid]=dict(parent,id=fid,category='symbol_reference',node=node,
-                            tree_sha256=tree_signature(node),plain_text=(None if representation=='math' else plain_source_text(node,'symbol_reference')),
+                            tree_sha256=tree_signature(node),plain_text=None,
                             source_formula_id=parent['id'],source_tree_sha256=parent['tree_sha256'],
                             source_fragment_path=source_path,source_transform=transform)
+                        run.clear();run.update(type='formula',formula_id=fid)
+                        rtype='formula'
+                    if rtype == 'symbol_reference' and 'formula_id' in run:
+                        fields(run, ('type', 'text', 'formula_id'), ('style',), 'bound symbol_reference')
+                        original=formulas.get(run['formula_id'])
+                        if (original is None or original['category']!='symbol_reference' or
+                                plain_source_text(original['node'],'symbol_reference',allow_greek=True)!=run['text']):
+                            fail('Bound plain symbol_reference must match the complete registered bare symbol; never replace a structured quantity with a letter')
+                        if 'style' in run:
+                            fail('Bound symbol_reference preserves source typography; a body/reference_letter style override is not allowed')
+                        fid=run['formula_id']
                         run.clear();run.update(type='formula',formula_id=fid)
                         rtype='formula'
                     if rtype in {'text', 'symbol_reference'}:
@@ -532,13 +545,6 @@ def validate(case_root, spec):
                         if rtype == 'symbol_reference':
                             if len(run['text']) != 1 or not run['text'].isalpha() or ord(run['text']) > 0x3FF:
                                 fail('Plain symbol_reference is one ordinary Latin/Greek letter; use source OMML for structured/special glyphs')
-                            if 'formula_id' in run and run['formula_id'] not in formulas:
-                                fail('Unknown symbol_reference formula_id')
-                            if 'formula_id' in run:
-                                original=formulas[run['formula_id']]
-                                if (original['category']!='symbol_reference' or
-                                        plain_source_text(original['node'],'symbol_reference',allow_greek=True)!=run['text']):
-                                    fail('Bound plain symbol_reference must match the complete registered bare symbol; never replace a structured quantity with a letter')
                             if run.get('style', 'body') not in {'body', 'reference_letter'}:
                                 fail('Unknown plain symbol style')
                             if run.get('style') == 'reference_letter' and not re.fullmatch(r'[A-Za-z]', run['text']):

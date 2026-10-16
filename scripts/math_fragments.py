@@ -96,17 +96,19 @@ def operator_reference(node, name_path, argument_path):
     result=ET.Element('{'+M+'}oMath',nsmap=node.nsmap)
     for prop in node.findall('m:oMathPr',NS):result.append(deepcopy(prop))
     label=deepcopy(name)
-    props=label.find('m:rPr',NS)
-    if props is None:props=ET.Element('{'+M+'}rPr');label.insert(0,props)
+    delimiter=deepcopy(argument);entry=delimiter.find('m:e',NS)
+    for child in list(entry):entry.remove(child)
+    # Only the newly introduced placeholder has a presentation of its own.
+    # The source operator name must retain all its original style properties.
+    dot=deepcopy(label)
+    props=dot.find('m:rPr',NS)
+    if props is None:props=ET.Element('{'+M+'}rPr');dot.insert(0,props)
     style=props.find('m:sty',NS)
     if style is None:style=ET.SubElement(props,'{'+M+'}sty')
     style.set('{'+M+'}val','b' if style.get('{'+M+'}val') in {'b','bi'} else 'p')
     # Word run italic overrides can otherwise conflict with the math style.
-    for italic in label.xpath('./w:rPr/w:i | ./w:rPr/w:iCs',namespaces={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}):
+    for italic in dot.xpath('./w:rPr/w:i | ./w:rPr/w:iCs',namespaces={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}):
         italic.set('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val','0')
-    delimiter=deepcopy(argument);entry=delimiter.find('m:e',NS)
-    for child in list(entry):entry.remove(child)
-    dot=deepcopy(label)
     for child in list(dot):
         if child.tag=='{'+M+'}t':dot.remove(child)
     ET.SubElement(dot,'{'+M+'}t').text='·'
