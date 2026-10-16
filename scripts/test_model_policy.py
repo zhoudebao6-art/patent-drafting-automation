@@ -68,6 +68,29 @@ class QueueFixture:
         if reserved['attempt']['stage'] in {'draft', 'revise'}:
             self.write_docx(value['artifact'], reserved['attempt']['id'])
             value['artifact_sha256'] = b.sha(value['artifact'])
+        else:
+            import incremental_review as reuse
+            manifest = b.read(self.manifest)
+            if reuse.enabled(manifest['policy']):
+                case = next(c for c in manifest['projects'] if c['id'] == reserved['case_id'])
+                attempt = next(a for a in case['attempts'] if a['id'] == reserved['attempt']['id'])
+                pointer, _ = reuse.plan_pointer(attempt)
+                # Explicit synthetic coverage is now required by real defaults.
+                # Do not turn off the new policy to make an older fixture pass.
+                value['review_coverage'] = {'schema_version': 1, 'plan_sha256': pointer['plan_sha256'],
+                    'checks': {k: {'fresh': ['*'], 'passed': ['*'], 'inherited': [], 'impact_review': ''}
+                               for k in reuse.CHECKS}, 'pages': []}
+                if verdict == 'pass':
+                    evidence = Path(value['render']['evidence'])
+                    metadata = b.read(evidence)
+                    metadata.update(input=attempt['input_artifact'], runtime_fingerprint='synthetic-model-policy-fixture')
+                    b.atomic(evidence, metadata)
+                    value['render']['evidence_sha256'] = b.sha(evidence)
+                    value['review_coverage']['pages'] = [{'page': 1, 'status': 'passed', 'mode': 'fresh'}]
+                else:
+                    value['checks'].update(source_support='synthetic correction required', rendered_pages='not_run')
+                    value['review_coverage']['checks']['source_support']['passed'] = []
+                    value.pop('render')
         return value
 
     def write_docx(self, path, token):

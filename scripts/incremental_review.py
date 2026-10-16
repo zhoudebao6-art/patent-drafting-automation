@@ -5,6 +5,7 @@ reviewer still decides semantic impact and signs the current six-check receipt.
 """
 from __future__ import annotations
 import argparse
+from collections import defaultdict
 import copy
 import hashlib
 import json
@@ -58,8 +59,26 @@ def inventory(artifact):
                 root = ET.fromstring(raw)
                 # Fields can make otherwise volatile package properties visible.
                 # Reuse this existing XML walk; do not add a document scan.
-                field_stack, field_texts, orphan_text = [], [], []
-                for node in root.iter():
+                # Include non-paragraph container identity in the same XML walk.
+                # Paragraph insertion does not renumber table/cell/textbox paths;
+                # moving content into another container must invalidate reuse.
+                def located_nodes(node, container):
+                    fingerprint = hashlib.sha256(ET.tostring(node)).hexdigest() if node.tag == W + 'p' else None
+                    yield node, container, fingerprint
+                    child_base = container + ((W + 'p', fingerprint),) if fingerprint else container
+                    nonparagraph_index = 0
+                    for child in node:
+                        if child.tag == W + 'p':
+                            location = child_base
+                        else:
+                            location = child_base + ((child.tag, nonparagraph_index),)
+                            nonparagraph_index += 1
+                        yield from located_nodes(child, location)
+
+                field_stack, field_texts, orphan_text, paragraphs = [], [], [], []
+                for node, container, fingerprint in located_nodes(root, ((root.tag, 0),)):
+                    if node.tag == W + 'p':
+                        paragraphs.append((fingerprint, container))
                     if node.tag == W + 'fldSimple':
                         field_texts.append(node.get(W + 'instr', ''))
                     elif node.tag == W + 'fldChar':
@@ -79,11 +98,10 @@ def inventory(artifact):
                     opcode = re.match(r'\s*([A-Za-z]+)\b', instruction)
                     if opcode is None or opcode.group(1).upper() not in {'PAGE', 'NUMPAGES', 'SECTIONPAGES'}:
                         property_fields = True
-                paragraphs = list(root.iter(W + 'p'))
                 if paragraphs:
                     # Match the existing inspector's part + 1-based paragraph locators.
-                    for index, paragraph in enumerate(paragraphs, 1):
-                        scopes[f'{name}#p{index}'] = hashlib.sha256(ET.tostring(paragraph)).hexdigest()
+                    for index, (fingerprint, container) in enumerate(paragraphs, 1):
+                        scopes[f'{name}#p{index}'] = digest([fingerprint, container])
                     # Preserve every container/table/section attribute outside paragraphs.
                     # Nested paragraphs remain in their owning paragraph's exact hash.
                     def without_paragraphs(node):
@@ -155,6 +173,48 @@ def compact(scopes, universe):
     return {'all_except': sorted(excluded)} if len(excluded) < len(included) else sorted(included)
 
 
+def match_scopes(before, current):
+    """Map exact, unambiguous paragraph identities despite inserted/deleted rows.
+
+    Identity is part-local. Reordering is not treated as a harmless renumbering:
+    its dependency impact invalidates reuse. Duplicate text is not guessed.
+    """
+    if before == current:
+        return {scope: scope for scope in current}, []
+    indexes = []
+    for scopes in (before, current):
+        index = defaultdict(list)
+        for scope, fingerprint in scopes.items():
+            part = scope.rsplit('#p', 1)[0]
+            index[(part, fingerprint)].append(scope)
+        indexes.append(index)
+    previous, present = indexes
+    mapping = {rows[0]: previous[key][0] for key, rows in present.items()
+               if len(rows) == 1 and len(previous.get(key, [])) == 1}
+    by_part = defaultdict(list)
+    for new, old in mapping.items():
+        if '#p' in new:
+            part, index = new.rsplit('#p', 1)
+            by_part[part].append((int(index), int(old.rsplit('#p', 1)[1])))
+    reordered = [part for part, rows in by_part.items()
+                 if [old for _, old in sorted(rows)] != sorted(old for _, old in rows)]
+    return {new: old for new, old in mapping.items() if new.rsplit('#p', 1)[0] not in reordered}, sorted(reordered)
+
+
+def relocation_ranges(mapping):
+    """Compact navigation for a long unchanged tail; no hash dump to workers."""
+    moved = sorted((new.rsplit('#p', 1)[0], int(old.rsplit('#p', 1)[1]), int(new.rsplit('#p', 1)[1]))
+                   for new, old in mapping.items() if new != old and '#p' in new)
+    rows = []
+    for part, old, new in moved:
+        if (rows and rows[-1]['part'] == part and old == rows[-1]['old_start'] + rows[-1]['count']
+                and new == rows[-1]['new_start'] + rows[-1]['count']):
+            rows[-1]['count'] += 1
+        else:
+            rows.append({'part': part, 'old_start': old, 'new_start': new, 'count': 1})
+    return rows
+
+
 def prior_review(m, case):
     """Only the latest completed real review; never search arbitrary sidecars."""
     receipt = next((r for r in reversed(case.get('receipts', [])) if r.get('stage') == 'review'), None)
@@ -208,11 +268,16 @@ def prepare(m, case, attempt, output):
     if old:
         before = old['plan']['inventory']
         old_scopes = before['scopes']
-        same = {s for s in universe & set(old_scopes) if current['scopes'][s] == old_scopes[s]}
-        plan.update(changed_scopes=sorted(universe & set(old_scopes) - same),
-                    added_scopes=sorted(universe - set(old_scopes)), removed_scopes=sorted(set(old_scopes) - universe))
+        mapping, reordered = match_scopes(old_scopes, current['scopes'])
+        unmatched_current = universe - set(mapping)
+        unmatched_old = set(old_scopes) - set(mapping.values())
+        changed = unmatched_current & unmatched_old
+        plan.update(changed_scopes=sorted(changed), added_scopes=sorted(unmatched_current - changed),
+                    removed_scopes=sorted(unmatched_old - changed), scope_mapping=mapping,
+                    relocated_scopes=relocation_ranges(mapping), reordered_parts=reordered)
         globals_changed = [s for s in set(current['global_parts']) | set(before['global_parts'])
                            if current['global_parts'].get(s) != before['global_parts'].get(s)]
+        globals_changed += ['paragraph_order:' + part for part in reordered]
         plan['global_changes'] = sorted(globals_changed)
         plan['previous'] = {'receipt': old['path'], 'receipt_sha256': old['sha256'],
                             'attempt': old['attempt']['id'], 'input': old['attempt']['input_artifact'],
@@ -224,7 +289,7 @@ def prepare(m, case, attempt, output):
             passed = expand(row['passed'], old_scopes) | expand(row['inherited'], old_scopes)
             # Structural/global changes can alter invisible dependencies, styles or objects.
             # They invalidate semantic inheritance conservatively, not just visible text.
-            eligible = passed & same if not globals_changed else set()
+            eligible = {new for new, old_scope in mapping.items() if old_scope in passed} if not globals_changed else set()
             plan['eligible_by_check'][check] = compact(eligible, universe)
     target = Path(output) / 'review-reuse.json'
     with target.open('x', encoding='utf-8') as stream:
@@ -297,6 +362,7 @@ def summary(plan):
             'changed_scopes': compact(plan['changed_scopes'], universe),
             'added_scopes': compact(plan['added_scopes'], universe),
             'removed_scopes': plan['removed_scopes'], 'global_changes': plan['global_changes'],
+            'relocated_scopes': plan.get('relocated_scopes', []),
             'eligible_by_check': plan['eligible_by_check'],
             'must_review_by_check': {k: compact(set(universe) - expand(v, universe), universe)
                                      for k, v in plan['eligible_by_check'].items()},

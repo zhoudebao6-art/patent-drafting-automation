@@ -52,3 +52,5 @@ python 本批skill-snapshot/scripts/worker_receipt.py --job 本attempt/cli-job.j
 收稿只在真实执行、来源和身份验证后，把明确的字段缺失、错误枚举、同案过期路径归属等 `CaseReceiptError` 隔离为本案失败，保存 `cli-rejection.json` 及原产物，不自动重试；其他案件继续补位。来源或身份变化、SHA矛盾、跨案路径、链接、未知执行错误和无法确认退出均继续停池或保留占槽。分类依赖明确异常类型，不按错误消息的关键词猜测。
 
 版本30行内公式候选仍在原findings中闭环。对带offset的候选必须逐项携带相同offset、end_offset、offset_projection及format_disposition=not_formula或format_already_correct，并保留原双SHA和精确来源/目标定位；只能说明误报或格式已正确，不能豁免真实错误。修改后使用新稿的inspection与SHA；组内缺逗号必须修复，不能以来源身份关闭。
+
+版本57的差异摘要增加relocated_scopes，按部件/旧起始段号/新起始段号/连续数量表达位移；覆盖回执始终使用当前段号。只有同部件同结构容器内唯一、相同XML且相对次序未变的内容可映射旧通过范围；跨单元格/文本框移动、重复歧义或真实调序保守重验。位移映射不是语义豁免，仍判断新增、删除或修改对定义、引用、权项、公式及图的关联影响。

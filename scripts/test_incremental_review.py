@@ -129,6 +129,69 @@ class IncrementalReviewTests(unittest.TestCase):
         self.assertTrue(all(not r['fresh'] for r in current['review_coverage']['checks'].values()))
         self.record(third, current)
 
+    def test_paragraph_shift_reuses_only_unique_order_preserved_passed_content(self):
+        first, _, pointer = self.attempt(['A', 'unpassed B', 'C', 'D'])
+        receipt = self.receipt(first, pointer)
+        receipt['checks']['formulas'] = 'B remains unresolved'
+        receipt['review_coverage']['checks']['formulas']['passed'] = {'all_except': ['word/document.xml#p2']}
+        self.record(first, receipt)
+        for texts, expected, must_check in (
+            (['inserted', 'A', 'unpassed B', 'C', 'D'], {'word/document.xml#p2', 'word/document.xml#p4', 'word/document.xml#p5'}, {'word/document.xml#p1', 'word/document.xml#p3'}),
+            (['A', 'unpassed B', 'D'], {'word/document.xml#p1', 'word/document.xml#p3'}, {'word/document.xml#p2'}),
+            (['C', 'unpassed B', 'A', 'D'], set(), {'word/document.xml#p1', 'word/document.xml#p2', 'word/document.xml#p3', 'word/document.xml#p4'}),
+        ):
+            with self.subTest(texts=texts):
+                attempt, plan, pointer = self.attempt(texts)
+                eligible = reuse.expand(plan['eligible_by_check']['formulas'], plan['current_scopes'])
+                self.assertEqual(eligible - {'@package'}, expected)
+                self.assertTrue(must_check.isdisjoint(eligible))
+                if texts[0] == 'inserted':
+                    self.assertEqual(plan['added_scopes'], ['word/document.xml#p1'])
+                    self.assertEqual(reuse.summary(plan)['relocated_scopes'], [
+                        {'part': 'word/document.xml', 'old_start': 1, 'new_start': 2, 'count': 4}])
+                    self.assertEqual(plan['scope_mapping']['word/document.xml#p3'], 'word/document.xml#p2')
+                elif texts[0] == 'C':
+                    self.assertEqual(plan['reordered_parts'], ['word/document.xml'])
+                    self.assertIn('paragraph_order:word/document.xml', plan['global_changes'])
+                # The old failed unit becomes passed only after this round's actual
+                # fresh check; validate, but do not replace the fixture's baseline.
+                reuse.validate(self.m, self.case, attempt, self.inherited_receipt(attempt, plan, pointer))
+        # Same paragraph order and table structure do not justify reuse if
+        # an unchanged paragraph moves to a different cell or text container.
+        def pxml(value):
+            return '<w:p><w:r><w:t>' + value + '</w:t></w:r></w:p>'
+        for container_kind in ('cells', 'textboxes'):
+            with self.subTest(container=container_kind):
+                def shell(left, right):
+                    if container_kind == 'cells':
+                        inner = '<w:tbl><w:tr><w:tc>' + left + '</w:tc><w:tc>' + right + '</w:tc></w:tr></w:tbl>'
+                    else:
+                        def box(content):
+                            return '<w:p><w:r><w:pict><w:txbxContent>' + content + '</w:txbxContent></w:pict></w:r></w:p>'
+                        inner = box(left) + box(right)
+                    return '<w:document xmlns:w="' + reuse.W[1:-1] + '"><w:body>' + inner + '</w:body></w:document>'
+                before_xml = shell(pxml('A') + pxml(''), pxml('') + pxml('B'))
+                after_xml = shell(pxml(''), pxml('A') + pxml('') + pxml('B'))
+                paths = [self.root / 'before-container.docx', self.root / 'after-container.docx']
+                for path, xml in zip(paths, (before_xml, after_xml)):
+                    with ZipFile(path, 'w') as archive:
+                        archive.writestr('word/document.xml', xml)
+                before_inventory, after_inventory = map(reuse.inventory, paths)
+                self.assertEqual(before_inventory['global_parts'], after_inventory['global_parts'])
+                mapped, _ = reuse.match_scopes(before_inventory['scopes'], after_inventory['scopes'])
+                import xml.etree.ElementTree as ET
+                paragraphs = ET.fromstring(after_xml).iter(reuse.W + 'p')
+                current_a = next('word/document.xml#p' + str(i) for i, paragraph in enumerate(paragraphs, 1)
+                                 if paragraph.findtext('./' + reuse.W + 'r/' + reuse.W + 't') == 'A')
+                self.assertNotIn(current_a, mapped)
+        for before, after, expected in (
+            ({'a#p1': 'X', 'a#p2': 'X'}, {'a#p1': 'new', 'a#p2': 'X', 'a#p3': 'X'}, {}),
+            ({'a#p1': 'X', 'a#p2': 'X'}, {'a#p1': 'X', 'a#p2': 'X'}, {'a#p1': 'a#p1', 'a#p2': 'a#p2'}),
+            ({'a#p1': 'X'}, {'b#p1': 'X'}, {}),
+        ):
+            with self.subTest(before=before, after=after):
+                self.assertEqual(reuse.match_scopes(before, after)[0], expected)
+
     def test_missing_coverage_failed_scopes_and_structural_changes_cannot_inherit(self):
         first, old, pointer = self.attempt(['A', 'B'])
         receipt = self.receipt(first, pointer)
