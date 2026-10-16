@@ -13,8 +13,8 @@ v5.7新批次默认启用[通用精简执行](fast-execution.md)：init一次冻
 1. 每批核对运行环境一次。沿用已验证的工具配置；只有首次配置、依赖改变或转换失败时才做独立小样。普通批次不重跑技能单元测试、不核验全部历史语料、不重读三组定稿全文，也不检查无关仓库、GitHub或全局配置。
 2. 新批次优先使用[CLI池](cli-workers.md)连续填满实际可用空位并自动收稿。手工通道的队列建立后直接`reserve --prepare`并派发首案，不在每次reserve前另调用plan；reserve内部已调度和验证，并把准备好的缓存实际路径传给worker。worker忙碌时，总控可用本地工具预提取下一案的来源，写到该案独立source-cache，节省下一个worker等待时间；不要为预提取额外占一个模型名额。只预备即将开始的案，不先处理完整批资料再开始撰写。
 3. Sol/high读取本案来源提取、冻结规则和必要的写作规范，完成初稿与一次结构预检。只做生成稿所需的检查，不模拟重复的复查模型独立复查；默认不先渲染明显还需技术修订的初稿。记录可合并为一份evidence.json，各字段用来源定位引用，避免重复抄录整段正文；来源、术语、公式和图的必要对应关系仍须保留。
-4. 新批次review_mode=review_fix_then_recheck：Sol/xhigh先集中检查来源支持、所述、权项联动、公式和附图内容。有明确依据可修正的问题时，在同一次review调用内做一次修正，另存当前attempt的新DOCX，回执verdict=revised并记录改前哈希、新稿哈希及非空findings，每项含status=resolved或closed、location和correction_evidence；该回执只能变为revised，不能验收或交付，随后必须派发新的Sol/xhigh独立重验。这样一次修正从review→revise→review的三次复查模型派发减为review内修正→新review的两次。技术事实不足时needs_input；不适合本次内修正时可返回fix_required走原独立revise路径。内容仍待修改时rendered_pages如实记not_run，不转换待改稿。无内容阻断时，才生成或复用当前页面并查看全部最终页；pass六项必须全部passed。
-5. Sol/xhigh在本次review内或独立revise阶段按具体问题及关联章节修改，避免无理由重写全文。修订稿先做结构预检，下一位Sol/xhigh独立重验；先处理内容，再对最终版本渲染和逐页验收。已有效的来源提取、定位表和同字节页面可复用，审查结论不自动继承。页面发现的问题由复查模型修改，最终字节变化后重新渲染。
+4. 版本35新批次为6初稿、3只读复查、3独立修改三池，review_mode=review_only。Sol/xhigh集中检查来源支持、所述、权项联动、公式与附图，有问题返回fix_required及精确findings交revise池；技术事实不足时needs_input。已知内容待改时rendered_pages如实记not_run，不提前转换待改稿。内容稳定后再渲染或复用当前页面并查看全部最终页，pass须六项全部passed；页面问题也交修改池。旧冻结review_fix_then_recheck策略继续允许原review内小修并返回revised，新三池不采用该合并路径。
+5. 新三池由Sol/xhigh的revise阶段按具体问题及关联章节集中修改，避免无理由重写全文；返回complete后案件进入revised，交review池新会话独立重验。先处理内容，再对最终版本渲染和逐页验收。已有效来源提取、定位表和同字节页面可复用，审查结论不继承。仅旧允许复查内修正的冻结策略可在review内修改；任何修改者均不能同时签发最终通过。
 6. pass后立即交付到桌面同一文件夹根目录。总控验证最终哈希与回执，不再启动第二次内容复查或重复复制。无问题就结束该案，继续下一案；不能为了证明做过检查反复跑同样步骤。
 
 ## 来源提取缓存
@@ -48,7 +48,7 @@ python scripts/inspect_docx.py 本案来源快照.docx --out 本案/source-cache
 python scripts/render_docx_checked.py 当前稿.docx --output-dir 本次审查/render --reuse --compact
 ```
 
-目录不存在时真实转换；已存在时核对同一稿件绝对路径和SHA、配置/工具/DPI指纹、PDF与全部连续PNG。命中不再启动LibreOffice，render.json原字节保持不变。源稿或工具不匹配时拒绝覆盖，使用新的独立输出目录重新转换。已有历史证据仍可用--verify核验，但没有新指纹的证据不会被--reuse视为命中。不同项目或稿件路径不互相借用页面。review内修订仍须新的独立review；不能以页面缓存命中取消该次验收。
+目录不存在时真实转换；已存在时核对同一稿件绝对路径和SHA、配置/工具/DPI指纹、PDF与全部连续PNG。命中不再启动LibreOffice，render.json原字节保持不变。源稿或工具不匹配时拒绝覆盖，使用新的独立输出目录重新转换。已有历史证据仍可用--verify核验，但没有新指纹的证据不会被--reuse视为命中。不同项目或稿件路径不互相借用页面。任何修订仍须新的独立review；不能以页面缓存命中取消该次验收。
 
 渲染证据仅为rendered_pending_visual_review，必须由Sol/xhigh实际查看每一页。渲染默认放当前review attempt，也可使用同一当前稿的写稿attempt内已验证页面；不能引用别案或任意旧review目录。不得为了节约时间减少最终页面数、降低DPI或跳过公式、图号及分页检查。
 

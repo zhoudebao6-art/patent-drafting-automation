@@ -107,6 +107,10 @@ def build_packet(snapshot, rules, stage):
         'review': '独立完成六项审查。先审内容，有唯一依据的小问题可集中修正并返回revised，之后必须由新派发的复查模型独立重验；只有最终文件未被本轮修改且六项及所有最终页实际通过，才能pass。',
         'revise': '按问题与依赖关系修改，保留未受影响的内容与来源。不重新创作全文；修订后不能自己签发pass，交新派发的复查模型独立重验。',
     }[stage]
+    if stage == 'review' and policy.get('review_mode', 'review_only') == 'review_only':
+        stage_text = ('独立只读完成六项审查。发现问题返回fix_required和精确findings，由独立revise工作池修改；'
+                      '本轮不修改DOCX、不返回revised。修改后回到review池由新会话独立重验。'
+                      '只有当前稿六项及全部最终页实际检查通过，才能pass；未做项写not_run。')
     sections = [f'# 本批{stage}执行清单（规则v{rules["version"]}）', f'本阶段模型/强度：{identity}。'+stage_text,
                 '本清单包含全部active规则的原文指令、检查及例外，以及必需写作规范。正常阶段读一次本清单，不再重复读取rules.active.json、整个SKILL或其已包含的参考文件。疑点按索引查询；不能用此安排跳过宿主要求或本案来源。',
                 '## 原文规则（含适用范围）']

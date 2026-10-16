@@ -1,0 +1,19 @@
+# 三个独立工作池 v6.7
+
+新批次冻结stage_scheduling=separate_stage_pools_v35和review_mode=review_only。
+
+|工作池|默认并行上限|模型|职责|
+|---|---:|---|---|
+|draft初稿|6|gpt-6.1-sol/high|完成本案初稿和一次结构预检，立即交复查队列|
+|review复查|3|gpt-6.1-sol/xhigh|只读复查初稿或修订稿；问题交修改池，通过则交付|
+|revise修改|3|gpt-6.1-sol/xhigh|按findings集中修改、同步关联内容，另存新稿后回复查池|
+
+没有问题的稿件直接从review验收交付，不强行经过修改。需要修改时draft→review→revise→新的review；复查与重验共享3个review槽，新attempt及新会话保证修改者不直接签通过。保留六项审查及全部最终页检查，缓存只复用客观数据。review发现内容问题后不提前反复渲染已知待改稿，返回fix_required；revise返回complete后案件状态为revised，不能pass。旧review_fix_then_recheck才允许review本轮小修返回revised。
+
+顶层stage_pools给出三个正整数上限，之和等于concurrency.target_workers，默认6/3/3，总目标12；max_in_flight_cases默认24。reserved和bound都计数，CLI与本批collaboration共用这些限制；同案最多一个活跃attempt。每池不借位超限，启动时只有初稿待办就最多6个初稿，不启动12个初稿占满后续池。
+
+主控必须显式填写本批实际可用--workers或--capacity，包括本批已经占用的名额，不是当前空闲数，也不包括总控和无关任务。目标12不是容量证明；CLI新三池省略--workers会在启动前拒绝，旧批次沿用历史默认4。实际容量不足时填写更低值；至少2槽时有待办的未满池按当前占用/池上限从低到高补位，平手沿用等待/修订优先再初稿。仅1槽时先完成已有案的后续阶段。所有池都受总容量约束，配置12不能宣称实际12路。
+
+每件回执收取及必要交付完成后立即回调度。某池满时其他池可继续；达到24案在制上限只暂缓新draft，review/revise仍继续。来源异常的候选不占新槽，其他合格候选可继续；未知进程状态不释放槽、不重复派发。队列plan返回pool_status的active/limit用于核对，不需每次reserve前后重复plan。已验收待交付案件先deliver，旧稿及未完成稿不能混入桌面交付。
+
+此更新只影响新建批次。旧overlapped_pipeline_v29保留原双区借槽，旧无标记策略保留原调度；运行中快照、模型记录与历史回执不改写。真实12路吞吐须有实际派发/退出事件才能报告，本次技能验证仅用隔离合成调度和回执，不作付费12路探针或固定加速承诺。

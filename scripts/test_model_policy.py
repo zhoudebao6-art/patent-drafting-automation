@@ -164,7 +164,7 @@ class ModelPolicyTests(unittest.TestCase):
         with self.assertRaises(b.BatchError):
             b.validate_policy(old)
 
-    def test_real_default_init_inline_revision_requires_new_sol_xhigh_review(self):
+    def test_real_default_init_uses_separate_revision_and_new_sol_xhigh_review(self):
         w = QueueFixture(self.root / 'default')
         m = b.read(w.manifest)
         self.assertEqual(m['policy']['model_policy'], MARKER)
@@ -175,7 +175,18 @@ class ModelPolicyTests(unittest.TestCase):
         w.record(draft)
         review = w.reserve(1)
         self.assertEqual({k: review['spawn_arguments'][k] for k in NEW_MODELS['review']}, NEW_MODELS['review'])
-        state = w.submit(review, w.revised_receipt(review))
+        self.assertEqual(m['policy']['stage_pools'], {'draft': 6, 'review': 3, 'revise': 3})
+        self.assertEqual(m['policy']['review_mode'], 'review_only')
+        with self.assertRaises(b.BatchError):
+            w.submit(review, w.revised_receipt(review))
+        w.record(review, 'fix_required')
+        revision = w.reserve(1)
+        self.assertEqual(revision['attempt']['stage'], 'revise')
+        self.assertEqual({k: revision['spawn_arguments'][k] for k in NEW_MODELS['revise']}, NEW_MODELS['revise'])
+        with self.assertRaises(b.BatchError):
+            w.submit(revision, w.receipt(revision, 'pass'))
+        w.record(revision)
+        state = b.read(w.manifest)['projects'][0]
         self.assertEqual(state['status'], 'revised')
         self.assertNotIn('passed_review_sha256', state)
         with self.assertRaises(b.BatchError):
@@ -187,6 +198,7 @@ class ModelPolicyTests(unittest.TestCase):
         self.assertNotEqual(recheck['attempt']['id'], review['attempt']['id'])
         self.assertNotEqual(recheck['attempt']['task_name'], review['attempt']['task_name'])
         self.assertNotEqual(recheck['attempt']['directory'], review['attempt']['directory'])
+        self.assertNotEqual(recheck['attempt']['task_name'], revision['attempt']['task_name'])
         stale_worker = w.receipt(recheck, 'pass')
         stale_worker['agent_id'] = '/root/' + review['attempt']['task_name']
         with self.assertRaises(b.BatchError):
@@ -196,7 +208,7 @@ class ModelPolicyTests(unittest.TestCase):
         self.assertEqual([path.name for path in dest.glob('*.docx')], ['一种处理系统.docx'])
         case = b.read(w.manifest)['projects'][0]
         self.assertEqual(case['status'], 'delivered')
-        self.assertEqual([a['stage'] for a in case['attempts']], ['draft', 'review', 'review'])
+        self.assertEqual([a['stage'] for a in case['attempts']], ['draft', 'review', 'revise', 'review'])
 
     def test_independent_revise_and_following_review_both_use_sol_xhigh(self):
         policy = current_policy(queue_fixtures.POLICY)

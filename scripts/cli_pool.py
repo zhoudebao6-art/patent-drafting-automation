@@ -70,6 +70,14 @@ def worker_prompt(reserved):
         'review': '独立完成六项复查。有唯一依据的小范围错误可本轮修正并返回revised，随后须新派发的复查模型独立重验。只有当前稿无修改且六项及全部最终页面实际查看通过才返回pass。'
     }[stage]
     prepared = reserved['worker_context'].get('prepared') or {}
+    review_only = reserved['worker_context'].get('review_mode', 'review_only') == 'review_only'
+    review_only_instruction = ('独立只读复查；发现问题返回fix_required及精确findings，交独立revise池修改。'
+                               '本轮不修改DOCX、不返回revised。修订后由review池新会话独立重验；'
+                               '只有六项及全部最终页实际通过才pass，未做项写not_run。')
+    review_result_instruction = ('review只读，存在问题返回fix_required，不提交修改稿或revised。' if review_only
+                                 else 'review修改过稿必须返回revised，不能自验通过；revised须附新artifact/sha及非空已关闭findings(location/correction_evidence)。')
+    if stage == 'review' and review_only:
+        stage_instruction = review_only_instruction
     pipeline = prepared.get('pipeline')
     if pipeline:
         lean = pipeline.get('execution_optimization') == LEAN_MODE
@@ -91,6 +99,9 @@ def worker_prompt(reserved):
             receipt_instruction = f"""结束前使用统一回执工具，避免退出后才发现字段/路径错误：把你实际完成的verdict、checks、findings及artifact/render.evidence写入本attempt的decisions.json，使用本批runtime_config指定的Python执行\"{Path(pipeline['root'])/'scripts/worker_receipt.py'}\" --job \"{Path(a['directory'])/'cli-job.json'}\" --decisions \"{Path(a['directory'])/'decisions.json'}\"。工具自动补实际身份、文件SHA和渲染SHA，不补passed、不关闭问题、不代替语义或视觉审查；失败时在本轮修正真实字段/产物后重试，不重写已正确的正文。工具成功输出的JSON须原样作为最终回复，不再手写或改写回执；不得写worker-final.json或receipt.json。\n"""
         if stage == 'draft':
             stage_instruction = '完成本案专利初稿；公共生成器已生成的有效inspection缓存直接交接，不再重复预检。自行生成的稿件才按prepared.draft_inspection_cache做一次结构预检。'
+        if review_only:
+            review_instruction = (review_only_instruction if stage == 'review' else
+                '本轮完成当前撰写或修改阶段及客观结构预检；后续独立review只读验收，有问题交revise池修改。不得代签通过。')
         return f"""你是单案{stage} worker，实际模型/强度为{model_identity}，由CLI显式指定。{stage_instruction}
 {reading_instruction}
 {coverage_instruction}，不再重复读取同内容的SKILL、rules.active.json或散落规范。有公式/附图再读一次{pipeline['math_guide']}；疑点再查其原始依据。此安排不覆盖宿主指令或documents工具要求。
@@ -101,7 +112,7 @@ def worker_prompt(reserved):
 {review_instruction}
 最终渲染工具：{Path(pipeline['root'])/'scripts/render_docx_checked.py'}；原稿缓存、运行环境和当前稿路径均由prepared/冻结工具提供。合法同稿页面可验证复用。不要为无关问题重装依赖、重读历史案例或重写客观台账。
 工具运行中用对应等待工具等30至60秒，不重复启动或高频短轮询。合并独立只读操作，输出必要定位，不反复打印全文。
-最后仅输出真实JSON回执，不输出正文、不写receipt.json；实际未做项写not_run，未解决问题不得pass。review修改过稿必须返回revised，不能自验通过。
+最后仅输出真实JSON回执，不输出正文、不写receipt.json；实际未做项写not_run，未解决问题不得pass。{review_result_instruction}
 {receipt_instruction}
 回执模板：{json.dumps(template, ensure_ascii=False)}
 本案上下文：{json.dumps(reserved['worker_context'], ensure_ascii=False)}
@@ -121,7 +132,7 @@ def worker_prompt(reserved):
 独立只读检索合并执行。工具已返回运行中session/cell时用对应等待工具等待30至60秒，不高频短轮询、不重复启动相同命令；只读需要的段落与索引，避免反复打印整份报告。
 未解决来源缺口返回needs_input并具体说明；不编造数据/公式/通过证据。检查记录可合并evidence.json，保留必要来源定位即可，避免重复抄全文。
 最后只输出一个有效JSON回执（不用代码围栏），不输出正文，不写receipt.json；总控会验证真实CLI日志后记录回执。路径与SHA必须是真实最终文件。
-review的checks必须明确source_support、antecedents、claims_alignment、formulas、figures、rendered_pages；未做写not_run，revised必须附新artifact/sha及非空已关闭findings(location/correction_evidence)，不能同时pass。
+review的checks必须明确source_support、antecedents、claims_alignment、formulas、figures、rendered_pages；未做写not_run。{review_result_instruction}
 回执模板：{json.dumps(template, ensure_ascii=False)}
 只执行下列本案数据指定的阶段，不重新寻找整批文件：
 {json.dumps(reserved['worker_context'], ensure_ascii=False)}
@@ -364,7 +375,7 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False, drain=
                     else:
                         event(manifest, 'delivered', case_id=c['id'], destination=str(destination))
             changed = True
-            if (m['policy'].get('stage_scheduling') == queue.IMMEDIATE_STAGES
+            if (queue.immediate_stages(m['policy'])
                     and not stop_launching and not suppress_delivery and not drain):
                 # One complete record/publication boundary releases a slot.
                 # Return to run now, rather than validating every other exit
@@ -385,11 +396,15 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False, drain=
     return changed, stop_launching
 
 
-def run(manifest, controller, workers=4, executable=None):
+def run(manifest, controller, workers=None, executable=None):
     manifest = Path(manifest).resolve(strict=True)
     m = queue.load_manifest(manifest)
     if controller != m['controller'] or 'codex_cli' not in m['policy'].get('dispatch_transports', []):
         raise queue.BatchError('CLI controller/transport not authorized by the frozen batch')
+    if workers is None:
+        if m['policy'].get('stage_scheduling') == queue.THREE_POOLS:
+            raise queue.BatchError('Specify actual available capacity with --workers; target_workers is not capacity evidence')
+        workers = 4  # Preserve the historical default for frozen older batches.
     queue.capacity_value(m, workers)
     pool = manifest.parent/'cli-pool'; pool.mkdir(exist_ok=True)
     # Separate kernel lock: only one CLI coordinator; queue mutations retain their
@@ -414,7 +429,7 @@ def run(manifest, controller, workers=4, executable=None):
         while True:
             m = queue.load_manifest(manifest)
             drained_this_iteration = drain_before_stop or history_audit_failed or (
-                halted and m['policy'].get('stage_scheduling') == queue.IMMEDIATE_STAGES)
+                halted and queue.immediate_stages(m['policy']))
             drain_before_stop = False
             if history_audit_failed:
                 changed, failure = collect(manifest, controller, state=m, suppress_delivery=True)
@@ -464,7 +479,7 @@ def run(manifest, controller, workers=4, executable=None):
             stopping = (not active or (halted and not waiting)
                         or any(r['next_action'] == 'wait_external_worker' for r in snapshot['cases']))
             if (stopping and not drained_this_iteration
-                    and m['policy'].get('stage_scheduling') == queue.IMMEDIATE_STAGES
+                    and queue.immediate_stages(m['policy'])
                     and any(r['next_action'] == 'verify_and_collect' for r in snapshot['cases'])):
                 # status may discover an interrupted peer after the single-case
                 # yield. Drain once before stopping; unresolved evidence after
@@ -488,7 +503,7 @@ def main():
     for name in ('run', 'status'):
         s = sub.add_parser(name); s.add_argument('--manifest', required=True)
         if name == 'run':
-            s.add_argument('--controller', required=True); s.add_argument('--workers', type=int, default=4)
+            s.add_argument('--controller', required=True); s.add_argument('--workers', type=int, help='Explicit available worker capacity; required for separate stage pools')
             s.add_argument('--executable')
     args = parser.parse_args()
     try:

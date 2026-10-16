@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 34,
-  "updated_at": "2026-10-16T01:48:02Z",
+  "version": 35,
+  "updated_at": "2026-10-16T02:18:26Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -735,7 +735,7 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "新批次采用撰写区与复查修改区的滚动并行流水线。每件初稿收取通过即进入复查队列，复查修改区按可用名额立即接手；撰写区同时继续其他项目，不等全部初稿写完才复查，也不等上一案全部复查结束才写下一案。同案依次撰写、复查、必要修改及独立重验，跨案工作区与attempt隔离。每案最终验收通过立即交付到桌面同一批次文件夹根目录，不等待其他案件。",
+      "instruction": "新批次采用三个独立工作池滚动推进：初稿最多6个、只读复查最多3个、复查后修改最多3个，总目标12个worker。每件初稿完成即进入复查队列，不等全部初稿；复查有问题交独立修改池，修改完成回到复查池的新会话独立重验，通过后立即交付桌面同一批次文件夹根目录。初检与重验共用3个复查名额。同案阶段有序且最多一个活跃attempt，跨案与工作目录隔离，不等待整批。",
       "check": "用收稿、派发和交付事件顺序证明阶段重叠：A案review/revise运行时B案draft可运行；A案通过即桌面出现成稿时其他案可仍未写完。不能用仅有两份目录证明实际并行，不给未验收修订稿签通过。",
       "evidence": [
         {
@@ -745,6 +745,10 @@
         {
           "source": "user:2026-10-15-overlapped-draft-review",
           "locator": "单件初稿完成立即进入复查修改、通过立即桌面交付；用户补充撰写与复查修改两区同时工作，减少等待"
+        },
+        {
+          "source": "references/three-pools-user-requirement.txt",
+          "locator": "2026-10-16用户要求及三池执行边界"
         }
       ],
       "exceptions": []
@@ -791,7 +795,7 @@
       "scope": "global",
       "section": "draft",
       "level": "must",
-      "instruction": "专利文稿初稿由真实派发的gpt-6.1-sol以high推理强度执行；复查、复查内修正、复查后的撰写修改及重验均由gpt-6.1-sol以xhigh极高推理强度执行。各阶段必须显式设置并记录模型及推理强度，不使用默认值或降低强度。新建批次冻结model_policy=sol_review_xhigh_v20；使用同一模型仍须按阶段独立派发，修改后使用新的复查上下文或CLI会话。",
+      "instruction": "专利文稿初稿由真实派发的gpt-6.1-sol以high推理强度执行；复查、独立修改及重验均由gpt-6.1-sol以xhigh极高推理强度执行。各阶段必须显式设置并记录模型及推理强度，不使用默认值或降低强度。新建批次冻结model_policy=sol_review_xhigh_v20；使用同一模型仍须按阶段独立派发，修改后使用新的复查上下文或CLI会话。 版本35新三池的review只读，修改单独派发到revise池；旧冻结策略按原允许范围执行复查内修正。",
       "check": "检查真实CLI参数与实际会话turn_context，或真实子代理派发参数及成功结果；draft须为gpt-6.1-sol/high，review、revise及重验须为gpt-6.1-sol/xhigh；缺失、null、其他强度或仅文本身份声明均不符合要求。",
       "evidence": [
         {
@@ -814,6 +818,10 @@
         {
           "source": "references/model-policy-user-requirement.txt",
           "locator": "2026-10-15用户最新要求及通用执行解释"
+        },
+        {
+          "source": "references/three-pools-user-requirement.txt",
+          "locator": "2026-10-16用户要求及三池执行边界"
         }
       ],
       "exceptions": [
@@ -827,7 +835,7 @@
       "scope": "global",
       "section": "review",
       "level": "must",
-      "instruction": "文稿复查由gpt-6.1-sol执行，reasoning_effort固定为xhigh；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。有阻碍通过的内容错误时先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
+      "instruction": "文稿复查由gpt-6.1-sol执行，reasoning_effort固定为xhigh；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。版本35只读复查发现阻碍通过的内容错误时返回fix_required及精确问题清单，由独立修改池先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
       "check": "确认review阶段工具派发gpt-6.1-sol模型与xhigh极高强度，检查实际文件哈希及复查证据。",
       "evidence": [
         {
@@ -841,6 +849,10 @@
         {
           "source": "references/model-policy-user-requirement.txt",
           "locator": "2026-10-15用户最新要求及通用执行解释"
+        },
+        {
+          "source": "references/three-pools-user-requirement.txt",
+          "locator": "2026-10-16用户要求及三池执行边界"
         }
       ],
       "exceptions": []
@@ -852,8 +864,8 @@
       "scope": "global",
       "section": "revise",
       "level": "must",
-      "instruction": "复查发现错误时，由gpt-6.1-sol/xhigh修正文稿并同步关联内容，不交回初稿worker或主控。新策略允许当前review代理在一次调用内完成有明确依据的修正，另存新稿并返回revised；不适合合并时走独立revise，旧策略仍保持原流程。",
-      "check": "核对真实Sol/xhigh派发及修改产物、问题定位和新稿哈希；合并修正仅在允许的新策略下接受，返回revised后不能交付，必须进入新的独立review。",
+      "instruction": "复查发现错误时，由独立修改池的gpt-6.1-sol/xhigh逐项修正文稿并同步关联内容，不交回初稿worker或主控。版本35新批次review_mode=review_only，复查只提交问题或通过结论，不直接修稿、不返回revised；revise另存当前attempt的新稿并返回complete，案件进入revised后必须交复查池新会话独立重验。旧冻结review_fix_then_recheck策略继续允许原范围内的复查内小修。",
+      "check": "核对真实Sol/xhigh派发、问题定位、修改产物与新稿哈希；三池review_only拒收review携带修改稿或revised回执，revise不得pass。修订后必须新attempt/新上下文复查，未验收修订稿不能交付；旧冻结策略保留既有门禁。",
       "evidence": [
         {
           "source": "references/batch-user-requirement.txt",
@@ -866,6 +878,10 @@
         {
           "source": "references/model-policy-user-requirement.txt",
           "locator": "2026-10-15用户最新要求及通用执行解释"
+        },
+        {
+          "source": "references/three-pools-user-requirement.txt",
+          "locator": "2026-10-16用户要求及三池执行边界"
         }
       ],
       "exceptions": []
@@ -940,7 +956,7 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "总控为唯一调度和状态写入者，派发前占用attempt，真实成功后绑定派发证据，完工回执校验后释放名额并继续补位；取消前确认worker已停止，迟到回执不得写入新阶段。 新批次允许独立CLI通道，唯一池控制器及每attempt supervisor持有内核锁，启动意图防止中断重放；先收已完成结果，确认原进程退出后才收稿或释放槽位。CLI修订后的重验使用新进程/新会话；坏日志或未知身份保留槽位，暂停新付费派发并继续收取其他已运行案件。 版本29新双区策略每收取一件完整退出回执并完成必要交付，就回到调度推进该案后续或补位，不能先验完本轮其他完成稿才派发；仅bind、进程仍运行或封存未就绪不算收完。已发现池级故障仍停止新派发并继续收取既有worker，不能因单件提前返回漏收。存在已验收待交付稿时先deliver，再reserve。",
+      "instruction": "总控为唯一调度和状态写入者，派发前占用attempt，真实成功后绑定派发证据，完工回执校验后释放名额并继续补位；取消前确认worker已停止，迟到回执不得写入新阶段。 新批次允许独立CLI通道，唯一池控制器及每attempt supervisor持有内核锁，启动意图防止中断重放；先收已完成结果，确认原进程退出后才收稿或释放槽位。CLI修订后的重验使用新进程/新会话；坏日志或未知身份保留槽位，暂停新付费派发并继续收取其他已运行案件。 版本29双区及版本35三池策略每收取一件完整退出回执并完成必要交付，就回到调度推进该案后续或补位，不能先验完本轮其他完成稿才派发；仅bind、进程仍运行或封存未就绪不算收完。已发现池级故障仍停止新派发并继续收取既有worker，不能因单件提前返回漏收。存在已验收待交付稿时先deliver，再reserve。",
       "check": "验证锁保护、重复派发拒绝、容量上限、乱序回执、取消和迟到结果处理。 核对CLI原始事件、实际会话model/high/cwd/sandbox与最终回复、prompt/退出码及五文件哈希；禁止以早到回执、PID单值或自报模型冒充。 核对单件record→review/revise派发与accepted→deliver→下一reserve的顺序，包含下一轮已halted继续drain、历史审计失败不发布、单案错误隔离及修改后新会话验证。",
       "evidence": [
         {
@@ -958,6 +974,10 @@
         {
           "source": "user:2026-10-15-overlapped-draft-review",
           "locator": "单件初稿完成立即进入复查修改、通过立即桌面交付；用户补充撰写与复查修改两区同时工作，减少等待"
+        },
+        {
+          "source": "references/three-pools-user-requirement.txt",
+          "locator": "2026-10-16用户要求及三池执行边界"
         }
       ],
       "exceptions": []
@@ -969,7 +989,7 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 新策略允许复查模型在当前review内直接完成有明确依据的一次修正，再交新的Sol/xhigh独立重验，减少单独修改派发；修正回执不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
+      "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 版本35新三池由review只读审查、revise独立集中修改，再交新的Sol/xhigh复查；旧冻结review_fix_then_recheck继续允许复查内小修，修订稿均不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
       "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。 核对派发实际包含prepared路径、同稿热交接不再解析ZIP、规则例外未丢失、跨案/过期证据拒绝及准备失败不提交占槽；页面候选必须验证，不能把同SHA的证据复制、工具升级或渲染器纠错重试计成无效重复。 通过真实隔离CLI实测区分通道可用与整批提速；不可把账面并行或局部测量宣称为已证实的文稿产能倍数。",
       "evidence": [
         {
@@ -1003,6 +1023,10 @@
         {
           "source": "references/model-policy-user-requirement.txt",
           "locator": "2026-10-15用户最新要求及通用执行解释"
+        },
+        {
+          "source": "references/three-pools-user-requirement.txt",
+          "locator": "2026-10-16用户要求及三池执行边界"
         }
       ],
       "exceptions": []
@@ -1014,8 +1038,8 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "新策略overlapped_pipeline_v29按实际容量分配两区：容量至少2时撰写目标为max(1,容量整除2)，其余为复查修改目标，默认4槽为2写加2复查。复查队列有待办先补其目标，同时保留撰写区推进；某区无可派工作时另一边借空位，不能空等或抢占运行任务。仅1槽时优先当前案复查、修改与独立重验，再开下一初稿，不声称并行。容量和在制上限仍受实际工具额度、账户及机器限制；两通道共用占槽，不能绕过限制。",
-      "check": "验证2/3/4槽的双区重叠、空区借槽、坏来源回落、在制上限、单槽连续复查修改及独立重验；一案最多一个活跃阶段。新标记生效时旧min_draft_slots仅保留兼容字段，不执行旧单槽交替规则。复查已满时等待其下一可用槽，不能承诺无容量也即时启动；无标记旧批次继续原冻结调度。",
+      "instruction": "版本35新批次使用separate_stage_pools_v35，池上限为draft=6、review=3、revise=3，总目标12，在制案件最多24。reserved和bound均计占槽，本批CLI与collaboration共用总容量和各池上限；空池名额不突破其他池上限，不抢占运行任务。只在有待办且未满的池间按当前占用比例补位，池内保留等待时序及修订后复查优先；只有1个名额时先推进已有案的复查/修改，不宣称并行。主控须显式填写实际可用--workers/--capacity，可能低于12，不能把配置目标当账户或机器容量证明；缺少明确容量的新三池CLI不启动。达到在制上限只暂停新初稿，复查和修改继续。旧双区及无标记策略按原快照保留借槽或旧调度，不静默迁移。",
+      "check": "验证6/3/3分池硬上限、总占槽不超实际容量、低容量1/2/3/6/11/12无死锁、坏来源不占新槽且其他可派案继续、在制上限只挡draft；初检和重验共享review池，修改只占revise池。实际并发和速度仅凭真实事件报告，合成调度测试不冒充12路模型实测。",
       "evidence": [
         {
           "source": "references/parallel-user-requirement.txt",
@@ -1036,6 +1060,10 @@
         {
           "source": "user:2026-10-15-overlapped-draft-review",
           "locator": "单件初稿完成立即进入复查修改、通过立即桌面交付；用户补充撰写与复查修改两区同时工作，减少等待"
+        },
+        {
+          "source": "references/three-pools-user-requirement.txt",
+          "locator": "2026-10-16用户要求及三池执行边界"
         }
       ],
       "exceptions": []
@@ -5405,6 +5433,277 @@
                 "locator": "写作时的处理顺序版本34"
               }
             ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 35,
+      "previous_version": 34,
+      "updated_at": "2026-10-16T02:18:26Z",
+      "summary": "新批次6初稿/3只读复查/3独立修改三池；修改后回复查池新会话验收，保持即验即交付、容量与隔离门禁及旧冻结兼容。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "新批次采用三个独立工作池滚动推进：初稿最多6个、只读复查最多3个、复查后修改最多3个，总目标12个worker。每件初稿完成即进入复查队列，不等全部初稿；复查有问题交独立修改池，修改完成回到复查池的新会话独立重验，通过后立即交付桌面同一批次文件夹根目录。初检与重验共用3个复查名额。同案阶段有序且最多一个活跃attempt，跨案与工作目录隔离，不等待整批。",
+            "check": "用收稿、派发和交付事件顺序证明阶段重叠：A案review/revise运行时B案draft可运行；A案通过即桌面出现成稿时其他案可仍未写完。不能用仅有两份目录证明实际并行，不给未验收修订稿签通过。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "user:2026-10-15-overlapped-draft-review",
+                "locator": "单件初稿完成立即进入复查修改、通过立即桌面交付；用户补充撰写与复查修改两区同时工作，减少等待"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "draft",
+            "level": "must",
+            "instruction": "专利文稿初稿由真实派发的gpt-6.1-sol以high推理强度执行；复查、独立修改及重验均由gpt-6.1-sol以xhigh极高推理强度执行。各阶段必须显式设置并记录模型及推理强度，不使用默认值或降低强度。新建批次冻结model_policy=sol_review_xhigh_v20；使用同一模型仍须按阶段独立派发，修改后使用新的复查上下文或CLI会话。 版本35新三池的review只读，修改单独派发到revise池；旧冻结策略按原允许范围执行复查内修正。",
+            "check": "检查真实CLI参数与实际会话turn_context，或真实子代理派发参数及成功结果；draft须为gpt-6.1-sol/high，review、revise及重验须为gpt-6.1-sol/xhigh；缺失、null、其他强度或仅文本身份声明均不符合要求。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第7行",
+                "note": "用户进一步明确初稿也须使用高推理强度。"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              }
+            ],
+            "exceptions": [
+              "已运行旧批次按其冻结模型、强度及工具执行；不得改写历史真实模型记录或静默迁移。"
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "review",
+            "level": "must",
+            "instruction": "文稿复查由gpt-6.1-sol执行，reasoning_effort固定为xhigh；最终通过前逐项核对来源、所述、权项联动、公式、附图及全部最终页面。版本35只读复查发现阻碍通过的内容错误时返回fix_required及精确问题清单，由独立修改池先修正，未做页面检查如实标not_run，不提前转换待改稿，也不签发pass。",
+            "check": "确认review阶段工具派发gpt-6.1-sol模型与xhigh极高强度，检查实际文件哈希及复查证据。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-05",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "revise",
+            "level": "must",
+            "instruction": "复查发现错误时，由独立修改池的gpt-6.1-sol/xhigh逐项修正文稿并同步关联内容，不交回初稿worker或主控。版本35新批次review_mode=review_only，复查只提交问题或通过结论，不直接修稿、不返回revised；revise另存当前attempt的新稿并返回complete，案件进入revised后必须交复查池新会话独立重验。旧冻结review_fix_then_recheck策略继续允许原范围内的复查内小修。",
+            "check": "核对真实Sol/xhigh派发、问题定位、修改产物与新稿哈希；三池review_only拒收review携带修改稿或revised回执，revise不得pass。修订后必须新attempt/新上下文复查，未验收修订稿不能交付；旧冻结策略保留既有门禁。",
+            "evidence": [
+              {
+                "source": "references/batch-user-requirement.txt",
+                "locator": "第3行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户要求省略不必要流程且保持正确"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-09",
+            "status": "active",
+            "origin": "workflow",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "总控为唯一调度和状态写入者，派发前占用attempt，真实成功后绑定派发证据，完工回执校验后释放名额并继续补位；取消前确认worker已停止，迟到回执不得写入新阶段。 新批次允许独立CLI通道，唯一池控制器及每attempt supervisor持有内核锁，启动意图防止中断重放；先收已完成结果，确认原进程退出后才收稿或释放槽位。CLI修订后的重验使用新进程/新会话；坏日志或未知身份保留槽位，暂停新付费派发并继续收取其他已运行案件。 版本29双区及版本35三池策略每收取一件完整退出回执并完成必要交付，就回到调度推进该案后续或补位，不能先验完本轮其他完成稿才派发；仅bind、进程仍运行或封存未就绪不算收完。已发现池级故障仍停止新派发并继续收取既有worker，不能因单件提前返回漏收。存在已验收待交付稿时先deliver，再reserve。",
+            "check": "验证锁保护、重复派发拒绝、容量上限、乱序回执、取消和迟到结果处理。 核对CLI原始事件、实际会话model/high/cwd/sandbox与最终回复、prompt/退出码及五文件哈希；禁止以早到回执、PID单值或自报模型冒充。 核对单件record→review/revise派发与accepted→deliver→下一reserve的顺序，包含下一轮已halted继续drain、历史审计失败不发布、单案错误隔离及修改后新会话验证。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "user:2026-10-15-overlapped-draft-review",
+                "locator": "单件初稿完成立即进入复查修改、通过立即桌面交付；用户补充撰写与复查修改两区同时工作，减少等待"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-10",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "默认采用同案内容哈希与工具版本绑定的提取缓存、同稿同工具渲染复用和简短回执。按阶段读取必要资料，环境每批预检一次，首次配置或变更时才做小样；省略普通批次中的技能回归、案例全文通读、重复台账和无关自检。先完成内容审查，已知待改稿先修正再渲染；最终来源、所述、权项联动、公式、附图和全部页面验收保留，不缓存语义通过结论。 版本35新三池由review只读审查、revise独立集中修改，再交新的Sol/xhigh复查；旧冻结review_fix_then_recheck继续允许复查内小修，修订稿均不得直接验收。 默认reserve --prepare，将验证后的本案来源缓存、当前稿预检、冻结active规则和允许范围内的页面候选直接交接；写稿一次预检，后续复用其数据并独立审阅。普通流程直接reserve，不重复plan，不从整批重新发现路径、不重抄规则历史或台账。 新批次优先真实CLI池持续填满可用槽位；reserve先排队，仅核验到首个可派候选且同事务不重复核验。正常CLI收稿由record合并执行证据与业务门禁，恢复不重跑已完成阶段；bind/record/deliver边界校验保留。 启用冻结阶段清单时优先完整读取一次该清单，原文instruction/check/exceptions/作用域均保留，来源证据另存完整规则；不再重复读取已完整包含的文件，疑点按索引查原文。模板及客观台账代码复用公共生成器，不能以生成器自报或缓存命中替代独立源稿核对和最终页面审查。",
+            "check": "验证缓存热命中不重新解析或启动转换，源字节/工具/选项/证据变化拒绝旧缓存；--compact不影响持久证据及验收门禁。维护时按实际改动范围测试，通过后停止重复检查；实际容量和实测耗时如实报告，不宣称绝对无错或未测量提速。 核对派发实际包含prepared路径、同稿热交接不再解析ZIP、规则例外未丢失、跨案/过期证据拒绝及准备失败不提交占槽；页面候选必须验证，不能把同SHA的证据复制、工具升级或渲染器纠错重试计成无效重复。 通过真实隔离CLI实测区分通道可用与整批提速；不可把账面并行或局部测量宣称为已证实的文稿产能倍数。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/efficiency-user-requirement.txt",
+                "locator": "2026-10-13 用户通用提效要求"
+              },
+              {
+                "source": "user:2026-10-14",
+                "locator": "再次检查必需重复步骤的效率优化，并明确这是通用修改优化"
+              },
+              {
+                "source": "references/efficiency.md",
+                "locator": "直接交接，避免每阶段重新查找；容量与可验证收益"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "references/speed-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-11",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "版本35新批次使用separate_stage_pools_v35，池上限为draft=6、review=3、revise=3，总目标12，在制案件最多24。reserved和bound均计占槽，本批CLI与collaboration共用总容量和各池上限；空池名额不突破其他池上限，不抢占运行任务。只在有待办且未满的池间按当前占用比例补位，池内保留等待时序及修订后复查优先；只有1个名额时先推进已有案的复查/修改，不宣称并行。主控须显式填写实际可用--workers/--capacity，可能低于12，不能把配置目标当账户或机器容量证明；缺少明确容量的新三池CLI不启动。达到在制上限只暂停新初稿，复查和修改继续。旧双区及无标记策略按原快照保留借槽或旧调度，不静默迁移。",
+            "check": "验证6/3/3分池硬上限、总占槽不超实际容量、低容量1/2/3/6/11/12无死锁、坏来源不占新槽且其他可派案继续、在制上限只挡draft；初检和重验共享review池，修改只占revise池。实际并发和速度仅凭真实事件报告，合成调度测试不冒充12路模型实测。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              },
+              {
+                "source": "user:2026-10-15-overlapped-draft-review",
+                "locator": "单件初稿完成立即进入复查修改、通过立即桌面交付；用户补充撰写与复查修改两区同时工作，减少等待"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              }
+            ],
+            "exceptions": []
           }
         }
       ]

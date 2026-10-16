@@ -13,6 +13,11 @@ RULES = Path(__file__).resolve().parent.parent / 'references' / 'rules.json'
 NEXT = {'pending': 'draft', 'drafted': 'review', 'revised': 'review', 'fix_required': 'revise'}
 TERMINAL = b.TERMINAL
 IMMEDIATE_STAGES = 'overlapped_pipeline_v29'
+THREE_POOLS = 'separate_stage_pools_v35'
+
+
+def immediate_stages(policy):
+    return policy.get('stage_scheduling') in {IMMEDIATE_STAGES, THREE_POOLS}
 
 
 class NoReadyWork(BatchError):
@@ -98,8 +103,18 @@ def validate_policy(p):
         raise BatchError('Invalid post-review optimization contract')
     if p.get('post_review_optimization') and p.get('execution_optimization') != 'lean_execution_v24':
         raise BatchError('Single closeout requires lean execution')
-    if p.get('stage_scheduling') not in (None, IMMEDIATE_STAGES):
+    if p.get('stage_scheduling') not in (None, IMMEDIATE_STAGES, THREE_POOLS):
         raise BatchError('Invalid stage scheduling policy')
+    if p.get('stage_scheduling') == THREE_POOLS:
+        pools = p.get('stage_pools')
+        if (not isinstance(pools, dict) or set(pools) != {'draft', 'review', 'revise'}
+                or any(type(v) is not int or v < 1 for v in pools.values())
+                or sum(pools.values()) != c['target_workers']):
+            raise BatchError('Stage pools require positive draft/review/revise limits summing to target_workers')
+        if p.get('review_mode') != 'review_only':
+            raise BatchError('Separate stage pools require review_only and an independent revise stage')
+    elif 'stage_pools' in p:
+        raise BatchError('Stage pools require the separate-stage scheduling policy')
     if p.get('stage_scheduling') and p['delivery'].get('timing') != 'after_each_acceptance':
         raise BatchError('Immediate stages require per-case delivery')
 
@@ -300,14 +315,21 @@ def capacity_value(m, capacity):
 def plan_manifest(m, capacity, first_only=False):
     capacity_value(m, capacity)
     active = [c for c in m['projects'] if c['active_attempt']]
-    immediate = m['policy'].get('stage_scheduling') == IMMEDIATE_STAGES
+    immediate = immediate_stages(m['policy'])
+    pools = m['policy'].get('stage_pools') if m['policy'].get('stage_scheduling') == THREE_POOLS else None
+    active_by_stage = {stage: sum(attempt_by_id(c, c['active_attempt'])['stage'] == stage for c in active)
+                       for stage in ('draft', 'review', 'revise')}
+    pool_status = ({stage: {'active': active_by_stage[stage], 'limit': limit} for stage, limit in pools.items()}
+                   if pools else {})
+    if pools and any(active_by_stage[stage] > limit for stage, limit in pools.items()):
+        raise BatchError('Active stages exceed the frozen pool limits')
     accepted = [c['id'] for c in m['projects'] if c['status'] == 'accepted' and not c['active_attempt']]
     if immediate and accepted:
         return {'action': 'deliver', 'reason': 'Publish accepted cases before reserving another stage',
                 'active_workers': len(active), 'capacity': capacity, 'ready': [], 'blocked': [],
-                'accepted_case_ids': accepted}
+                'accepted_case_ids': accepted, 'pool_status': pool_status}
     if len(active) >= capacity:
-        return {'action': 'wait', 'reason': 'All actual worker slots occupied', 'active_workers': len(active), 'capacity': capacity, 'ready': [], 'blocked': []}
+        return {'action': 'wait', 'reason': 'All actual worker slots occupied', 'active_workers': len(active), 'capacity': capacity, 'ready': [], 'blocked': [], 'pool_status': pool_status}
     in_flight = sum(c['status'] not in TERMINAL and (c['status'] != 'pending' or c['active_attempt'] is not None) for c in m['projects'])
     drafts, followups, blocked = [], [], []
     for c in m['projects']:
@@ -326,11 +348,18 @@ def plan_manifest(m, capacity, first_only=False):
                 c.get('ready_sequence', 0) if overdue else (0 if urgent else 1),
                 c.get('ready_sequence', 0), c['id'])
     followups.sort(key=priority)
-    active_drafts = sum(attempt_by_id(c, c['active_attempt'])['stage'] == 'draft' for c in active)
+    active_drafts = active_by_stage['draft']
     free = capacity - len(active)
     # One worker alternates available draft and follow-up work. Larger pools
     # reserve the last free position for drafting, while draining reviews first.
-    if immediate:
+    if pools:
+        # Hard per-stage limits; idle stages cannot lend slots beyond those
+        # limits. Among ready stages balance occupancy against their shares.
+        # Stable ties retain aged/urgent follow-up order before new drafting.
+        ordered = [row for row in followups + drafts if active_by_stage[row['stage']] < pools[row['stage']]]
+        if capacity > 1:
+            ordered.sort(key=lambda row: active_by_stage[row['stage']] / pools[row['stage']])
+    elif immediate:
         # Two work-conserving lanes: fill ready review/repair work to its share,
         # then keep drafting in parallel. A lane with no ready work lends its
         # slots; never preempt running attempts. With one slot finish the case.
@@ -343,7 +372,8 @@ def plan_manifest(m, capacity, first_only=False):
         prefer_draft = bool(drafts) and active_drafts < m['policy']['concurrency']['min_draft_slots'] and (
             (capacity == 1 and m.get('last_reserved_stage') != 'draft') or
             (capacity > 1 and free <= m['policy']['concurrency']['min_draft_slots'] - active_drafts))
-    ordered = (drafts + followups) if prefer_draft else (followups + drafts)
+    if not pools:
+        ordered = (drafts + followups) if prefer_draft else (followups + drafts)
     ready = []
     for row in ordered:
         try:
@@ -354,7 +384,8 @@ def plan_manifest(m, capacity, first_only=False):
         if first_only:
             break  # Reserve needs one verified case, not a re-hash of the entire queue.
     return {'action': 'reserve' if ready else ('wait' if active else 'done' if all(c['status'] in TERMINAL for c in m['projects']) else 'blocked'),
-            'active_workers': len(active), 'capacity': capacity, 'in_flight_cases': in_flight, 'ready': ready, 'blocked': blocked}
+            'active_workers': len(active), 'capacity': capacity, 'in_flight_cases': in_flight, 'ready': ready, 'blocked': blocked,
+            'pool_status': pool_status}
 
 def plan(path, capacity):
     with locked(path): return plan_manifest(load_manifest(path), capacity)
