@@ -1203,17 +1203,40 @@ def page_flow_evidence(result, body, claims):
     return out
 
 
+def antecedent_occurrences(parts):
+    """Expose exact locations; a literal short prefix is not noun segmentation."""
+    rows = []
+    for part in parts:
+        if part['part'] == 'word/comments.xml':
+            continue  # Comments are separately rejected from the clean final.
+        for paragraph in part['paragraphs']:
+            text = paragraph['text']
+            for match in re.finditer('所述', text):
+                following = text[match.end():]
+                row = {'part': part['part'], 'paragraph': paragraph['p'],
+                       'path': f'paragraph[{paragraph["p"]}]/visible_text',
+                       'offset': match.start(), 'end_offset': match.end(),
+                       'before': text[max(0, match.start()-40):match.start()],
+                       'following': following[:80],
+                       'status': 'requires_complete_head_noun_and_legal_prior_basis_review'}
+                # Deliberately only a clue. For example, A的B can refer to A
+                # or a complete compound; the actual head needs semantic review.
+                short = re.match(r'([\u3400-\u4dbf\u4e00-\u9fff]{2})(?=$|[的，。；：、！？,.;:!?\s])', following)
+                if short:
+                    row['two_character_prefix_candidate'] = {
+                        'text': short[1], 'offset': match.end(),
+                        'end_offset': match.end()+2,
+                        'status': 'literal_boundary_clue_not_a_noun_or_antecedent_verdict'}
+                rows.append(row)
+    return rows
+
+
 def precheck(result, kind):
     issues = result['issues']
     def add(code, message, loc=None):
         issues.append({'code':code,'message':message,'locator':loc,'status':'needs_review'})
     body = next(p for p in result['parts'] if p['part']=='word/document.xml')['paragraphs']
-    result['antecedent_occurrences'] = [
-        {'part': 'word/document.xml', 'paragraph': p['p'], 'offset': match.start(),
-         'before': p['text'][max(0, match.start()-40):match.start()],
-         'following': p['text'][match.end():match.end()+80],
-         'status': 'requires_complete_head_noun_and_legal_prior_basis_review'}
-        for p in body for match in re.finditer('所述', p['text'])]
+    result['antecedent_occurrences'] = antecedent_occurrences(result['parts'])
     result['formula_count_status'] = 'unclassified_math_objects_not_source_formula_count'
     for row in result.get('text_color_evidence', {}).get('review_runs', []):
         add('TEXT_COLOR_REVIEW', 'Applied nonblack or unresolved font color; final patent prose and explanations must use clean black text. Resolve inherited/theme formatting and verify display; do not delete technical content.',
@@ -1262,6 +1285,14 @@ def precheck(result, kind):
             if not any(title in p['text'] for p in body):
                 add('SOURCE_SECTION',f'Source section not located: {title}; confirm aliases or source completeness.')
         return
+    for row in result['antecedent_occurrences']:
+        if row.get('two_character_prefix_candidate'):
+            add('ANTECEDENT_SHORT_NOUN_REVIEW',
+                'Rule v37: review the complete noun head and its independent prior introduction. '
+                'A two-Han-character noun after 所述 is prohibited even with a prior occurrence; '
+                'this prefix clue is not segmentation, does not cover all short nouns, and never '
+                'authorizes substring replacement or a semantic pass.',
+                f'{row["part"]} P{row["paragraph"]:04}:{row["offset"]}')
     titles=['技术领域','背景技术','发明内容','附图说明','具体实施方式']
     anchors={t:next((p['p'] for p in body if p['text'].strip()==t),None) for t in titles}
     for title, anchor in anchors.items():

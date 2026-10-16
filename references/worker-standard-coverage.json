@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim rules; v36 independent stage handoff covered; prior v35 pool and all content standards retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v37 independent complete-noun introductions and two-character noun restriction covered; v36 pools and other content standards retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "af0045c646513b31bb3f4bdc0ab5c598cb561dec24acadbe67cac1295ec579dd",
-    "reference-style-standard.md": "ed1e9f7d75f7fe09e7375fb32d78743425b04911b0a0feb07f41e6978dcb556f",
+    "terminology-and-formula.md": "42bb22d607f134060ceac9efe897492692c4b01689cc1c3380eb4380c051b293",
+    "reference-style-standard.md": "bdfad6088237e3bfe586f5f93a142d40271725ead992bfd340e3eabb7c9fe1be",
     "manual-format-and-wording.md": "d3146a25704ce8716129cbe1da1a39c23bbcf87d1635b73c28b7fcb65bc2fdad",
-    "worker-standard.md": "e168f6236115377c96b07186dec2b32c843799ff9d5a879d73bac21a75f5e6ec"
+    "worker-standard.md": "429ef925cc1ca9d99251e73c8445fb21ecf9abdbab72a8263733984a30248d97"
   }
 }
