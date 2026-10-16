@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim applicable rules; v32 figure-description suffix and scoped checks covered; prior v31 title identity, v30 formula, v28 flowchart and v27 invention mapping retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim applicable rules; v34 single-equation local sizing and final-page boundary covered; prior v32 figure, v31 title, v30 math, v28 flowchart and v27 invention mapping retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "f7b88878130e9b5f20a007974f53a54c09b134bb6e9dac62e961075ea52f7af3",
+    "terminology-and-formula.md": "af0045c646513b31bb3f4bdc0ab5c598cb561dec24acadbe67cac1295ec579dd",
     "reference-style-standard.md": "ed1e9f7d75f7fe09e7375fb32d78743425b04911b0a0feb07f41e6978dcb556f",
-    "manual-format-and-wording.md": "397b12ce0f8435ff2fc8b7f52bbeb57b3d44c01b76e70ab154196dd364264bc7",
-    "worker-standard.md": "948de748c3b35ce3093ae6d09d25443f4b266ba76ffee3e7c0e1d932cb49681f"
+    "manual-format-and-wording.md": "d3146a25704ce8716129cbe1da1a39c23bbcf87d1635b73c28b7fcb65bc2fdad",
+    "worker-standard.md": "530c687d88a5498f857099eb0d7820a3fb9517547435eed0b9629b099b8a70d5"
   }
 }

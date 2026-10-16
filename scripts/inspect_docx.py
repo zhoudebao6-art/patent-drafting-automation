@@ -8,6 +8,7 @@ import stat
 import unicodedata
 import uuid
 import zipfile
+import single_line_math
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -255,6 +256,7 @@ def math_layout_evidence(math):
             walk(child, f'{path}/{tag}[{counters[tag]}]')
     walk(math, 'oMath')
     return {'equation_arrays': arrays, 'empty_required_slots': gaps,
+            'single_equation_continuation_candidate':single_line_math.continuation_rows(math) is not None,
             'explicit_breaks_or_tabs': breaks, 'conflicting_run_properties': conflicts,
             'boundary': 'Arrays can encode conditions, matrices or complete equations. These are review cues, not permission to flatten, invent operands, or certify visual fit.'}
 
@@ -531,7 +533,7 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
     """
     out={k:[] for k in ('explanation_lead_hits','standalone_formula_semicolon_hits',
         'bare_symbol_omml_candidates','plain_label_omml_candidates','inline_numeric_omml_candidates',
-        'review_candidates','standalone_formulas','group_separator_hits')}
+        'review_candidates','standalone_formulas','group_separator_hits','single_equation_continuation_hits')}
     w='{'+NS['w']+'}';m='{'+NS['m']+'}'
     tokens=[];maths=[];nonliteral=[]
     def walk(node,path):
@@ -620,6 +622,8 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
     # formula group. Continuations, cases/conditions and matrices stay under
     # the existing semantic review instead of guessed comma insertion.
     children=[n for n in node if n.tag!=m+'oMathPr']
+    if (centered or display) and single_line_math.continuation_rows(node) is not None:
+        out['single_equation_continuation_hits'].append(dict(row,reason='single_equation_display_continuation_requires_single_line'))
     if len(children)==1 and children[0].tag==m+'eqArr':
         array=children[0];entries=array.findall('m:e',NS)
         complete_rows=[]
@@ -927,7 +931,7 @@ def inspect(path):
                   'extraction_complete':False,'complete':False,'explanation_lead_hits':[],
                   'standalone_formula_semicolon_hits':[],'bare_symbol_omml_candidates':[],'plain_label_omml_candidates':[],
                   'inline_numeric_omml_candidates':[],'review_candidates':[],'standalone_formulas':[],
-                  'group_separator_hits':[],
+                  'group_separator_hits':[],'single_equation_continuation_hits':[],
                   'scope':'Located formatting candidates only. Formula identity is source-semantic; complex OMML, text/image/OLE formulas, labels and mixed carriers retain the existing independent semantic and final-page review.'},
               'punctuation_evidence': {'schema_version':2,'literal_scan_complete':False,'hits':[],
                   'formula_protected_candidates':[],'preferred_wording_hits':[],'review_candidates':[],
@@ -1217,6 +1221,8 @@ def precheck(result, kind):
     for formula in result['formulas']:
         locator = f'{formula["part"]} P{formula["paragraph"]:04} {formula["id"]}'
         layout = formula.get('math_evidence', {}).get('layout', {})
+        if layout.get('single_equation_continuation_candidate'):
+            add('MATH_SINGLE_EQUATION_CONTINUATION','Source-confirmed one equation must be reflowed into one line with readable local sizing; do not count display rows as separate equations.',locator)
         for array in layout.get('equation_arrays', []):
             if array['top_level'] and any(row['trailing_operator'] for row in array['rows'][:-1]):
                 add('MATH_ARRAY_TRAILING_OPERATOR', 'Top-level equation array has a row ending at an operator. Check source semantics and reflow display-only breaks; preserve conditional and multi-equation structures.', locator + ' ' + array['path'])
@@ -1473,6 +1479,7 @@ def extractor_dependencies():
     import invention_contract
     import figure_description_contract
     return {'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve()),
+            'single_line_math.py':file_sha(Path(single_line_math.__file__).resolve()),
             'figure_description_contract.py':file_sha(Path(figure_description_contract.__file__).resolve())}
 
 

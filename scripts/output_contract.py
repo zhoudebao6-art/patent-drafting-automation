@@ -136,7 +136,7 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     if strict_formulas:
         formula=report.get('formula_prose_evidence')
         fields=('explanation_lead_hits','standalone_formula_semicolon_hits','bare_symbol_omml_candidates','plain_label_omml_candidates',
-                'inline_numeric_omml_candidates','review_candidates','standalone_formulas','group_separator_hits')
+                'inline_numeric_omml_candidates','review_candidates','standalone_formulas','group_separator_hits','single_equation_continuation_hits')
         if (not isinstance(formula,dict) or formula.get('schema_version')!=1 or
                 formula.get('extraction_complete') is not True or formula.get('complete') is not True or
                 formula.get('artifact_sha256')!=report['sha256'] or
@@ -146,7 +146,8 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         # exception applies only to this exact bare/arithmetical math object.
         for key,label in [('explanation_lead_hits','explanation lead must use 其中'),
                           ('standalone_formula_semicolon_hits','standalone formula needs a terminal semicolon'),
-                          ('group_separator_hits','complete equation group needs exactly one comma per nonfinal row and one final semicolon')]:
+                          ('group_separator_hits','complete equation group needs exactly one comma per nonfinal row and one final semicolon'),
+                          ('single_equation_continuation_hits','one equation must use one line with readable local sizing')]:
             if formula[key]:
                 where=', '.join(f'{h["part"]} {h["path"]}' for h in formula[key][:6])
                 raise b.BatchError('Final formula/prose contract not satisfied: '+label+': '+where)

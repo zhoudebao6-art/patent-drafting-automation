@@ -31,6 +31,7 @@ import inspect_docx
 import math_fragments
 import invention_contract
 import figure_description_contract
+import single_line_math
 
 
 class AuthoringError(ValueError):
@@ -44,7 +45,7 @@ HEADERS = ('说明书摘要', '摘要附图', '权利要求书', '说明书', '�
 SHA = re.compile(r'^[0-9a-f]{64}$')
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,47}$')
 LIMIT = 64 * 1024 * 1024
-PROFILE = 'manual-v30-inline-formula-roles-v6'
+PROFILE = 'manual-v34-single-line-equation-v7'
 
 
 def fail(message):
@@ -586,7 +587,7 @@ def validate(case_root, spec):
                 if block['role'] == 'heading' and kind != 'description':
                     fail('Column headings belong to description')
             elif btype == 'formula':
-                fields(block, ('id', 'type', 'formula_id'), ('display_breaks',), where='formula block')
+                fields(block, ('id', 'type', 'formula_id'), ('display_breaks','single_line'), where='formula block')
                 if kind in {'abstract_figure', 'figures'} or block['formula_id'] not in formulas:
                     fail('Unknown formula or formula in figure section')
                 if formulas[block['formula_id']]['category'] == 'symbol_reference':
@@ -595,6 +596,10 @@ def validate(case_root, spec):
                     fail('Plain symbols and prose examples belong in paragraph runs, not display formula blocks')
                 formula=formulas[block['formula_id']]
                 display_node=formula['node']
+                if 'single_line' in block:
+                    if 'display_breaks' in block:fail('single_line and display_breaks are mutually exclusive')
+                    try:display_node=single_line_math.render(display_node,block['single_line'],formula.get('equation_count',1))
+                    except ValueError as exc:fail(str(exc))
                 if 'display_breaks' in block:
                     try:
                         display_node=math_fragments.stacked_equations(formula['node'],block['display_breaks'],formula.get('equation_count',1))
@@ -922,12 +927,16 @@ def render_document(context, path):
                             slots.set(qn('w:cs'), 'Times New Roman')
             elif btype == 'formula':
                 paragraph_format(p, 'formula', kind)
+                if 'single_line' in block:
+                    math_paragraph_properties=element('w:rPr')
+                    for prop in ('w:sz','w:szCs'):math_paragraph_properties.append(element(prop,val=int(block['single_line']['font_size_pt']*2)))
+                    p._p.get_or_add_pPr().append(math_paragraph_properties)
                 # The correct reference centers an inline math object in its
                 # own paragraph, keeping the following prose semicolon inline.
                 p._p.append(deepcopy(block.get('display_node',context['formulas'][block['formula_id']]['node'])))
                 suffix = context['block_texts'][block['id']]
                 if suffix:
-                    font(p.add_run(suffix))
+                    font(p.add_run(suffix),size=block.get('single_line',{}).get('font_size_pt',14))
             elif btype == 'figure_description':
                 paragraph_format(p, 'body', kind)
                 font(p.add_run(context['block_texts'][block['id']]))
@@ -1112,12 +1121,20 @@ def verify_document(context, path):
     expected_math_count = 0
     object_rows, block_rows = [], []
     reference_letter_runs = set()
+    scaled_math_suffix_sizes = {}
     for block in context['blocks']:
         index, p, section = observed[block['bookmark']]
         require(section == block['section'], 'block moved to wrong section: ' + block['id'])
         locator = f'word/document.xml body/w:p[{index}]'
         row = {'id': block['id'], 'type': block['type'], 'section': section, 'bookmark': block['bookmark'], 'target_locator': locator}
         role = block.get('role', {'formula': 'formula', 'figure': 'image', 'figure_description': 'body'}.get(block['type']))
+        if block['type']=='formula' and 'single_line' in block:
+            half_points=str(int(block['single_line']['font_size_pt']*2))
+            for prop in ('sz','szCs'):
+                require(attributes(p.find('w:pPr/w:rPr/w:'+prop,NS)).get('val')==half_points,'Single-line paragraph math size changed')
+            for run in p.findall('w:r',NS):
+                scaled_math_suffix_sizes[run]=half_points
+                require(attributes(run.find('w:rPr/w:szCs',NS)).get('val')==half_points,'Single-line suffix math size changed')
         indented = role in {'body', 'heading', 'project_title'}
         wanted_ind = {'left': '0', 'right': '0', 'firstLine': '562' if role == 'project_title' else '560' if indented else '0',
                       'firstLineChars': '200' if indented else '0'}
@@ -1229,6 +1246,7 @@ def verify_document(context, path):
                                 'source_fragment_path':formula.get('source_fragment_path'),
                                 'source_transform':formula.get('source_transform'),
                                 'display_tree_sha256':expected_tree,'display_breaks':block.get('display_breaks'),
+                                'single_line':block.get('single_line'),
                                 'equation_count':formula.get('equation_count',1) if formula['category'] in {'main_formula','source_example'} else 0,
                                 'target_locator': locator + f' oMath[{number}]'})
         expected_math_count += len(expected_formulas)
@@ -1259,7 +1277,7 @@ def verify_document(context, path):
                                   if run in reference_letter_runs else {k:'宋体' for k in ('ascii','hAnsi','eastAsia','cs')})
                 require(all(attributes(props.find('w:rFonts', NS)).get(slot) == name
                             for slot,name in expected_fonts.items()), 'ordinary body text font changed')
-                require(attributes(props.find('w:sz', NS)).get('val') == ('24' if run in reference_letter_runs else '28'),
+                require(attributes(props.find('w:sz', NS)).get('val') == scaled_math_suffix_sizes.get(run,('24' if run in reference_letter_runs else '28')),
                         'ordinary body text size changed')
                 require(attributes(props.find('w:i', NS)).get('val') == '0', 'ordinary text italic changed')
                 require(attributes(props.find('w:vertAlign', NS)).get('val') == 'baseline', 'ordinary symbol vertical alignment changed')
