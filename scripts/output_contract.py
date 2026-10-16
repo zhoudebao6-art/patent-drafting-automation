@@ -159,6 +159,8 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
                 where=', '.join(f'{h["part"]} {h["path"]}' for h in formula[key][:6])
                 raise b.BatchError('Final formula/prose contract not satisfied: '+label+': '+where)
         def source_math_identity(hit):
+            if hit.get('reason')=='math_cjk_requires_english_symbol':
+                return False
             return any(isinstance(f,dict) and f.get('rule_id')=='FORMULA-05' and
                        f.get('classification')=='source_math_identity' and f.get('status')=='closed' and
                        f.get('artifact_sha256')==report['sha256'] and
@@ -169,6 +171,10 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
                            for k in ('offset','end_offset')) and
                        ('offset' not in hit or f.get('format_disposition') in ('not_formula','format_already_correct')) and
                        ('offset' not in hit or f.get('offset_projection')==hit.get('offset_projection')) and
+                       (hit.get('reason')!='superscript_T_requires_role_review' or
+                        (f.get('format_disposition')=='not_matrix_transpose' and
+                         isinstance(hit.get('math_path'),str) and f.get('math_path')==hit['math_path'] and
+                         f.get('object_id')==hit.get('object_id'))) and
                        ((isinstance(f.get('path'),str) and f['path'].strip() and f['path']==hit.get('path')) or
                         (isinstance(f.get('object_id'),str) and f['object_id'].strip() and
                          f['object_id']==hit.get('object_id'))) and
@@ -179,6 +185,8 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         if unresolved:
             where=', '.join(f'{h["part"]} {h["path"]}:{h["text"]}' for h in unresolved[:6])
             raise b.BatchError('Final formula/prose contract needs plain text or a located source math identity finding: '+where)
+        if any(h.get('reason')=='math_cjk_requires_english_symbol' for h in formula['review_candidates']):
+            raise b.BatchError('Chinese mathematical text must be normalized with a source-bound English symbol mapping; ordinary Chinese prose belongs outside math')
         unresolved_reviews=[h for h in formula['review_candidates'] if not source_math_identity(h)]
         if unresolved_reviews:
             where=', '.join(f'{h["part"]} {h["path"]}:{h["reason"]}' for h in unresolved_reviews[:6])

@@ -324,6 +324,8 @@ def source_formula(row, sources):
         integer(row['equation_count'],'equation_count',1)
         if row['category'] not in {'main_formula','source_example'}:
             fail('Only actual complete source equations have equation_count')
+    if any(h['reason']=='math_cjk_requires_english_symbol' for h in inspect_docx.math_notation_candidates(node)):
+        fail('Chinese mathematical text needs a reviewed source-bound English symbol mapping before import; preserve raw evidence and use the manual normalization route: '+row['id'])
     for text in node.xpath('.//m:t/text() | .//w:t/text()',namespaces=NS):
         if any(c.isspace() or c in {'\u200b','\ufeff'} for c in text):
             fail('Source mathematical whitespace needs source-preserving normalization before import: '+row['id'])

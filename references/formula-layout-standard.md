@@ -69,3 +69,5 @@ Sol/xhigh在既有`formulas`检查中逐项保存来源位置、数组语义分�
 版本43公共生成器对来源绑定的symbol_reference保留原OMML及字体字形；仅已分类的prose_example数字算例、prose_label标签导入普通w:r，记录原源SHA/OMML定位/树SHA与目标文字；数学结构和有义字形不能自动展平。明确unsupported保留源并走既有审查路径。单式按原树导入，在居中段外加普通分号；eqArr多行公式组按版本26在最后一行补显示分号，同时记录原树与显示树，完整保留原数学节点及次序。原式以非分号标点收尾或存在复杂公式号时先在修稿阶段按源核定，不叠加标点。
 
 同一次inspect_docx输出formula_prose_evidence，标明schema、当前DOCX SHA、提取完整性、引导语、独立式收尾与裸字母/ASCII标签/数字算例对象候选。候选不是自动技术分类；真正数学身份的例外须有FORMULA-05、classification=source_math_identity、status=closed、当前artifact_sha256、当前案source_sha256、part/paragraph及精确path或object_id、registry_id/source_locator/reason。不得用整段或全稿ignore关闭；未检查不记通过。未知分组/公式号进入保守复核。文字、图片、OLE公式继续原来源盘点及逐页检查，零OMML不等于零公式。新增检查并入既有formulas与rendered_pages，不另起模型阶段。
+
+版本44普通矩阵转置采用真实右上标⊺而非字母T。先据源核定角色和作用对象，保留上下标、矩阵粗体和嵌套运算；H共轭转置、变量T不误改。公式中文按源映射英文记号，原/规范双证据及解释同步见formula-detail-standard.md版本44。授权记号规范化完成后，版本43的完整一致性以规范化后的同一符号为基准；长式单行、标点与局部字号例外不变。

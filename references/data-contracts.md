@@ -31,6 +31,8 @@ evidence 每项含 `source, locator`，可选 note。source 可为技能内相�
 
 规则版本10起，formula_registry的format_check另含array_classification（每个eqArr路径、显示续行/独立多式/条件/矩阵等）、layout_changes（源/稿结构定位及依据）、diagnostic_dispositions（预检code/locator、结论、证据），以及visual_locations（最终页码与公式/解释显示记录）。未知保持unresolved；语义不适用的警告凭源关闭，不能自动全忽略。这些证据合入formulas/rendered_pages，不另加状态机通道。
 
+版本44记号规范化复用公式台账现有raw_formula/normalized_formula、symbols完整身份、source_objects、format_check/layout_changes与explanation_occurrences。记录原→新符号、来源角色/含义/单位/作用域、全部公式和解释出现、原文件/原树SHA与规范树/当前稿SHA。说明正文采用规范后的英文完整记号与⊺；源依据和规范稿不能互相冒充。inspection的review_candidates中CJK数学文本须实际修稿；上标单T仅候选，只有已核非转置且finding带not_matrix_transpose、精确object_id/math_path及原有源/稿SHA才可关闭，不能整对象豁免多槽。复用原模型语义和最终页面证据，不新增台账/阶段，详见formula-detail-standard.md版本44。
+
 ## 批次记录
 
 版本29新批次策略stage_scheduling=overlapped_pipeline_v29绑定在原policy快照内，必须配合after_each_acceptance。撰写区为draft，复查修改区为review/revise及独立review；各自使用本案原有独立attempt工作目录，不复制整案到第二公共目录。已有阶段、来源、模型和哈希字段即为隔离依据，不新增worker回执必填字段。队列plan在accepted且无活跃attempt时先返回action=deliver及accepted_case_ids，ready为空，手工控制器先交付再占槽。缺少标记的旧批次保持原调度和收稿行为。

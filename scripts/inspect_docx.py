@@ -545,6 +545,32 @@ def inline_formula_candidates(tokens, part, number, operators=None):
     return rows
 
 
+CJK_MATH = re.compile(r'[\u3007\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U000323af]+')
+
+
+def math_notation_candidates(math_node):
+    """Locate visible notation only; never infer transpose or translate a label."""
+    out=[]
+    prefixes={NS['m']:'m',NS['w']:'w'}
+    def walk(node,path,parent_tag=None):
+        if node.tag in {'{'+NS['m']+'}t','{'+NS['w']+'}t'}:
+            for match in CJK_MATH.finditer(node.text or ''):
+                out.append(dict(reason='math_cjk_requires_english_symbol',math_path=path,
+                                node_offset=match.start(),node_end_offset=match.end(),text=match[0]))
+        if (node.tag=='{'+NS['m']+'}sup' and
+                parent_tag in {'{'+NS['m']+'}sSup','{'+NS['m']+'}sSubSup'} and
+                visible_text(node,True)=='T'):
+            out.append(dict(reason='superscript_T_requires_role_review',math_path=path,text='T'))
+        counts={}
+        for child in node:
+            counts[child.tag]=counts.get(child.tag,0)+1
+            uri,local=child.tag[1:].split('}',1) if child.tag.startswith('{') else ('',child.tag)
+            name=(prefixes[uri]+':' if uri in prefixes else '')+local
+            walk(child,path+'/'+name+'['+str(counts[child.tag])+']',node.tag)
+    walk(math_node,'.')
+    return out
+
+
 def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previous_text='', operators=None):
     """Locate v23 roles during the existing inspection, without rewriting math.
 
@@ -591,6 +617,7 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
         return bool(children) and all(n.tag==m+'r' and all(c.tag in {m+'t',m+'rPr',w+'rPr'} for c in n)
                                       for n in children)
     for node,row in maths:
+        out['review_candidates'].extend(dict(row,**hit) for hit in math_notation_candidates(node))
         text=row['text'];name=unicodedata.name(text,'') if len(text)==1 else ''
         if bare_runs(node) and len(text)==1 and text.isalpha() and name.startswith(('LATIN ','GREEK ')):
             out['bare_symbol_omml_candidates'].append(dict(row,reason='bare_prose_symbol_requires_plain_run_or_source_math_identity'))
