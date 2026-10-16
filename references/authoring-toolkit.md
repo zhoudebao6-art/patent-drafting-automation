@@ -222,3 +222,9 @@ equation_count必须为1。source_base_pt须由原式显式属性和继承核定
 ## 版本38文末图外文字
 
 figures分区只允许figure块，输出图像和单独居中的图N；不接受单位说明、注释或其他paragraph。保存读回同时拒绝图号段内br/cr/tab、域、自动编号、公式和其他对象，不能把看似图N的混排段当作合格图号。修订稿最终通过number_only_v38封存报告检查。源图内坐标、单位、图例和节点保持，正文figure_description继续写完整图名；abstract_figure仍无外置编号。工具不自动裁剪图片，不新增解释，最终页仍须人工标准复查。
+
+## 版本39完整函数量和符号解释覆盖
+
+source_symbol可用node_path指向完整m:func，或用相邻node_paths同时选择函数头及完整m:d参数，例如头路径与参数路径；实际上下标、帽号及全部参数结构保留，仍记录complete_symbol_copy及原片段路径，不增加主公式数量。只取函数头、只取参数括号、截掉完整量的修饰都会拒绝。函数参数中的完整输入量可另作source_symbol解释，不能据此宣称解释了整个调用；source_operator的name(·)仍只用于算子本体。源结构歧义如字母乘括号表达式，按本案语义走原保真路径，不猜函数。
+
+普通symbol_reference如果携带formula_id，只允许与该条symbol_reference类别原裸量的完整字符、结构和有义字形一致；不能把带下标/帽号/向量的量或完整主式绑定到一个字母。未绑定普通i等索引仍可输出，但不覆盖完整量。工具不自动穷尽所有数学符号或判断解释含义；按formula-detail-standard.md版本39在既有formula_registry.symbols逐项关联实际文中解释，原formulas检查缺失/截短/未知含义不能通过。

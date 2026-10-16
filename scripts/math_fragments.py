@@ -5,7 +5,7 @@ from lxml import etree as ET
 
 M='http://schemas.openxmlformats.org/officeDocument/2006/math'
 NS={'m':M}
-SYMBOLS={'r','sSub','sSup','sSubSup','sPre','acc','bar','groupChr'}
+SYMBOLS={'r','sSub','sSup','sSubSup','sPre','acc','bar','groupChr','func'}
 ATTACHED=SYMBOLS|{'limLow','limUpp','phant','borderBox','box'}
 
 
@@ -21,34 +21,53 @@ def located_node(node, path):
 
 def symbol_fragment(node, path):
     """Copy an explicitly selected complete source quantity, not its bare base."""
-    if isinstance(path,list):
-        if not path:raise ValueError('Source symbol paths must not be empty')
-        parts=[located_node(node,p) for p in path]
+    paths=path if isinstance(path,list) else [path]
+    if not paths:raise ValueError('Source symbol paths must not be empty')
+    parts=[located_node(node,p) for p in paths]
+    if len(parts)>1:
         parent=parts[0].getparent()
         if (any(p.getparent() is not parent for p in parts)
                 or any(a.getnext() is not b for a,b in zip(parts,parts[1:]))):
             raise ValueError('Composite symbol paths must be consecutive siblings in source order')
-        result=ET.Element('{'+M+'}oMath',nsmap=node.nsmap)
-        for prop in node.findall('m:oMathPr',NS):result.append(deepcopy(prop))
-        for p in path:
-            fragment=symbol_fragment(node,p)
-            for child in fragment:
-                if child.tag!='{'+M+'}oMathPr':result.append(deepcopy(child))
-        return result
-    part=located_node(node,path)
-    if ET.QName(part).localname not in SYMBOLS:
-        raise ValueError('Source symbol path must identify one complete symbol structure')
-    for ancestor in part.iterancestors():
-        if ancestor is node:break
-        if ET.QName(ancestor).localname in ATTACHED:
-            raise ValueError('Source symbol path omits its enclosing subscript, superscript or modifier')
-    if ET.QName(part).localname=='r':
-        text=''.join(part.xpath('./m:t/text()',namespaces=NS))
-        if len(text)!=1 or not text.isalpha():
-            raise ValueError('A flat source symbol must be one actual letter')
+    def call_head(part):
+        if part is None:return False
+        base=part
+        while ET.QName(base).localname in ATTACHED-{'r','func'}:
+            base=base.find('m:e',NS)
+            if base is None:return False
+            children=[n for n in base if not ET.QName(n).localname.endswith('Pr')]
+            if len(children)!=1:return False
+            base=children[0]
+        return base.tag=='{'+M+'}r' and ''.join(base.xpath('./m:t/text()',namespaces=NS)).isalpha()
+    for part in parts:
+        kind=ET.QName(part).localname
+        next_node=part.getnext()
+        followed_by_argument=call_head(part) and next_node is not None and next_node.tag=='{'+M+'}d'
+        if followed_by_argument and next_node not in parts:
+            raise ValueError('Source quantity head needs its complete adjacent argument; ambiguous products require reviewed manual representation')
+        if kind=='d':
+            previous=part.getprevious()
+            if previous not in parts or not call_head(previous) or not part.findall('m:e',NS) or any(
+                    not list(entry) for entry in part.findall('m:e',NS)):
+                raise ValueError('A source function argument requires its complete adjacent head and nonempty arguments')
+        elif kind not in SYMBOLS:
+            raise ValueError('Source symbol path must identify one complete symbol structure')
+        for ancestor in part.iterancestors():
+            if ancestor is node:break
+            # Complete quantities inside a function argument may be explained
+            # separately. The function name alone must not stand for the call.
+            if ET.QName(ancestor).localname in (ATTACHED-{'func'})|{'fName'}:
+                raise ValueError('Source symbol path omits its enclosing subscript, superscript or modifier')
+        if kind=='r':
+            text=''.join(part.xpath('./m:t/text()',namespaces=NS))
+            if not text.isalpha() or (len(text)!=1 and not followed_by_argument):
+                raise ValueError('A flat source symbol must be one actual letter or a complete function head with arguments')
+        if kind=='func' and any(part.find('m:'+slot,NS) is None or not len(part.find('m:'+slot,NS))
+                                for slot in ('fName','e')):
+            raise ValueError('A complete function needs its source name and argument structure')
     result=ET.Element('{'+M+'}oMath',nsmap=node.nsmap)
     for prop in node.findall('m:oMathPr',NS):result.append(deepcopy(prop))
-    result.append(deepcopy(part))
+    for part in parts:result.append(deepcopy(part))
     return result
 
 

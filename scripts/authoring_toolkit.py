@@ -218,7 +218,7 @@ def inventory(case_root, source):
             'boundary': 'Inventory is navigation only. Classify each object and inspect text/image/OLE formulas; null categories are not buildable. oMath count is not the semantic main-formula count.'}
 
 
-def plain_source_text(node, category):
+def plain_source_text(node, category, allow_greek=False):
     """Convert only an explicitly classified, flat scalar/prose example.
 
     This is not a math recognizer. Scripts, accents, vectors and operators
@@ -248,7 +248,7 @@ def plain_source_text(node, category):
     if category == 'symbol_reference':
         # The reference uses plain Latin letters in prose. Greek math glyphs
         # retain their source rendering unless explicitly authored as text.
-        return text if re.fullmatch(r'[A-Za-z]', text) else None
+        return text if re.fullmatch(r'[A-Za-z]', text) or (allow_greek and len(text)==1 and text.isalpha() and ord(text)<=0x3FF) else None
     if category == 'prose_label':
         return text if re.fullmatch(r'[A-Za-z][A-Za-z0-9]*', text) else None
     return text if re.fullmatch(r'[0-9+\-−×÷*/=.,%]+', text) and '=' in text else None
@@ -534,6 +534,11 @@ def validate(case_root, spec):
                                 fail('Plain symbol_reference is one ordinary Latin/Greek letter; use source OMML for structured/special glyphs')
                             if 'formula_id' in run and run['formula_id'] not in formulas:
                                 fail('Unknown symbol_reference formula_id')
+                            if 'formula_id' in run:
+                                original=formulas[run['formula_id']]
+                                if (original['category']!='symbol_reference' or
+                                        plain_source_text(original['node'],'symbol_reference',allow_greek=True)!=run['text']):
+                                    fail('Bound plain symbol_reference must match the complete registered bare symbol; never replace a structured quantity with a letter')
                             if run.get('style', 'body') not in {'body', 'reference_letter'}:
                                 fail('Unknown plain symbol style')
                             if run.get('style') == 'reference_letter' and not re.fullmatch(r'[A-Za-z]', run['text']):

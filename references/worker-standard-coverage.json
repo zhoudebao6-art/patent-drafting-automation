@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim rules; v38 number-only final captions, protected internal labels and same-review findings covered; v37 antecedents and v36 pools retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v39 all complete symbols mapped to real prose explanations, source meanings and function identity covered; v38 captions and all prior scopes retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "42bb22d607f134060ceac9efe897492692c4b01689cc1c3380eb4380c051b293",
+    "terminology-and-formula.md": "5adac2aaac0eb5253aaa196d8ff38c5fa6dc729faae90a458d1b5198d476fc68",
     "reference-style-standard.md": "9420c0062884394843cd5426b2cbcbccb4ad8c300985398c3e4e8aab526bb1c8",
     "manual-format-and-wording.md": "d3146a25704ce8716129cbe1da1a39c23bbcf87d1635b73c28b7fcb65bc2fdad",
-    "worker-standard.md": "fa262a1c7f87e915926f214e0d78e5232774a72b6002b0113c07cd59563bf334"
+    "worker-standard.md": "50e36ac01c96dfe88d0d223826c4c507cf18c8aa0af81d434524f60141f99bc3"
   }
 }
