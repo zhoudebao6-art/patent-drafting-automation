@@ -98,3 +98,5 @@ CLI退出证明tool=codex.exec.exit，绑定原context/pid/created，含真实�
 
 
 版本19的新冻结策略另外声明prose_contract=clean_prose_v19，要求现有wording_title_v18及frozen_stage_packet_v1。inspection.punctuation_evidence结构及逐字符公式/技术名词保护finding见manual-format-and-wording.md的版本19节。最终receipt.document_contract增加prose_contract；交付重新验证同稿封存结果及记录一致性。缺字段或非公式命中未解决均拒绝；旧批次无此字段保持原契约。此字段同时启用公式外标点和指定话术检查，不改变六项复查或模型分工。
+
+版本30公式预检增加`formula_prose_evidence.group_separator_hits`，同稿strict_formulas要求其存在且为空。新行内格式候选复用`review_candidates`，含`offset/end_offset/offset_projection`；其FORMULA-05 finding必须匹配该区间、投影、原part/paragraph及精确path/object_id，并提供`format_disposition=not_formula|format_already_correct`、双SHA及来源理由，真实错误不能豁免。公式解释source_symbol可用连续`node_paths`，source_operator记录原名/实参定位与`source_transform=operator_argument_placeholder`；显示组记录原树/显示树SHA和真实equation_count。仅新增既有台账字段，不新增模型或验收阶段。

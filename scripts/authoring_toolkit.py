@@ -43,7 +43,7 @@ HEADERS = ('说明书摘要', '摘要附图', '权利要求书', '说明书', '�
 SHA = re.compile(r'^[0-9a-f]{64}$')
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,47}$')
 LIMIT = 64 * 1024 * 1024
-PROFILE = 'manual-v26-complete-symbols-no-spaces-v5'
+PROFILE = 'manual-v30-inline-formula-roles-v6'
 
 
 def fail(message):
@@ -494,20 +494,34 @@ def validate(case_root, spec):
                     if not isinstance(run, dict):
                         fail('Run must be an object')
                     rtype = run.get('type')
-                    if rtype == 'source_symbol':
-                        fields(run,('type','formula_id','node_path'),where='source_symbol')
+                    if rtype in {'source_symbol','source_operator'}:
+                        if rtype=='source_symbol':
+                            fields(run,('type','formula_id'),('node_path','node_paths','representation'),where='source_symbol')
+                            if ('node_path' in run)==('node_paths' in run):
+                                fail('source_symbol requires exactly one of node_path/node_paths')
+                            source_path=run.get('node_path',run.get('node_paths'))
+                            transform='complete_symbol_copy'
+                            representation=run.get('representation','auto')
+                            if representation not in {'auto','math'}:fail('Unknown source_symbol representation')
+                        else:
+                            fields(run,('type','formula_id','name_path','argument_path'),where='source_operator')
+                            source_path=[run['name_path'],run['argument_path']]
+                            transform='operator_argument_placeholder'
+                            representation='math'
                         parent=formulas.get(run['formula_id'])
                         if parent is None or parent.get('source_fragment_path'):
                             fail('Source symbol must refer to an original registered formula')
-                        try:node=math_fragments.symbol_fragment(parent['node'],run['node_path'])
+                        try:
+                            node=(math_fragments.symbol_fragment(parent['node'],source_path) if rtype=='source_symbol'
+                                  else math_fragments.operator_reference(parent['node'],*source_path))
                         except ValueError as exc:fail(str(exc))
-                        fid='symbol_'+digest((run['formula_id']+'\0'+run['node_path']).encode())[:32]
+                        fid='symbol_'+digest(json.dumps([run['formula_id'],source_path,transform,representation],ensure_ascii=False).encode())[:32]
                         if fid in formulas and not formulas[fid].get('source_fragment_path'):
                             fail('Derived symbol id collides with a registered formula')
                         formulas[fid]=dict(parent,id=fid,category='symbol_reference',node=node,
-                            tree_sha256=tree_signature(node),plain_text=plain_source_text(node,'symbol_reference'),
+                            tree_sha256=tree_signature(node),plain_text=(None if representation=='math' else plain_source_text(node,'symbol_reference')),
                             source_formula_id=parent['id'],source_tree_sha256=parent['tree_sha256'],
-                            source_fragment_path=run['node_path'])
+                            source_fragment_path=source_path,source_transform=transform)
                         run.clear();run.update(type='formula',formula_id=fid)
                         rtype='formula'
                     if rtype in {'text', 'symbol_reference'}:
@@ -584,6 +598,9 @@ def validate(case_root, spec):
                     try:
                         display_node=math_fragments.stacked_equations(formula['node'],block['display_breaks'],formula.get('equation_count',1))
                     except ValueError as exc:fail(str(exc))
+                try:
+                    display_node=math_fragments.equation_group_punctuation(display_node,formula.get('equation_count',1))
+                except ValueError as exc:fail(str(exc))
                 string=formula_suffix({'node':display_node})
                 display_children=[n for n in display_node if n.tag!=qn('m:oMathPr')]
                 if len(display_children)==1 and display_children[0].tag==qn('m:eqArr') and string:
@@ -1181,6 +1198,7 @@ def verify_document(context, path):
                                             'source_formula_id':f.get('source_formula_id',f['id']),
                                             'source_tree_sha256':f.get('source_tree_sha256',f['tree_sha256']),
                                             'source_fragment_path':f.get('source_fragment_path'),
+                                            'source_transform':f.get('source_transform'),
                                             'target_locator': locator, 'text': value})
                     else:
                         value = '图' + str(context['figures'][r['figure_id']]['number']) if r['type'] == 'figure_ref' else r['text']
@@ -1204,6 +1222,7 @@ def verify_document(context, path):
                                 'source_formula_id':formula.get('source_formula_id',formula_id),
                                 'source_tree_sha256':formula.get('source_tree_sha256',formula['tree_sha256']),
                                 'source_fragment_path':formula.get('source_fragment_path'),
+                                'source_transform':formula.get('source_transform'),
                                 'display_tree_sha256':expected_tree,'display_breaks':block.get('display_breaks'),
                                 'equation_count':formula.get('equation_count',1) if formula['category'] in {'main_formula','source_example'} else 0,
                                 'target_locator': locator + f' oMath[{number}]'})

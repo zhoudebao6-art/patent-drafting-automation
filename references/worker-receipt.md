@@ -17,3 +17,5 @@ python 本批skill-snapshot/scripts/worker_receipt.py --job 本attempt/cli-job.j
 普通初稿或修订使用 `complete`。review未修改且六项和全部最终页面已实际检查通过才用 `pass`；发现问题未改完用 `fix_required`；review已修改稿用 `revised` 并给出当前attempt的新DOCX和有真实 `location`、`correction_evidence` 的已关闭findings，之后交由新会话独立重验。来源不足用 `needs_input` 并给出具体reason；不能用回执工具解决技术证据缺口。
 
 收稿只在真实执行、来源和身份验证后，把明确的字段缺失、错误枚举、同案过期路径归属等 `CaseReceiptError` 隔离为本案失败，保存 `cli-rejection.json` 及原产物，不自动重试；其他案件继续补位。来源或身份变化、SHA矛盾、跨案路径、链接、未知执行错误和无法确认退出均继续停池或保留占槽。分类依赖明确异常类型，不按错误消息的关键词猜测。
+
+版本30行内公式候选仍在原findings中闭环。对带offset的候选必须逐项携带相同offset、end_offset、offset_projection及format_disposition=not_formula或format_already_correct，并保留原双SHA和精确来源/目标定位；只能说明误报或格式已正确，不能豁免真实错误。修改后使用新稿的inspection与SHA；组内缺逗号必须修复，不能以来源身份关闭。

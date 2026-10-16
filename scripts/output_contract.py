@@ -135,7 +135,7 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     if strict_formulas:
         formula=report.get('formula_prose_evidence')
         fields=('explanation_lead_hits','standalone_formula_semicolon_hits','bare_symbol_omml_candidates','plain_label_omml_candidates',
-                'inline_numeric_omml_candidates','review_candidates','standalone_formulas')
+                'inline_numeric_omml_candidates','review_candidates','standalone_formulas','group_separator_hits')
         if (not isinstance(formula,dict) or formula.get('schema_version')!=1 or
                 formula.get('extraction_complete') is not True or formula.get('complete') is not True or
                 formula.get('artifact_sha256')!=report['sha256'] or
@@ -144,7 +144,8 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         # Formatting errors are not waivable as source formulas. A source-bound
         # exception applies only to this exact bare/arithmetical math object.
         for key,label in [('explanation_lead_hits','explanation lead must use 其中'),
-                          ('standalone_formula_semicolon_hits','standalone formula needs a terminal semicolon')]:
+                          ('standalone_formula_semicolon_hits','standalone formula needs a terminal semicolon'),
+                          ('group_separator_hits','complete equation group needs exactly one comma per nonfinal row and one final semicolon')]:
             if formula[key]:
                 where=', '.join(f'{h["part"]} {h["path"]}' for h in formula[key][:6])
                 raise b.BatchError('Final formula/prose contract not satisfied: '+label+': '+where)
@@ -155,6 +156,10 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
                        isinstance(f.get('source_sha256'),str) and re.fullmatch(r'[0-9a-fA-F]{64}',f['source_sha256']) and
                        f['source_sha256'] in source_hashes and
                        all(f.get(k)==hit.get(k) for k in ('part','paragraph')) and
+                       all(k not in hit or (type(f.get(k)) is int and f[k]==hit[k])
+                           for k in ('offset','end_offset')) and
+                       ('offset' not in hit or f.get('format_disposition') in ('not_formula','format_already_correct')) and
+                       ('offset' not in hit or f.get('offset_projection')==hit.get('offset_projection')) and
                        ((isinstance(f.get('path'),str) and f['path'].strip() and f['path']==hit.get('path')) or
                         (isinstance(f.get('object_id'),str) and f['object_id'].strip() and
                          f['object_id']==hit.get('object_id'))) and

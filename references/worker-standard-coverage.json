@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim applicable rules; v28 flowchart-only technical review and source-grounded repair covered; v27 invention mapping retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim applicable rules; v30 inline equation roles, operator identity and group punctuation covered; prior v28 flowchart and v27 invention mapping retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
     "terminology-and-formula.md": "f7b88878130e9b5f20a007974f53a54c09b134bb6e9dac62e961075ea52f7af3",
     "reference-style-standard.md": "ac70cdf37a953cb1f6efcb673e14bfea3b9a20be3a1ee4f74a366175bf5042a7",
     "manual-format-and-wording.md": "0e061689cde46865de611958842be5ae221d71c29542f9ea4850dbffd178c278",
-    "worker-standard.md": "2550b5c8de35d383a5e02791591bb8ce03c6ee591759d3910c7af64480689a6d"
+    "worker-standard.md": "45f3b336999b16409e84c21c477e14cad52c38514a6bd7b279d5501d6fc6e99f"
   }
 }

@@ -89,7 +89,10 @@ class FormulaProseTests(unittest.TestCase):
 
     def test_inline_equality_and_multiple_objects_do_not_establish_complete_formula(self):
         r=self.with_paragraph('<w:r><w:t>当前取值</w:t></w:r>'+omml('x=1')+'<w:r><w:t>时继续处理。</w:t></w:r>')
-        self.assertFalse(r['formula_prose_evidence']['standalone_formulas']);self.accept(r)
+        self.assertFalse(r['formula_prose_evidence']['standalone_formulas'])
+        self.assertEqual(r['formula_prose_evidence']['review_candidates'][0]['reason'],
+                         'inline_numeric_assignment_requires_math_quantity_and_plain_value')
+        with self.assertRaisesRegex(b.BatchError,'formula/prose review'):self.accept(r)
         center='<w:pPr><w:jc w:val="center"/></w:pPr>'
         for content in [omml('x=1')+omml('y=2'),omml('x=1')+'<w:r><w:t>（1）</w:t></w:r>']:
             r=self.with_paragraph(content,center)

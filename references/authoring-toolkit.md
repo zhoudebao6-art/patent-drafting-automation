@@ -192,3 +192,13 @@ v5.6按已核定身份选择表示，不把普通内容自动建成公式。注�
 普通符号示例：`{"type":"symbol_reference","text":"J","style":"reference_letter"}`。仅这个角色为Cambria Math12pt，ascii/hAnsi为Cambria Math，eastAsia宋体、cs Times New Roman；body角色维持宋体14pt，结构记号/希腊源数学保持真实源格式，不能将12pt传播到大公式。正文/benefit开头式中，或式中：定向改为其中，或其中：，支持跨相邻text run，保留实施方式中/公式中的；其他回指由模型依原意改写。所有读回仍比对片段次序、精确文字、源树、字体和分号，最终视觉/语义不由manifest代签。
 
 分类为symbol_reference的片段只能在paragraph.runs内引用，不能用独立formula块升格为完整公式；此限制同样适用于带结构的引用。
+
+### v6.3 公式组标点与完整引用
+
+当前生成档案标识为`manual-v30-inline-formula-roles-v6`，继承原Word模板参数，只新增以下数学显示处理。
+
+已声明`equation_count>=2`的完整顶层eqArr组在显示层补齐非末行逗号和末行分号，保留每个源数学节点及顺序，另记显示树SHA。行数不匹配、条件或续行拒绝自动处理；独立段之间的分组仍按来源核定，不猜相邻段同组。
+
+`source_symbol`可用`node_paths`代替`node_path`，如`["./m:r[1]","./m:r[2]"]`复制组合量的连续完整节点；两字段只能给一个，不能越过运算符、乱序或截断脚标。普通文本`=−4`放在随后text run，仅用于来源已有的直接赋值。直接赋值的裸Latin量可显式给`representation:"math"`保留OMML；普通解释默认`auto`仍按原角色用正文字符，两个用途分别派生与核验。完整符号等式仍用一个formula run导入全部关系，内部有常数也不得拆开。
+
+算子解释用`{"type":"source_operator","formula_id":"f1","name_path":"./m:r[2]","argument_path":"./m:d[1]"}`。路径必须指向原式中相邻的完整字母算子名与单参数圆括号结构；输出完整name(·)，算子名正体，原真实参数调用不变。记录source_formula_id、source_tree_sha256、source_fragment_path列表与source_transform=operator_argument_placeholder。此引用不增加主式数量；不支持的函数结构走原有保真路径，不硬凑路径或新增公式。

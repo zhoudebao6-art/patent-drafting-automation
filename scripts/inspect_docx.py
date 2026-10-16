@@ -443,7 +443,86 @@ def isolated_symbol_candidate(math):
     return len(text) == 1 and text.isalpha() and not ('\u3400' <= text <= '\u9fff')
 
 
-def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previous_text=''):
+def math_operator_names(math):
+    """Names evidenced by actual function application, never a label list."""
+    m='{'+NS['m']+'}'
+    names=set()
+    for parent in math.iter():
+        children=list(parent)
+        for left,right in zip(children,children[1:]):
+            if left.tag==m+'r' and right.tag==m+'d':
+                name=visible_text(left)
+                if re.fullmatch(r'[A-Za-zΑ-ωϐ-Ͽ]+',name):names.add(name)
+        if parent.tag==m+'func':
+            name=parent.find('m:fName',NS);argument=parent.find('m:e',NS)
+            if name is not None and argument is not None:
+                value=visible_text(name)
+                if re.fullmatch(r'[A-Za-zΑ-ωϐ-Ͽ]+',value):names.add(value)
+    return names
+
+
+def inline_formula_candidates(tokens, part, number, operators=None):
+    """Locate bounded mathematical spans; identity remains a source review.
+
+    Tokens retain their original Word/math ownership, so a relation split
+    across runs or across an OMML boundary is not missed. This deliberately
+    does not classify arbitrary ASCII labels or all strings containing '='.
+    """
+    text=''.join(value for kind,value in tokens)
+    kinds=[kind for kind,value in tokens for _ in value]
+    math_letter=r'A-Za-zΑ-ωϐ-Ͽ\U0001D400-\U0001D7CB'
+    chars=math_letter+r'0-9_=+−\-*/×÷^().,{}\[\]·∆Δ≤≥<>≈≠≔'
+    spans=re.finditer('['+chars+']+',text)
+    rows=[]
+    numeric=re.compile(r'[+−-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+−-]?\d+)?')
+    # A complete quantity can include compound Greek symbols, source indices
+    # and modifiers. Bare Latin letters are allowed here only as quantities;
+    # a multi-letter ASCII field name does not establish a mathematical role.
+    def quantity(value):
+        return bool(re.fullmatch(r'(?:[A-Za-z]|[Α-ωϐ-Ͽ∆Δ\U0001D400-\U0001D7CB]+)'
+                                 r'(?:_[A-Za-zΑ-ωϐ-Ͽ0-9,]+|[Α-ωϐ-Ͽ0-9,]+|_?\{[A-Za-zΑ-ωϐ-Ͽ0-9,]+\})*'
+                                 r'(?:\([A-Za-zΑ-ωϐ-Ͽ0-9,+−-]+\))?',value))
+    def symbolic(value):
+        if re.search(r'[Α-ωϐ-Ͽ∆Δ\U0001D400-\U0001D7CB]',value):return True
+        words=re.findall(r'[A-Za-z]+',value)
+        return bool(words) and all(len(word)==1 or word in {'log','exp','ln','sin','cos','tan','sg','max','min'} for word in words)
+    for match in spans:
+        value=match[0].strip('.,')
+        if '=' not in value or value.count('=')!=1:continue
+        left,right=value.split('=',1)
+        if not left or not right or not quantity(left):continue
+        start=match.start()+len(match[0])-len(match[0].lstrip('.,'))
+        end=start+len(value)
+        owned=kinds[start:end]
+        number_assignment=numeric.fullmatch(right) is not None
+        if number_assignment:
+            split=len(left)
+            if all(k=='math' for k in owned[:split]) and all(k=='text' for k in owned[split:]):continue
+            reason='inline_numeric_assignment_requires_math_quantity_and_plain_value'
+        elif symbolic(right):
+            if all(k=='math' for k in owned):continue
+            reason='inline_symbolic_relation_requires_complete_source_math'
+        else:continue
+        rows.append({'part':part,'paragraph':number,'path':f'p[{number}]',
+                     'offset':start,'end_offset':end,'text':value,
+                     'offset_projection':'visible_text_with_OMML_linear_text',
+                     'reason':reason,'representation':('mixed' if len(set(owned))>1 else owned[0]),
+                     'review_boundary':'Classify this exact span against source. A true formatting error must be repaired; source identity cannot waive it.'})
+    for name,locations in (operators or {}).items():
+        # Explicit definition wording only; a technical term merely containing
+        # these letters or an operator with its argument/placeholder is not hit.
+        pattern=r'(?<![A-Za-zΑ-ωϐ-Ͽ])'+re.escape(name)+r'(?=表示|代表)'
+        for match in re.finditer(pattern,text):
+            rows.append({'part':part,'paragraph':number,'path':f'p[{number}]',
+                         'offset':match.start(),'end_offset':match.end(),'text':name,
+                         'offset_projection':'visible_text_with_OMML_linear_text',
+                         'reason':'source_operator_explanation_requires_complete_argument_notation',
+                         'operator_calls':list(locations),
+                         'review_boundary':'Only actual source-bound operator identity can resolve this candidate. Repair a missing argument placeholder; do not infer operators from labels.'})
+    return rows
+
+
+def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previous_text='', operators=None):
     """Locate v23 roles during the existing inspection, without rewriting math.
 
     A mathematical-looking string is not a technical formula identity. Only an
@@ -452,7 +531,7 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
     """
     out={k:[] for k in ('explanation_lead_hits','standalone_formula_semicolon_hits',
         'bare_symbol_omml_candidates','plain_label_omml_candidates','inline_numeric_omml_candidates',
-        'review_candidates','standalone_formulas')}
+        'review_candidates','standalone_formulas','group_separator_hits')}
     w='{'+NS['w']+'}';m='{'+NS['m']+'}'
     tokens=[];maths=[];nonliteral=[]
     def walk(node,path):
@@ -481,6 +560,8 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
     jc=props.find('./w:jc',NS) if props is not None else None
     centered=jc is not None and jc.get(w+'val')=='center'
     display=paragraph.find('.//m:oMathPara',NS) is not None
+    if not centered and not display:
+        out['review_candidates'].extend(inline_formula_candidates(tokens,part,number,operators))
     # Ordinary bare Latin/Greek glyphs only. Script/blackboard Unicode letters,
     # operators and real OMML structures are not flattened by this contract.
     def bare_runs(node):
@@ -535,6 +616,46 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
             glyph=terminal_glyph(child)
             if glyph:return glyph
         return ''
+    # Only a direct array of independently complete equality rows is a known
+    # formula group. Continuations, cases/conditions and matrices stay under
+    # the existing semantic review instead of guessed comma insertion.
+    children=[n for n in node if n.tag!=m+'oMathPr']
+    if len(children)==1 and children[0].tag==m+'eqArr':
+        array=children[0];entries=array.findall('m:e',NS)
+        complete_rows=[]
+        for entry in entries:
+            direct=''.join(visible_text(child) if child.tag==m+'r' else '\ufffc' for child in entry)
+            core=direct.rstrip(',，;；')
+            relation=re.fullmatch(r'([^=<>≤≥≠]+)=([^=<>≤≥≠]+)',core)
+            complex_case=(any(n.tag==m+'m' for n in entry.iter()) or
+                          any(n.get(m+'val') in {'{','｛'} for n in entry.findall('.//m:begChr',NS)) or
+                          bool(re.search(r'[\u3400-\u9fff]|\b(?:if|when|otherwise)\b',direct)))
+            complete_rows.append(bool(relation and not complex_case))
+        if len(entries)>1 and all(complete_rows):
+            for index,entry in enumerate(entries,1):
+                # Count only the row's outer trailing punctuation, including
+                # adjacent runs. A comma inside a final function delimiter is
+                # part of that function, not an equation-row separator.
+                ending=''
+                for child in reversed(list(entry)):
+                    if child.tag.startswith(m) and child.tag.split('}')[-1].endswith('Pr'):continue
+                    if child.tag!=m+'r':break
+                    value=visible_text(child)
+                    if not value:continue
+                    tail=re.search(r'[,，;；]+$',value)
+                    if tail is None:break
+                    ending=tail[0]+ending
+                    if tail.start():break
+                if len(ending)>1:
+                    out['group_separator_hits'].append(dict(row,
+                        path=row['path']+f'/eqArr[1]/e[{index}]',row=index,
+                        reason='complete_equation_group_row_has_duplicate_terminal_punctuation',
+                        terminal=ending))
+                elif index<len(entries) and terminal_glyph(entry) not in {',','，'}:
+                    out['group_separator_hits'].append(dict(row,
+                        path=row['path']+f'/eqArr[1]/e[{index}]',row=index,
+                        reason='complete_equation_group_nonfinal_row_requires_comma',
+                        terminal=terminal_glyph(entry)))
     # Layout + accepted carrier + substantive expression/context are all
     # required. Equality or object count by itself never establishes a role.
     if (centered or display) and (compound or (statement and (introduction or re.search(r'[A-Za-zΑ-ω]',text)))):
@@ -806,6 +927,7 @@ def inspect(path):
                   'extraction_complete':False,'complete':False,'explanation_lead_hits':[],
                   'standalone_formula_semicolon_hits':[],'bare_symbol_omml_candidates':[],'plain_label_omml_candidates':[],
                   'inline_numeric_omml_candidates':[],'review_candidates':[],'standalone_formulas':[],
+                  'group_separator_hits':[],
                   'scope':'Located formatting candidates only. Formula identity is source-semantic; complex OMML, text/image/OLE formulas, labels and mixed carriers retain the existing independent semantic and final-page review.'},
               'punctuation_evidence': {'schema_version':2,'literal_scan_complete':False,'hits':[],
                   'formula_protected_candidates':[],'preferred_wording_hits':[],'review_candidates':[],
@@ -849,6 +971,7 @@ def inspect(path):
             for key in punctuation:result['punctuation_evidence'][key].extend(punctuation[key])
             rels = relationships(z, part)
             paragraphs = []
+            operators = {}
             direct_paragraphs = {id(p) for p in root.findall('./w:body/w:p', NS)} if part == 'word/document.xml' else set()
             for index, p in enumerate(root.findall('.//w:p', NS), 1):
                 result['punctuation_evidence']['hits'].extend(dict(h,part=part,paragraph=index)
@@ -866,8 +989,11 @@ def inspect(path):
                         'math_evidence':math_evidence(math),
                         'isolated_symbol_candidate':isolated_symbol_candidate(math),
                         'status':'unverified'})
+                    for name in sorted(math_operator_names(math)):
+                        calls=operators.setdefault(name,[])
+                        calls.append({'part':part,'paragraph':index,'object_id':fid})
                 prior=next((row['text'] for row in reversed(paragraphs) if row['text'].strip()),'')
-                formula_prose=formula_prose_paragraph_evidence(p,part,index,object_ids,prior)
+                formula_prose=formula_prose_paragraph_evidence(p,part,index,object_ids,prior,operators)
                 for key,rows in formula_prose.items():result['formula_prose_evidence'][key].extend(rows)
                 media_refs = []
                 for node in owned_nodes:
