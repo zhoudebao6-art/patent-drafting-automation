@@ -1,6 +1,6 @@
 ---
 name: patent-drafting-automation
-description: 按用户指定文件夹滚动并行撰写专利文件，使用GPT-6.1-sol高强度撰写、GPT-6.1-sol极高强度复查与修改；复用冻结阶段清单和通用Word生成工具，每案验收后立即交付到桌面同一文件夹，支持长期通用规则更新。
+description: 支持用户仅发送案件文件夹路径，递归识别技术项目优化书并滚动撰写、独立复查修改，通过一件即交付桌面同一文件夹；使用GPT-6.1-sol高强度撰写、极高强度复查修改。也用于通用规则更新；讨论以后用法、示例路径或技能修复时只维护技能，不启动案件。
 ---
 
 # 专利撰写自动化
@@ -21,9 +21,17 @@ description: 按用户指定文件夹滚动并行撰写专利文件，使用GPT-
 
 **旧批次没有pipeline**：读取冻结active规则、[写作规范](references/writing-standard.md)、[所述与公式](references/terminology-and-formula.md)、[净稿与图序](references/reference-style-standard.md)、[人工格式与用词](references/manual-format-and-wording.md)和[项目记录](references/data-contracts.md#项目记录)；技术校核、公式结构按需读取。不假造历史快照或套用新版模型。
 
+## 主控入口：先判断本轮意图
+
+已派发的单案worker只走上方worker分支，不用路径重新启动整批。主控按本轮句意区分下列情形，不按路径名字或被引用文字中的关键词机械判断：
+
+- **实际办案**：用户在本工作流中仅发送案件文件夹路径，即授权递归查找其中的技术项目优化书/技术项目优化说明书，按内容识别项目并启动以下终稿流程，无需再次询问是否开始。完整标题取自本案，不靠文件名猜写。
+- **通用维护**：用户在规定以后如何使用、举例地址、说明规则或要求通用修复/更新技能时，地址是维护示例；本轮只更新技能，不扫描示例目录、不init、不占槽、不派发模型或CLI。即使地址真实存在，也不构成现在撰写授权。
+- **同时明确执行**：维护要求之外，同条请求另明确现在开始处理该目录/该批，才同时执行明确授权的批次；无需额外确认。
+
 ## 主控批量执行
 
-1. 按[批处理流程](references/batch-workflow.md)识别来源、冻结队列；模型及交付配置见[batch-policy.json](references/batch-policy.json)。新批次用parallel_batch.py，旧serial批次仍用batch_tool.py及其[历史流程](references/batch-workflow-serial.md)。安装更新只影响以后新建批次，不修改运行中的skill-snapshot。
+1. 已按入口确认本轮实际执行后，按[批处理流程](references/batch-workflow.md)递归识别来源、冻结队列；模型及交付配置见[batch-policy.json](references/batch-policy.json)。新批次用parallel_batch.py，旧serial批次仍用batch_tool.py及其[历史流程](references/batch-workflow-serial.md)。安装更新只影响以后新建批次，不修改运行中的skill-snapshot。
 2. 每批按[运行环境](references/runtime.md)预检一次，首次配置、依赖变动或新故障才做小样；已验证WPS后端直接走正式转换，避免因LO字形失真反复改正确公式。普通批次不跑技能回归、不检查GitHub、不通读历史案例或无关配置。init一次冻结工具和规范并编译清单，不逐案重编译。
 3. 默认使用[多CLI池](references/cli-workers.md)滚动补位：6个draft、3个review、3个revise为硬上限，总目标12，最多24案在制；必须显式传实际可用--workers，不能把配置数当作可用额度或实跑证明。没有CLI时使用实际可用子代理名额；不得降级模型或更改全局安全设置。手工通道直接reserve --prepare，不先重复plan。
 4. draft固定gpt-6.1-sol/high；review、revise及修改后独立重验固定gpt-6.1-sol/xhigh。每案最多一个活动attempt，阶段新会话隔离；三池准备/收稿与单写交付通道独立，初稿完成即排复查，待修稿即排修改，通过即交付，有对应池空位立即接手。慢I/O不占主清单长锁；详见[三池执行](references/three-stage-pools.md)。

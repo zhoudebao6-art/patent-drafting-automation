@@ -1,4 +1,4 @@
 interface:
   display_name: "专利撰写自动化"
-  short_description: "多CLI持续补位，Sol高强度撰写、Sol极高强度复查修正，分案隔离并逐案交付桌面"
-  default_prompt: "请使用 $patent-drafting-automation，并行处理我指定文件夹中的技术项目优化书，按可用名额持续补位，使用GPT-6.1-sol高强度撰写、GPT-6.1-sol极高强度复查修正，每案独立验收通过后立即将成稿直接放到桌面同一批次文件夹根目录，所有成稿同层排列。"
+  short_description: "实际办案只发文件夹路径，合格终稿统一交付桌面；讨论规则或示例地址时仅更新技能"
+  default_prompt: "请使用 $patent-drafting-automation，按我本轮意图处理：实际办案时从给定目录递归识别技术项目优化书，逐案独立复查修改并交付桌面同一文件夹；讨论以后用法、示例地址或通用修复时只更新技能，不启动案件。"
