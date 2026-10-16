@@ -58,16 +58,16 @@ class InlineFormulaStyleTests(unittest.TestCase):
         corrected,corrected_hits=self.candidates(complete)
         self.assertFalse(corrected_hits);self.accept(corrected)
 
-    def test_numeric_assignment_symbol_math_value_plain_only(self):
-        for content in [wr('当Δζ=−4时继续。'),wr('当')+omml('Δζ=−4')+wr('时继续。'),
+    def test_numeric_assignment_is_one_whole_math_object_v40(self):
+        for content in [wr('当Δζ=−4时继续。'),wr('当')+omml('Δζ')+wr('=−4时继续。'),
                         wr('当')+omml('Δζ=')+wr('−4时继续。')]:
             with self.subTest(content=content):
                 report,hits=self.candidates(content)
                 self.assertEqual(len(hits),1)
-                self.assertEqual(hits[0]['reason'],'inline_numeric_assignment_requires_math_quantity_and_plain_value')
+                self.assertEqual(hits[0]['reason'],'inline_symbolic_relation_requires_complete_source_math')
                 with self.assertRaisesRegex(b.BatchError,'formula/prose review'):self.accept(report)
         for number in ['−4','-4','+4.5','0','1e-3']:
-            report,hits=self.candidates(wr('当')+omml('Δζ')+wr('='+number+'时继续。'))
+            report,hits=self.candidates(wr('当')+omml('Δζ='+number)+wr('时继续。'))
             self.assertFalse(hits);self.accept(report)
 
     def test_symbolic_expression_with_numeric_coefficients_is_not_assignment(self):

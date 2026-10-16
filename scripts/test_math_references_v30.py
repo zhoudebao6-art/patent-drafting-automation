@@ -50,16 +50,16 @@ class ReferenceTests(unittest.TestCase):
         for a,b in [('x=','y=z'),('x=y','+z'),('x=y,ifz>0','q=r')]:
             with self.assertRaises(ValueError):f.equation_group_punctuation(ET.fromstring(array(mr(a),mr(b))),2)
 
-    def test_complete_composite_symbol_with_numeric_value_keeps_only_symbol_in_math(self):
+    def test_complete_composite_symbol_explanation_keeps_source_fragment_identity(self):
         fid=self.source([math(mr('Δ')+mr('ζ')+mr('=a-b'))],['main_formula'])[0]
         self.spec['sections'][3]['blocks'] += [dict(id='eq',type='formula',formula_id=fid),
-            dict(id='example',type='paragraph',role='body',runs=[dict(type='text',text='当'),
+            dict(id='example',type='paragraph',role='body',runs=[dict(type='text',text='其中，'),
                  dict(type='source_symbol',formula_id=fid,node_paths=['./m:r[1]','./m:r[2]']),
-                 dict(type='text',text='=−4时继续。')])]
+                 dict(type='text',text='表示原式中的完整量。')])]
         _,_,result,doc=self.create()
         last=doc.findall('.//m:oMath',t.NS)[-1]
         self.assertEqual(''.join(last.xpath('.//m:t/text()',namespaces=t.NS)),'Δζ')
-        self.assertEqual(t.word_text(last.getparent()),'当=−4时继续。')
+        self.assertEqual(t.word_text(last.getparent()),'其中，表示原式中的完整量。')
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
         self.assertEqual(result['source_objects'][-1]['source_fragment_path'],['./m:r[1]','./m:r[2]'])
         for paths in [[],['./m:r[2]','./m:r[1]'],['./m:r[1]','./m:r[3]'],['./m:r[1]','./m:r[1]']]:
@@ -101,7 +101,7 @@ class ReferenceTests(unittest.TestCase):
         source=ET.fromstring(math(mr('sg')+'<m:d><m:e>'+mr('x,y')+'</m:e></m:d>'))
         with self.assertRaises(ValueError):f.operator_reference(source,'./m:r[1]','./m:d[1]')
 
-    def test_numeric_assignment_can_keep_bare_latin_quantity_as_math_without_changing_plain_explanation(self):
+    def test_legacy_split_assignment_is_reported_after_source_preserving_generation(self):
         fid=self.source([math(mr('x')+mr('=y'))],['main_formula'])[0]
         self.spec['sections'][3]['blocks'] += [dict(id='eq',type='formula',formula_id=fid),
             dict(id='refs',type='paragraph',role='body',runs=[
@@ -113,6 +113,9 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual(''.join(refs[-1].xpath('.//m:t/text()',namespaces=t.NS)),'x')
         self.assertEqual(t.word_text(refs[-1].getparent()),'x表示索引，当=4时继续。')
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
+        import inspect_docx
+        evidence=inspect_docx.formula_prose_paragraph_evidence(refs[-1].getparent(),'word/document.xml',1,{id(refs[-1]):'m1'})
+        self.assertEqual([h['text'] for h in evidence['review_candidates']],['x=4'])
 
     def test_operator_italic_word_override_is_removed_only_in_reference(self):
         node=ET.fromstring(OPERATOR)

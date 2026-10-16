@@ -201,7 +201,7 @@ v6.3生成档案标识为`manual-v30-inline-formula-roles-v6`，继承原Word模
 
 已声明`equation_count>=2`的完整顶层eqArr组在显示层补齐非末行逗号和末行分号，保留每个源数学节点及顺序，另记显示树SHA。行数不匹配、条件或续行拒绝自动处理；独立段之间的分组仍按来源核定，不猜相邻段同组。
 
-`source_symbol`可用`node_paths`代替`node_path`，如`["./m:r[1]","./m:r[2]"]`复制组合量的连续完整节点；两字段只能给一个，不能越过运算符、乱序或截断脚标。普通文本`=−4`放在随后text run，仅用于来源已有的直接赋值。直接赋值的裸Latin量可显式给`representation:"math"`保留OMML；普通解释默认`auto`仍按原角色用正文字符，两个用途分别派生与核验。完整符号等式仍用一个formula run导入全部关系，内部有常数也不得拆开。
+`source_symbol`可用`node_paths`代替`node_path`，如`["./m:r[1]","./m:r[2]"]`复制组合量的连续完整节点；两字段只能给一个，不能越过运算符、乱序或截断脚标。版本40不再允许source_symbol后接普通文本`=−4`拼出等式；直接赋值及数字参数函数等式均用一个formula run导入来源完整关系，包括等号、符号、数值和运算部分。source_symbol仅用于完整符号引用，普通解释默认`auto`仍按原角色。文字源式按来源保真建立OMML走原有路径，工具不从文字猜上下标或补算式；主式数量不因表示转换增加。同次inspection的精确候选交原formulas复核并修正，不新增扫描或模型阶段。
 
 算子解释用`{"type":"source_operator","formula_id":"f1","name_path":"./m:r[2]","argument_path":"./m:d[1]"}`。路径必须指向原式中相邻的完整字母算子名与单参数圆括号结构；输出完整name(·)，算子名正体，原真实参数调用不变。记录source_formula_id、source_tree_sha256、source_fragment_path列表与source_transform=operator_argument_placeholder。此引用不增加主式数量；不支持的函数结构走原有保真路径，不硬凑路径或新增公式。
 
