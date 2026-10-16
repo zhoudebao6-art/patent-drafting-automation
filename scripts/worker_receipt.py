@@ -170,9 +170,25 @@ def assemble(job_path, decisions):
     intent = b.read(evidence._file(root, 'cli-launch-intent.json'))
     if intent != {'context': attempt['context'], 'job_sha256': b.sha(job_path)}:
         raise b.BatchError('Receipt launch intent changed')
-    reservation = b.read(evidence._file(root, 'reservation.json'))
-    if b.sha(root/'reservation.json') != attempt['reservation_sha256'] or any(
-            reservation.get(key) != value for key, value in attempt.items() if key != 'reservation_sha256'):
+    reservation_path = evidence._file(root, 'reservation.json')
+    reservation = b.read(reservation_path)
+    if b.sha(reservation_path) != attempt['reservation_sha256']:
+        raise b.BatchError('Receipt reservation changed')
+    expected_reservation = {key: value for key, value in attempt.items()
+                            if key != 'reservation_sha256'}
+    if (reservation.get('preparation_state') == 'pending'
+            and attempt.get('preparation_state') == 'ready'):
+        seal = expected_reservation.pop('prepared_handoff', None)
+        if not isinstance(seal, dict) or set(seal) != {'path', 'sha256'}:
+            raise b.BatchError('Receipt preparation seal missing or malformed')
+        prepared_root = root / 'prepared'
+        handoff = evidence._file(prepared_root, 'handoff.json')
+        if Path(seal['path']).resolve() != handoff or b.sha(handoff) != seal['sha256']:
+            raise b.BatchError('Receipt preparation seal changed')
+        if b.read(handoff).get('context') != attempt['context']:
+            raise b.BatchError('Receipt preparation context changed')
+        expected_reservation['preparation_state'] = 'pending'
+    if reservation != expected_reservation:
         raise b.BatchError('Receipt reservation changed')
     dispatch = b.read(evidence._file(root, 'dispatch.json'))
     evidence._dispatch_record(dispatch, attempt, job['model'])

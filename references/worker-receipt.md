@@ -1,5 +1,7 @@
 # 提交前回执检查
 
+v6.19识别三池独立准备的合法pending到ready转换：原始reservation.json字节及哈希仍保持原样，只有prepared/handoff.json的独立文件身份、封存哈希和本attempt上下文均一致时，才允许准备状态与准备封存两个字段产生预期差异。其他字段仍逐项严格比较，未知字段、来源/身份/封存变化不放行。修复用于以后新建批次；已授权任务内的必要接续由总控按[工具修复接续](tool-fault-recovery.md)验证后执行，无须重复批准，旧冻结工具及旧失败记录不改写。
+
 仅 `execution_optimization=lean_execution_v24` 的新冻结批次使用。工具只装配客观字段、检查结构，不签发语义或视觉通过，不修改队列，也不替总控核验真实CLI最终回复。
 
 在当前attempt中写 `decisions.json`，填写实际完成的 `verdict`、输出 `artifact` 绝对路径，以及复查实际执行的 `checks`、`findings`。通过复查时提供 `render.evidence` 的实际 `render.json` 绝对路径。需要的六项为 `source_support`、`antecedents`、`claims_alignment`、`formulas`、`figures`、`rendered_pages`；未执行写 `not_run`，有问题如实记录，不复制模板的passed。

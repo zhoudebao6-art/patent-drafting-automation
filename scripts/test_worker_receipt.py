@@ -47,8 +47,9 @@ class ReceiptPreflightTests(unittest.TestCase):
                 'checks': {key: 'not_run' for key in b.CHECKS},
                 'findings': [{'status': 'unresolved', 'location': 'body', 'detail': 'actual issue'}]}
 
-    def job(self):
-        reservation = self.attempt_root/'reservation.json'; b.atomic(reservation, self.attempt)
+    def job(self, reservation_data=None):
+        reservation = self.attempt_root/'reservation.json'
+        b.atomic(reservation, self.attempt if reservation_data is None else reservation_data)
         self.attempt['reservation_sha256'] = b.sha(reservation)
         reserved = {'attempt': self.attempt, 'spawn_arguments': self.model, 'receipt_template': {},
                     'source_snapshots': [], 'worker_context': {'case_directory': str(self.case_root),
@@ -75,6 +76,141 @@ class ReceiptPreflightTests(unittest.TestCase):
         self.assertNotIn('artifact_sha256', decisions)
         self.assertFalse((self.attempt_root/'receipt.json').exists())
         self.assertFalse((self.attempt_root/'worker-final.json').exists())
+
+    def deferred_job(self):
+        original = dict(self.attempt, preparation_state='pending')
+        prepared = self.attempt_root/'prepared'
+        prepared.mkdir()
+        handoff = prepared/'handoff.json'
+        b.atomic(handoff, {'context': self.attempt['context']})
+        self.attempt.update(preparation_state='ready',
+                            prepared_handoff={'path': str(handoff), 'sha256': b.sha(handoff)})
+        return self.job(original)
+
+    def test_sealed_deferred_preparation_accepts_only_normal_pending_to_ready(self):
+        job = self.deferred_job()
+        result = wr.assemble(job, {'verdict': 'complete', 'artifact': str(self.artifact)})
+        self.assertEqual(result['artifact_sha256'], b.sha(self.artifact))
+        self.assertNotIn('checks', result)
+        self.assertEqual(b.read(self.attempt_root/'reservation.json')['preparation_state'], 'pending')
+
+    def test_deferred_preparation_rejects_changed_identity_hash_seal_and_unknown_fields(self):
+        job_path = self.deferred_job()
+        original = b.read(job_path)
+        def context(x): x['attempt']['context']['case_id'] = 'foreign'
+        def source(x): x['attempt']['context']['source_digest'] = 'foreign'
+        def attempt(x): x['attempt']['id'] = 'foreign'
+        def reservation_sha(x): x['attempt']['reservation_sha256'] = '0'*64
+        def seal(x): x['attempt']['prepared_handoff']['sha256'] = '0'*64
+        def missing_seal(x): x['attempt'].pop('prepared_handoff')
+        def unknown(x): x['attempt']['unknown'] = 'value'
+        for mutate in (context, source, attempt, reservation_sha, seal, missing_seal, unknown):
+            with self.subTest(mutation=mutate.__name__):
+                job = copy.deepcopy(original); mutate(job)
+                b.atomic(job_path, job)
+                b.atomic(self.attempt_root/'cli-launch-intent.json',
+                         {'context': job['attempt']['context'], 'job_sha256': b.sha(job_path)})
+                with self.assertRaises((b.BatchError, ValueError)):
+                    wr.assemble(job_path, {'verdict': 'complete', 'artifact': str(self.artifact)})
+
+    def test_deferred_preparation_rejects_resealed_foreign_handoff_context(self):
+        job_path = self.deferred_job()
+        job = b.read(job_path)
+        handoff = self.attempt_root/'prepared'/'handoff.json'
+        b.atomic(handoff, {'context': {'case_id': 'foreign'}})
+        job['attempt']['prepared_handoff']['sha256'] = b.sha(handoff)
+        b.atomic(job_path, job)
+        b.atomic(self.attempt_root/'cli-launch-intent.json',
+                 {'context': job['attempt']['context'], 'job_sha256': b.sha(job_path)})
+        with self.assertRaisesRegex(b.BatchError, 'preparation context changed'):
+            wr.assemble(job_path, {'verdict': 'complete', 'artifact': str(self.artifact)})
+
+    def test_real_deferred_preparation_job_and_assembly_preserve_frozen_evidence(self):
+        source_dir = self.root/'source'; source_dir.mkdir()
+        original = source_dir/'source.docx'; docx(original, 'synthetic source')
+        original_sha = b.sha(original)
+        selection = {'projects': [{'title': '合成回执准备链', 'source_files': ['source.docx'],
+                                   'primary_source': 'source.docx'}]}
+        manifest = queue.init(source_dir, self.root/'work', selection, self.root/'desktop')
+        initial = queue.load_manifest(manifest)
+        self.assertTrue(queue.nonblocking_pools(initial['policy']))
+        self.assertEqual(initial['policy']['execution_optimization'], wr.MODE)
+        snapshot_path = Path(initial['skill_snapshot']['path'])
+        snapshot_sha = b.sha(snapshot_path)
+        reserved = queue.reserve(manifest, 1, transport='codex_cli', defer_preparation=True)
+        attempt = reserved['attempt']; root = Path(attempt['directory'])
+        reservation = root/'reservation.json'; reservation_bytes = reservation.read_bytes()
+        self.assertEqual(attempt['preparation_state'], 'pending')
+        self.assertEqual(b.sha(reservation), attempt['reservation_sha256'])
+        prepared = queue.prepare_reserved(manifest, reserved['case_id'], attempt['id'])
+        ready = queue.finish_preparation(manifest, prepared)
+        self.assertEqual(ready['attempt']['preparation_state'], 'ready')
+        self.assertEqual(ready['attempt']['context'], attempt['context'])
+        self.assertEqual(ready['attempt']['reservation_sha256'], attempt['reservation_sha256'])
+        handoff = b.read(Path(ready['attempt']['prepared_handoff']['path']))
+        self.assertEqual(handoff['status'], 'prepared_data_only')
+        self.assertEqual(handoff['context'], attempt['context'])
+        self.assertEqual(len(handoff['source_inspections']), 1)
+        self.assertEqual(handoff['pipeline']['root'], str(snapshot_path.parent))
+        self.assertIsInstance(handoff['prepared_files'], list)
+        summary = handoff['source_inspections'][0]
+        self.assertEqual(Path(summary['input']), Path(ready['source_snapshots'][0]['snapshot_path']))
+        self.assertEqual(b.read(Path(summary['inspection']))['sha256'], original_sha)
+        # Real preparation and job creation; only CLI dispatch identity is synthetic.
+        # No executable is launched and no acceptance or visual verdict is supplied.
+        executable = str(self.root/'codex.exe')
+        job_path = pool.prepare_job(ready, executable)
+        job = b.read(job_path)
+        model = {key: ready['spawn_arguments'][key] for key in ('model', 'reasoning_effort')}
+        dispatch = {'tool': 'codex.exec', 'context': attempt['context'],
+                    'agent_id': 'cli:'+attempt['id'],
+                    'result': {'pid': 123, 'created': 987654, 'executable': executable},
+                    'prompt_sha256': b.sha(root/'prompt.txt'),
+                    'arguments': {'cwd': str(root), **model, 'argv': job['argv']}}
+        b.atomic(root/'dispatch.json', dispatch)
+        artifact = root/'actual-title.docx'; docx(artifact, 'synthetic draft')
+        manifest_bytes = manifest.read_bytes()
+        result = wr.assemble(job_path, {'verdict': 'complete', 'artifact': str(artifact)})
+        self.assertEqual(result['artifact_sha256'], b.sha(artifact))
+        self.assertEqual(result['context'], attempt['context'])
+        self.assertEqual(result['agent_id'], dispatch['agent_id'])
+        self.assertEqual({key: result[key] for key in model}, model)
+        self.assertNotIn('checks', result); self.assertNotIn('findings', result)
+        self.assertEqual(reservation.read_bytes(), reservation_bytes)
+        self.assertEqual(b.read(reservation)['preparation_state'], 'pending')
+        self.assertEqual(b.sha(reservation), attempt['reservation_sha256'])
+        self.assertEqual(b.sha(original), original_sha)
+        for source in ready['source_snapshots']:
+            self.assertEqual(b.sha(Path(source['snapshot_path'])), source['sha256'])
+        self.assertEqual(b.sha(snapshot_path), snapshot_sha)
+        self.assertEqual(manifest.read_bytes(), manifest_bytes)
+        self.assertFalse((root/'receipt.json').exists())
+        self.assertFalse((root/'worker-final.json').exists())
+        self.assertFalse((self.root/'desktop').exists())
+
+    def test_deferred_preparation_rejects_external_handoff_with_identical_bytes(self):
+        job_path = self.deferred_job(); job = b.read(job_path)
+        handoff = Path(job['attempt']['prepared_handoff']['path'])
+        foreign = self.root/'foreign-handoff.json'; foreign.write_bytes(handoff.read_bytes())
+        self.assertEqual(b.sha(foreign), b.sha(handoff))
+        job['attempt']['prepared_handoff']['path'] = str(foreign)
+        b.atomic(job_path, job)
+        b.atomic(self.attempt_root/'cli-launch-intent.json',
+                 {'context': job['attempt']['context'], 'job_sha256': b.sha(job_path)})
+        with self.assertRaisesRegex(b.BatchError, 'preparation seal changed'):
+            wr.assemble(job_path, {'verdict': 'complete', 'artifact': str(self.artifact)})
+
+    def test_deferred_preparation_rejects_unknown_reservation_field_with_matching_sha(self):
+        job_path = self.deferred_job(); job = b.read(job_path)
+        path = self.attempt_root/'reservation.json'; reservation = b.read(path)
+        reservation['unknown'] = 'not present in the job attempt'
+        b.atomic(path, reservation)
+        job['attempt']['reservation_sha256'] = b.sha(path)
+        b.atomic(job_path, job)
+        b.atomic(self.attempt_root/'cli-launch-intent.json',
+                 {'context': job['attempt']['context'], 'job_sha256': b.sha(job_path)})
+        with self.assertRaisesRegex(b.BatchError, 'reservation changed'):
+            wr.assemble(job_path, {'verdict': 'complete', 'artifact': str(self.artifact)})
 
     def test_missing_verdict_is_caught_without_guessing_complete(self):
         with self.assertRaisesRegex(wr.CaseReceiptError, 'verdict'):

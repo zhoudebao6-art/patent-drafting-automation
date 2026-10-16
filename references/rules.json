@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 46,
-  "updated_at": "2026-10-16T05:08:14Z",
+  "version": 47,
+  "updated_at": "2026-10-16T05:57:53Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -983,8 +983,8 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "冻结本批来源、规则版本及模型策略。每案使用独立case目录和每阶段唯一attempt目录、独立稿件与证据；同案最多一个活跃阶段。后续更新不静默修改已运行批次。 新批次启用frozen_stage_packet_v1时，一次冻结规则、引用规范及本技能运行工具；模型读取本批快照，批次命令自动进入冻结工具，后续技能安装不改变该批执行版本。旧批次没有该标志时维持原契约，不虚构其历史快照。",
-      "check": "来源/规则/稿件哈希与batch_id、case_id、stage、attempt_id一致；拒绝跨案路径、旧attempt和重复回执；旧串行批次按原快照恢复。",
+      "instruction": "冻结本批来源、规则版本及模型策略。每案使用独立case目录和每阶段唯一attempt目录、独立稿件与证据；同案最多一个活跃阶段。后续更新不静默修改已运行批次。 新批次启用frozen_stage_packet_v1时，一次冻结规则、引用规范及本技能运行工具；模型读取本批快照，批次命令自动进入冻结工具，后续技能安装不改变该批执行版本。旧批次没有该标志时维持原契约，不虚构其历史快照。 版本47冻结保护原证据，不构成每次修复内部工具都要再请求批准。对已授权批处理中的已定位工具缺陷，总控可维护通用技能，在独立候选副本验证窄补丁并记录原/新工具哈希后，使用经验证的兼容工具或受控恢复路径继续；不得就地覆盖原skill-snapshot、旧回执、真实会话、来源或已验收证据。后续使用哪个版本必须可追溯，旧内容规则/模型/六项验收不随工具修复改动。worker不能自行修改共享工具；由总控统一维护。",
+      "check": "来源/规则/稿件哈希与batch_id、case_id、stage、attempt_id一致；拒绝跨案路径、旧attempt和重复回执；旧串行批次按原快照恢复。 工具修复保留原快照及失败记录；核对故障复现、窄补丁、定向测试、原/新工具哈希及实际恢复入口。仅修工具不继承专利验收结论，不能改旧SHA或日志伪装原执行成功。",
       "evidence": [
         {
           "source": "references/parallel-user-requirement.txt",
@@ -993,6 +993,10 @@
         {
           "source": "references/speed-user-requirement.txt",
           "locator": "全文"
+        },
+        {
+          "source": "references/tool-fault-user-requirement.txt",
+          "locator": "2026-10-16截图与通用修复请求"
         }
       ],
       "exceptions": []
@@ -1000,12 +1004,12 @@
     {
       "id": "BATCH-09",
       "status": "active",
-      "origin": "workflow",
+      "origin": "user",
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "总控独占批次调度，先占attempt再真实派发并绑定证据，完工校验后释放槽位；同案唯一活动阶段、取消前确认停止、拒绝迟到回执。CLI保留唯一协调器锁、每attempt supervisor和持久启动意图；仅真实退出后收稿，修订重验新进程新会话。版本36非阻塞三池将准备和收稿校验放入各阶段独立本地执行通道，交付使用独立单写通道；长时间读取、解析、校验、复制不持有主清单锁。短事务按当前case、attempt、上下文及全局会话唯一性合并，不覆盖其他案进度；准备中仍计槽。通过稿立即排交付，不设置accepted阻塞其他池reserve的全局屏障。坏日志、未知身份和完整性异常保留证据、暂停新付费派发并继续收既有worker；已确认的单案结构或准备错误只隔离该案，桌面I/O不可用仅暂停交付并保留成稿。旧版本29/35没有新标记时继续单件收取后必要交付再补位及故障drain。",
-      "check": "核对三个阶段本地任务并发、交付单写、短提交不丢其他case；真实CLI事件/会话model、effort、cwd、sandbox、prompt/退出码/五文件SHA门禁保留。验证慢准备/交付、并发record、会话复用拒绝、准备失败、未知身份保槽及发布后提交中断恢复，不重复收费派发。",
+      "instruction": "总控独占批次调度，先占attempt再真实派发并绑定证据，完工校验后释放槽位；同案唯一活动阶段、取消前确认停止、拒绝迟到回执。CLI保留唯一协调器锁、每attempt supervisor和持久启动意图；仅真实退出后收稿，修订重验新进程新会话。版本36非阻塞三池将准备和收稿校验放入各阶段独立本地执行通道，交付使用独立单写通道；长时间读取、解析、校验、复制不持有主清单锁。短事务按当前case、attempt、上下文及全局会话唯一性合并，不覆盖其他案进度；准备中仍计槽。通过稿立即排交付，不设置accepted阻塞其他池reserve的全局屏障。坏日志、未知身份和完整性异常保留证据、暂停新付费派发并继续收既有worker；已确认的单案结构或准备错误只隔离该案，桌面I/O不可用仅暂停交付并保留成稿。旧版本29/35没有新标记时继续单件收取后必要交付再补位及故障drain。 版本47异常时停新付费派发是防止故障扩散，不等于停止诊断并一律等待用户确认。主控继续收存已运行结果并判断原因；已证明是内部工具误判且可在现有授权内保留证据、数据和交付要求时，自行修复、验证并接续，不再询问是否允许修复工具或是否继续已授权任务。来源变化、身份/哈希异常或未知进程状态不能凭错误文案当工具问题放行；缺用户才能给出的材料、范围选择或额外权限时才具体说明并询问。",
+      "check": "核对三个阶段本地任务并发、交付单写、短提交不丢其他case；真实CLI事件/会话model、effort、cwd、sandbox、prompt/退出码/五文件SHA门禁保留。验证慢准备/交付、并发record、会话复用拒绝、准备失败、未知身份保槽及发布后提交中断恢复，不重复收费派发。 分清可复现内部缺陷与真实证据异常；技术阻断仍保留，已验证工具修复无需新增人工批准关卡。恢复前核实原worker退出/当前状态，防重复派发；同一补丁同一失败只尝试一次恢复，未解决则据新证据定位，不盲重试收费模型。",
       "evidence": [
         {
           "source": "references/parallel-user-requirement.txt",
@@ -1030,6 +1034,10 @@
         {
           "source": "references/nonblocking-pools-user-requirement.txt",
           "locator": "2026-10-16三池互不等待、即时交接与桌面交付"
+        },
+        {
+          "source": "references/tool-fault-user-requirement.txt",
+          "locator": "2026-10-16截图与通用修复请求"
         }
       ],
       "exceptions": []
@@ -1754,13 +1762,17 @@
       "scope": "global",
       "section": "batch",
       "level": "must",
-      "instruction": "新批次采用lean_execution_v24：worker退出前用公共回执工具补齐真实身份、路径和哈希并校验结构，语义checks及问题处置仍由本轮模型填写。明确本案回执结构错误隔离本案后继续补位，无限重试及主控事后改写模型最终回执均禁止；身份、来源/稿件篡改及共享环境或未知异常仍停止派发。新案完整验收后逐案原子交付，已交付文件每次核身份和SHA，不反复全验旧案全部历史证据；批末、恢复和异常进行必要完整核验。",
-      "check": "验证缺字段/枚举/合法同案旧路径在提交前拒绝、语义未知不补passed、单案隔离不增加重放，错误身份/哈希/外来路径仍阻断；交付文件篡改、复制中来源变化、旧页证据、跨案及中断恢复不能误通过。已启用模型、独立重验和最终全页验收保留，旧冻结批次不迁移。",
+      "instruction": "新批次采用lean_execution_v24：worker退出前用公共回执工具补齐真实身份、路径和哈希并校验结构，语义checks及问题处置仍由本轮模型填写。明确本案回执结构错误隔离本案后继续补位，无限重试及主控事后改写模型最终回执均禁止；身份、来源/稿件篡改及共享环境或未知异常仍停止派发。新案完整验收后逐案原子交付，已交付文件每次核身份和SHA，不反复全验旧案全部历史证据；批末、恢复和异常进行必要完整核验。 版本47准备状态pending到ready是允许的正常转换：仅在原reservation文件SHA未变、prepared/handoff.json固定路径的独立文件与封存SHA及同attempt上下文均核准后，回执工具才允许preparation_state和prepared_handoff的预期差异，其余字段严格相等。已确认此类工具误判按tool-fault-recovery.md处理，不能把源或身份不符一并放行；真实最终回执有效则复用原收稿，已失效/失败的旧回执不事后改成complete/pass。核验可用初稿只作为候选稿接续独立review，不重写初稿，不继承审查通过。",
+      "check": "验证缺字段/枚举/合法同案旧路径在提交前拒绝、语义未知不补passed、单案隔离不增加重放，错误身份/哈希/外来路径仍阻断；交付文件篡改、复制中来源变化、旧页证据、跨案及中断恢复不能误通过。已启用模型、独立重验和最终全页验收保留，旧冻结批次不迁移。 覆盖真实延迟准备到job/assemble链与原reservation不变；封存路径/SHA/context、未知字段拒绝。恢复后新review仍实际执行六项及全部最终页，缺真实执行证据不能补造。原单文件夹和逐案即时交付要求保留，不以恢复为由分散输出。",
       "exceptions": [],
       "evidence": [
         {
           "source": "user:2026-10-15-efficiency-report",
           "locator": "根据优化报表执行通用提速，保留正确性"
+        },
+        {
+          "source": "references/tool-fault-user-requirement.txt",
+          "locator": "2026-10-16截图与通用修复请求"
         }
       ]
     },
@@ -6980,6 +6992,110 @@
             ],
             "exceptions": [
               "旧批次保留其冻结的命名与发布契约，不自动重命名已交付文件。"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 47,
+      "previous_version": 46,
+      "updated_at": "2026-10-16T05:57:53Z",
+      "summary": "修复延迟准备被回执误判，区分故障停派发与必要诊断；已授权范围内工具修复验证后接续，不重复索取批准，保留冻结证据和独立验收。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-08",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "冻结本批来源、规则版本及模型策略。每案使用独立case目录和每阶段唯一attempt目录、独立稿件与证据；同案最多一个活跃阶段。后续更新不静默修改已运行批次。 新批次启用frozen_stage_packet_v1时，一次冻结规则、引用规范及本技能运行工具；模型读取本批快照，批次命令自动进入冻结工具，后续技能安装不改变该批执行版本。旧批次没有该标志时维持原契约，不虚构其历史快照。 版本47冻结保护原证据，不构成每次修复内部工具都要再请求批准。对已授权批处理中的已定位工具缺陷，总控可维护通用技能，在独立候选副本验证窄补丁并记录原/新工具哈希后，使用经验证的兼容工具或受控恢复路径继续；不得就地覆盖原skill-snapshot、旧回执、真实会话、来源或已验收证据。后续使用哪个版本必须可追溯，旧内容规则/模型/六项验收不随工具修复改动。worker不能自行修改共享工具；由总控统一维护。",
+            "check": "来源/规则/稿件哈希与batch_id、case_id、stage、attempt_id一致；拒绝跨案路径、旧attempt和重复回执；旧串行批次按原快照恢复。 工具修复保留原快照及失败记录；核对故障复现、窄补丁、定向测试、原/新工具哈希及实际恢复入口。仅修工具不继承专利验收结论，不能改旧SHA或日志伪装原执行成功。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "references/speed-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/tool-fault-user-requirement.txt",
+                "locator": "2026-10-16截图与通用修复请求"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-09",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "总控独占批次调度，先占attempt再真实派发并绑定证据，完工校验后释放槽位；同案唯一活动阶段、取消前确认停止、拒绝迟到回执。CLI保留唯一协调器锁、每attempt supervisor和持久启动意图；仅真实退出后收稿，修订重验新进程新会话。版本36非阻塞三池将准备和收稿校验放入各阶段独立本地执行通道，交付使用独立单写通道；长时间读取、解析、校验、复制不持有主清单锁。短事务按当前case、attempt、上下文及全局会话唯一性合并，不覆盖其他案进度；准备中仍计槽。通过稿立即排交付，不设置accepted阻塞其他池reserve的全局屏障。坏日志、未知身份和完整性异常保留证据、暂停新付费派发并继续收既有worker；已确认的单案结构或准备错误只隔离该案，桌面I/O不可用仅暂停交付并保留成稿。旧版本29/35没有新标记时继续单件收取后必要交付再补位及故障drain。 版本47异常时停新付费派发是防止故障扩散，不等于停止诊断并一律等待用户确认。主控继续收存已运行结果并判断原因；已证明是内部工具误判且可在现有授权内保留证据、数据和交付要求时，自行修复、验证并接续，不再询问是否允许修复工具或是否继续已授权任务。来源变化、身份/哈希异常或未知进程状态不能凭错误文案当工具问题放行；缺用户才能给出的材料、范围选择或额外权限时才具体说明并询问。",
+            "check": "核对三个阶段本地任务并发、交付单写、短提交不丢其他case；真实CLI事件/会话model、effort、cwd、sandbox、prompt/退出码/五文件SHA门禁保留。验证慢准备/交付、并发record、会话复用拒绝、准备失败、未知身份保槽及发布后提交中断恢复，不重复收费派发。 分清可复现内部缺陷与真实证据异常；技术阻断仍保留，已验证工具修复无需新增人工批准关卡。恢复前核实原worker退出/当前状态，防重复派发；同一补丁同一失败只尝试一次恢复，未解决则据新证据定位，不盲重试收费模型。",
+            "evidence": [
+              {
+                "source": "references/parallel-user-requirement.txt",
+                "locator": "第2行"
+              },
+              {
+                "source": "user:2026-10-14-multi-cli",
+                "locator": "用户授权多个CLI并参考外部技能的提效方法；仅借鉴并行、补位、缓存与恢复机制，不引入业务规则"
+              },
+              {
+                "source": "references/cli-workers.md",
+                "locator": "启动与补位；证据与正确性；中断、失败和恢复"
+              },
+              {
+                "source": "user:2026-10-15-overlapped-draft-review",
+                "locator": "单件初稿完成立即进入复查修改、通过立即桌面交付；用户补充撰写与复查修改两区同时工作，减少等待"
+              },
+              {
+                "source": "references/three-pools-user-requirement.txt",
+                "locator": "2026-10-16用户要求及三池执行边界"
+              },
+              {
+                "source": "references/nonblocking-pools-user-requirement.txt",
+                "locator": "2026-10-16三池互不等待、即时交接与桌面交付"
+              },
+              {
+                "source": "references/tool-fault-user-requirement.txt",
+                "locator": "2026-10-16截图与通用修复请求"
+              }
+            ],
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "BATCH-14",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "batch",
+            "level": "must",
+            "instruction": "新批次采用lean_execution_v24：worker退出前用公共回执工具补齐真实身份、路径和哈希并校验结构，语义checks及问题处置仍由本轮模型填写。明确本案回执结构错误隔离本案后继续补位，无限重试及主控事后改写模型最终回执均禁止；身份、来源/稿件篡改及共享环境或未知异常仍停止派发。新案完整验收后逐案原子交付，已交付文件每次核身份和SHA，不反复全验旧案全部历史证据；批末、恢复和异常进行必要完整核验。 版本47准备状态pending到ready是允许的正常转换：仅在原reservation文件SHA未变、prepared/handoff.json固定路径的独立文件与封存SHA及同attempt上下文均核准后，回执工具才允许preparation_state和prepared_handoff的预期差异，其余字段严格相等。已确认此类工具误判按tool-fault-recovery.md处理，不能把源或身份不符一并放行；真实最终回执有效则复用原收稿，已失效/失败的旧回执不事后改成complete/pass。核验可用初稿只作为候选稿接续独立review，不重写初稿，不继承审查通过。",
+            "check": "验证缺字段/枚举/合法同案旧路径在提交前拒绝、语义未知不补passed、单案隔离不增加重放，错误身份/哈希/外来路径仍阻断；交付文件篡改、复制中来源变化、旧页证据、跨案及中断恢复不能误通过。已启用模型、独立重验和最终全页验收保留，旧冻结批次不迁移。 覆盖真实延迟准备到job/assemble链与原reservation不变；封存路径/SHA/context、未知字段拒绝。恢复后新review仍实际执行六项及全部最终页，缺真实执行证据不能补造。原单文件夹和逐案即时交付要求保留，不以恢复为由分散输出。",
+            "exceptions": [],
+            "evidence": [
+              {
+                "source": "user:2026-10-15-efficiency-report",
+                "locator": "根据优化报表执行通用提速，保留正确性"
+              },
+              {
+                "source": "references/tool-fault-user-requirement.txt",
+                "locator": "2026-10-16截图与通用修复请求"
+              }
             ]
           }
         }
