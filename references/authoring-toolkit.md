@@ -161,7 +161,7 @@ v5.9的manual-v26-complete-symbols-no-spaces-v5提前拒绝可见文字与源数
 {"id":"fig_image1","type":"figure","figure_id":"fig1"}
 ```
 
-工具将附图说明输出为“图N为本发明的图名。”，仅文末figures的图片后另起相邻段“图N”，图片段`keepNext`、图题段`keepLines`；abstract_figure复用图像但不生成caption，也不与后续文字keepNext。末尾图片本体不插入实施方式；实施方式用`figure_ref`引用并写核实后的解读。自由文字内出现未登记图号会拒绝；复杂编号、全文所有隐式引用、图内文字和新旧图号语义对应仍需审查。`same_page`明确记`requires_rendered_page_review`，控制属性和高度预估不冒充真实同页证明。
+工具将附图说明输出为图N为本发明的完整图名；版本32图名末尾缺图时只补一个图，已有流程框图、示意图等结尾不重复，非末条分号、末条句号，使用原黑字正文格式。图名字段不带句末标点，重复图或含句末标点明确拒绝，修正输入后生成；不修改原注册title、图号和媒体。仅文末figures的图片后另起相邻段“图N”，图片段`keepNext`、图题段`keepLines`；abstract_figure复用图像但不生成caption，也不与后续文字keepNext。末尾图片本体不插入实施方式；实施方式用`figure_ref`引用并写核实后的解读。自由文字内出现未登记图号会拒绝；复杂编号、全文所有隐式引用、图内文字和新旧图号语义对应仍需审查。`same_page`明确记`requires_rendered_page_review`，控制属性和高度预估不冒充真实同页证明。
 
 ## 模板、读回与审查边界
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 31,
-  "updated_at": "2026-10-16T01:28:35Z",
+  "version": 32,
+  "updated_at": "2026-10-16T01:36:05Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -165,7 +165,7 @@
       "scope": "global",
       "section": "figure",
       "level": "must",
-      "instruction": "附图说明按最终具体实施方式的图序填充。 编号依据首次实质引图顺序，后续回指旧图沿用原号；说明按“图N为本发明的【本案图名】；”列出，最后一条句号。正文用“请参考图N，……”及原稿有据变体自然承接，解读依据当前项目，不抄旧数据或凑固定段数。",
+      "instruction": "附图说明按最终具体实施方式的图序填充。 编号依据首次实质引图顺序，后续回指旧图沿用原号；说明按“图N为本发明的【本案图名】；”列出，最后一条句号。正文用“请参考图N，……”及原稿有据变体自然承接，解读依据当前项目，不抄旧数据或凑固定段数。 版本32每条附图说明的完整图名均以图结尾，前方图N不能代替尾字；缺图时补图，已有流程框图、示意图等结尾不重复添加。正式稿黑字；只补图名尾字，不改变本案图意、源图、图号、公式或数据，不在摘要附图外加名称，不把文末仅图N改成长图名。",
       "evidence": [
         {
           "source": "references/base-rules.txt",
@@ -178,9 +178,17 @@
         {
           "source": "references/reference-style-standard.md",
           "locator": "正式净稿；所述；四处同步的图序"
+        },
+        {
+          "source": "references/figure-description-user-requirement.txt",
+          "locator": "2026-10-16用户要求及截图含义"
+        },
+        {
+          "source": "references/reference-style-standard.md",
+          "locator": "版本32 附图说明图名收尾"
         }
       ],
-      "check": "首引顺序、说明列表、图号映射一致。 核对正文首引、附图说明、实际媒体身份及图下号四处一致，区分首引与重复引用。",
+      "check": "首引顺序、说明列表、图号映射一致。 核对正文首引、附图说明、实际媒体身份及图下号四处一致，区分首引与重复引用。 生成器按条补缺失尾图并输出非末条分号、末条句号；图名字段不得带句末标点。复用同次figure_description_evidence及现有figures复查，限定附图说明到具体实施方式逐条检查，包括同一段内多条说明；缺证据、范围未解析、漏图、重复图或错误标点不得通过，不重复解析或新增模型阶段。",
       "exceptions": []
     },
     {
@@ -4971,6 +4979,50 @@
                 "locator": "版本31 名称原样引用"
               }
             ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 32,
+      "previous_version": 31,
+      "updated_at": "2026-10-16T01:36:05Z",
+      "summary": "附图说明每条图名均以图结尾，已有图不重复，黑字输出；生成与同次检查统一，摘要图及文末仅图N不变。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "TXT-08",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "figure",
+            "level": "must",
+            "instruction": "附图说明按最终具体实施方式的图序填充。 编号依据首次实质引图顺序，后续回指旧图沿用原号；说明按“图N为本发明的【本案图名】；”列出，最后一条句号。正文用“请参考图N，……”及原稿有据变体自然承接，解读依据当前项目，不抄旧数据或凑固定段数。 版本32每条附图说明的完整图名均以图结尾，前方图N不能代替尾字；缺图时补图，已有流程框图、示意图等结尾不重复添加。正式稿黑字；只补图名尾字，不改变本案图意、源图、图号、公式或数据，不在摘要附图外加名称，不把文末仅图N改成长图名。",
+            "evidence": [
+              {
+                "source": "references/base-rules.txt",
+                "locator": "第7行"
+              },
+              {
+                "source": "user:2026-10-14-clean-reference-style",
+                "locator": "不要红字解释，原三份正确稿的所述、图片分布排序与话术作通用优化"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "正式净稿；所述；四处同步的图序"
+              },
+              {
+                "source": "references/figure-description-user-requirement.txt",
+                "locator": "2026-10-16用户要求及截图含义"
+              },
+              {
+                "source": "references/reference-style-standard.md",
+                "locator": "版本32 附图说明图名收尾"
+              }
+            ],
+            "check": "首引顺序、说明列表、图号映射一致。 核对正文首引、附图说明、实际媒体身份及图下号四处一致，区分首引与重复引用。 生成器按条补缺失尾图并输出非末条分号、末条句号；图名字段不得带句末标点。复用同次figure_description_evidence及现有figures复查，限定附图说明到具体实施方式逐条检查，包括同一段内多条说明；缺证据、范围未解析、漏图、重复图或错误标点不得通过，不重复解析或新增模型阶段。",
+            "exceptions": []
           }
         }
       ]

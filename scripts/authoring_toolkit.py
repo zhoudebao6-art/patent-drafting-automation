@@ -30,6 +30,7 @@ from PIL import Image
 import inspect_docx
 import math_fragments
 import invention_contract
+import figure_description_contract
 
 
 class AuthoringError(ValueError):
@@ -634,7 +635,8 @@ def validate(case_root, spec):
                 else:
                     if kind != 'description':
                         fail('Figure description belongs in description')
-                    string = f"图{f['number']}为本发明的{f['title']}。"
+                    try:string=figure_description_contract.description(f['number'],f['title'],f['number']==len(figures))
+                    except ValueError as exc:fail(str(exc))
             else:
                 fail('Unsupported block type: ' + str(btype))
             blocks.append(dict(block, section=kind, bookmark=f'b{len(blocks) + 1:06d}'))

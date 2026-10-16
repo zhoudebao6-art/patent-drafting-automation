@@ -6,6 +6,7 @@ Only new batches whose frozen policy explicitly selects MODE use this contract.
 import re
 import batch_tool as b
 import invention_contract
+import figure_description_contract
 
 MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
@@ -30,7 +31,7 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False):
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -193,6 +194,9 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     if strict_invention:
         try:invention_contract.validate_evidence(report,findings)
         except ValueError as exc:raise b.BatchError(str(exc)) from exc
+    if strict_figures:
+        try:figure_description_contract.validate(report)
+        except ValueError as exc:raise b.BatchError(str(exc)) from exc
     result={'mode':MODE,'artifact_sha256':report['sha256'],'document_title':expected_title,
             'delivery_filename':filename(expected_title),'title_paragraph':title['paragraph'],
             'scope':'Objective title, located wording and enabled numbering/page-flow checks only; original six reviews and final-page acceptance remain required'}
@@ -206,6 +210,7 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
         result['spacing_contract']=SPACING_MODE
         result['scope']='Objective title, located wording and enabled numbering/page-flow/formula-prose/literal-spacing checks only; original six reviews and final-page acceptance remain required'
     if strict_invention:result['invention_contract']=invention_contract.MODE
+    if strict_figures:result['figure_description_contract']=figure_description_contract.MODE
     return result
 
 
@@ -230,4 +235,5 @@ def verify(m,case,attempt,receipt):
                  m['policy'].get('layout_contract')==LAYOUT_MODE,
                  m['policy'].get('formula_contract')==FORMULA_MODE,
                  m['policy'].get('spacing_contract')==SPACING_MODE,
-                 m['policy'].get('invention_contract')==invention_contract.MODE)
+                 m['policy'].get('invention_contract')==invention_contract.MODE,
+                 m['policy'].get('figure_description_contract')==figure_description_contract.MODE)

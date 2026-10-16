@@ -85,6 +85,10 @@ def validate_policy(p):
         raise BatchError('Invalid invention contract')
     if p.get('invention_contract') and p.get('output_contract')!='wording_title_v18':
         raise BatchError('Invention contract requires the frozen final output contract')
+    if p.get('figure_description_contract') not in (None,'named_figures_v32'):
+        raise BatchError('Invalid figure description contract')
+    if p.get('figure_description_contract') and p.get('output_contract')!='wording_title_v18':
+        raise BatchError('Figure description contract requires the frozen final output contract')
     if p.get('execution_optimization') not in (None, 'lean_execution_v24'):
         raise BatchError('Invalid execution optimization contract')
     if p.get('execution_optimization') and (p.get('worker_preparation') != 'frozen_stage_packet_v1'

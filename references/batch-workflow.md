@@ -109,3 +109,7 @@ python scripts/parallel_batch.py deliver --manifest 批次清单 --controller �
 交付布局更新依据：用户于2026-10-13要求“所有的项目完成后验收到同一个文件夹中即可，就像我刚发给你工作的文件夹里面放文件那种即可，通用修改”。新批次使用delivery.layout=flat_final_files，验收稿全部直接放同一文件夹根目录；仍通过一案即交付一案。桌面仅展示成稿；归属标记隐藏，逐案发布记录、清单及待处理说明留工作批次目录。只改变交付布局，撰写/复查case与attempt目录仍独立。旧无layout批次使用其冻结布局，除非用户明确要求迁移。
 
 版本19新批次的prose_contract=clean_prose_v19在既有最终pass与deliver中复用封存预检：普通文字禁引号括号并按指定话术改写，源公式和技术名词按来源绑定证据保护。没有新模型阶段，不修改运行中旧批次的冻结规则。
+
+## 版本32附图说明检查
+
+新批次冻结figure_description_contract=named_figures_v32。现有生成和封存预检逐条核对附图说明完整图名以图收尾、非末条分号及末条句号；交付验证复用同份figure_description_evidence，不重解析或新增复查阶段。原模型、并行和逐案交付策略保持，旧批次不静默迁移。

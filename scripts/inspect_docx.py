@@ -1349,6 +1349,10 @@ def precheck(result, kind):
         'status':'may_use_plain_upright_body_run_only_if_registered_bare_symbol_no_semantic_style'}
         for f in result['formulas'] if f.get('isolated_symbol_candidate')]
     start=anchors['附图说明']; end=anchors['具体实施方式']
+    import figure_description_contract
+    result['figure_description_evidence']=figure_description_contract.evidence(result,body)
+    for hit in result['figure_description_evidence']['issues']:
+        add('FIGURE_DESCRIPTION_WORDING','Rule v32: '+hit['code'],str(hit.get('paragraph')))
     descriptions=[]; captions=[]; mentions=[]
     for p in body:
         if start and end and start<p['p']<end:
@@ -1467,7 +1471,9 @@ def verified_cache(directory, identity):
 
 def extractor_dependencies():
     import invention_contract
-    return {'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve())}
+    import figure_description_contract
+    return {'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve()),
+            'figure_description_contract.py':file_sha(Path(figure_description_contract.__file__).resolve())}
 
 
 def extractor_unchanged(identity):
