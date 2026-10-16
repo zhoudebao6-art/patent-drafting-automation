@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim rules; v40 whole symbolic equations include numeric assignments and numeric-argument functions, pure numeric prose/labels excluded; v39 complete symbol explanations and earlier scopes retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v41 duplicate name-only operator explanations omitted after complete same-identity meaning is retained, unique information and independent symbols preserved. v39/v40 and earlier scopes retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "567c4fa87c07d93291d2456d49b7da27904f59d4aaaff011d0f6a203ccdf9658",
+    "terminology-and-formula.md": "dc54b8c18902b4bb26d2c73a23b59050c067e95e64595361519297d01c95d855",
     "reference-style-standard.md": "9420c0062884394843cd5426b2cbcbccb4ad8c300985398c3e4e8aab526bb1c8",
     "manual-format-and-wording.md": "d3146a25704ce8716129cbe1da1a39c23bbcf87d1635b73c28b7fcb65bc2fdad",
-    "worker-standard.md": "01c009ba83f9ae39f2e8275b0fa5ffd38cd9449d5c0c18a653c7b86f1f6dc439"
+    "worker-standard.md": "9381b076bb21fb57859213799e5c9a138875171084c06c42b06967ac14436432"
   }
 }
