@@ -235,9 +235,11 @@ def verify(m, full=True):
     path = local(record['path'], batch)
     if path.parent.name not in {'skill-snapshot', 'recovered-skill-snapshot'} or path.parent.parent != batch or path.name != 'snapshot.json':
         raise ValueError('Foreign frozen skill bundle')
-    if sha(path) != record['sha256']:
+    snapshot_bytes = path.read_bytes()
+    if hashlib.sha256(snapshot_bytes).hexdigest() != record['sha256']:
         raise ValueError('Frozen skill manifest changed')
-    data = json.loads(path.read_text(encoding='utf-8'))
+    # Parse the same bytes that were checked, not a second filesystem version.
+    data = json.loads(snapshot_bytes.decode('utf-8'))
     if (data.get('mode') != MODE or data.get('rules_sha256') != m['rules_sha256']
             or data.get('policy_sha256') != hashlib.sha256(canonical(m['policy']).encode('utf-8')).hexdigest()):
         raise ValueError('Frozen skill rule/policy identity mismatch')

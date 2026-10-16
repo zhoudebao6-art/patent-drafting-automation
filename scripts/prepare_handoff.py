@@ -196,9 +196,13 @@ def verify_prepared(m, case, attempt):
         return
     root = inspector.local_path(Path(attempt['directory'])/'prepared')
     path = inspector.local_path(record['path'])
-    if path != root/'handoff.json' or inspector.file_sha(path) != record['sha256']:
+    if path != root/'handoff.json':
         raise ValueError('Prepared handoff changed')
-    data = json.loads(path.read_text(encoding='utf-8'))
+    handoff_bytes = path.read_bytes()
+    if hashlib.sha256(handoff_bytes).hexdigest() != record['sha256']:
+        raise ValueError('Prepared handoff changed')
+    # One read binds the parsed handoff to the bytes accepted by its SHA.
+    data = json.loads(handoff_bytes.decode('utf-8'))
     if data['context'] != attempt['context']:
         raise ValueError('Prepared handoff context mismatch')
     if m.get('skill_snapshot') or m['policy'].get('worker_preparation'):

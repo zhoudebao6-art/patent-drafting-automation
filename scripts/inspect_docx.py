@@ -1543,6 +1543,8 @@ def verified_cache(directory, identity):
     if not isinstance(records, list):
         raise ValueError('Cache output list required')
     files = {}
+    report = directory/'inspection.json'
+    report_bytes = None
     for row in records:
         relative = Path(row['file'])
         if relative.is_absolute() or '..' in relative.parts:
@@ -1550,13 +1552,18 @@ def verified_cache(directory, identity):
         target = local_path(directory/relative)
         if not target.is_relative_to(directory) or target in files:
             raise ValueError('Duplicate or foreign cache artifact')
-        if file_sha(target) != row['sha256']:
+        if target == report:
+            report_bytes = target.read_bytes()
+            actual_sha = hashlib.sha256(report_bytes).hexdigest()
+        else:
+            actual_sha = file_sha(target)
+        if actual_sha != row['sha256']:
             raise ValueError('Cache artifact changed: ' + row['file'])
         files[target] = row['sha256']
-    report = directory/'inspection.json'
     if report not in files or directory/'content.txt' not in files:
         raise ValueError('Cache report/content missing')
-    result = json.loads(report.read_text(encoding='utf-8'))
+    # Only the report needs parsing; retain exactly its verified bytes once.
+    result = json.loads(report_bytes.decode('utf-8'))
     if not isinstance(result, dict):
         raise ValueError('Cache report object required')
     if (result.get('input') != identity['input'] or result.get('sha256') != identity['source_sha256']
