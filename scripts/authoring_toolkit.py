@@ -641,6 +641,9 @@ def validate(case_root, spec):
             block_texts[block_id] = string
     if title_count != 1:
         fail('Exactly one protected project_title paragraph is required')
+    for block_id,string in block_texts.items():
+        if invention_contract.name_prefix_issue(string,spec['project_title']):
+            fail('NAME-01 title_reference_prefix: use the official name unchanged in '+block_id)
     for formula_id, formula in formulas.items():
         count = formula_uses[formula_id]
         if count < 1 or (formula['category'] in {'main_formula', 'source_example', 'prose_example', 'prose_label'} and count != 1):

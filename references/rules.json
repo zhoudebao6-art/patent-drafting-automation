@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 30,
-  "updated_at": "2026-10-16T01:16:09Z",
+  "version": 31,
+  "updated_at": "2026-10-16T01:28:35Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -1435,8 +1435,8 @@
       "scope": "global",
       "section": "all",
       "level": "must",
-      "instruction": "正式交付DOCX文件名去掉扩展名后须与说明书内正式完整发明名称逐字一致，包括原有一种及名称中的系统/方法等字样。以本案来源确认的正式名称冻结selection.title，正文完整名称引用同步；不得为了文件名而任意改发明名称，不截短、不追加修改版/最终版/案号。",
-      "check": "初建队列核对正式名称、Windows合法文件名与同目录重名；复查模型最终核对文内正式标题与冻结名称，交付前复用同稿结构证据核一致性。同名或名称含非法字符时保留原稿并明确待解决冲突，不擅加后缀或覆盖，已运行旧命名契约不静默迁移。",
+      "instruction": "正式交付DOCX文件名去掉扩展名后须与说明书内正式完整发明名称逐字一致，包括原有一种及名称中的系统/方法等字样。以本案来源确认的正式名称冻结selection.title，正文完整名称引用同步；不得为了文件名而任意改发明名称，不截短、不追加修改版/最终版/案号。 标题按本案核定原名逐字使用，没有一种不得添加，原有一种不得删除或重复；目的段、权项开头、技术方案及其他完整名称引用均适用。先修正错误权项名称及从属引用，再同步方案，不能两处同错通过。双权、三权按来源分别核准各类别名称，不机械改成总标题；普通一种修饰词不得全局删除。",
+      "check": "初建队列核对正式名称、Windows合法文件名与同目录重名；复查模型最终核对文内正式标题与冻结名称，交付前复用同稿结构证据核一致性。同名或名称含非法字符时保留原稿并明确待解决冲突，不擅加后缀或覆盖，已运行旧命名契约不静默迁移。 版本31生成前及同次invention_evidence定位完整名称槽中与本案标题仅一种前缀增删或重复不同的title_reference_prefix，命中拒绝生成或验收，不全稿替换。其他句式、图中文字、异名及类别专属名称在原source_support和claims_alignment核对来源，不把程序未命中当作正确；复用原检查不增加模型阶段。",
       "exceptions": [],
       "evidence": [
         {
@@ -1450,6 +1450,14 @@
         {
           "source": "references/model-policy-user-requirement.txt",
           "locator": "2026-10-15用户最新要求及通用执行解释"
+        },
+        {
+          "source": "references/title-identity-user-requirement.txt",
+          "locator": "2026-10-16用户通用修改要求及执行边界"
+        },
+        {
+          "source": "references/invention-content-standard.md",
+          "locator": "版本31 名称原样引用"
         }
       ]
     },
@@ -4917,6 +4925,50 @@
               {
                 "source": "references/formula-detail-standard.md",
                 "locator": "版本30 行内等式与公式组标点"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "version": 31,
+      "previous_version": 30,
+      "updated_at": "2026-10-16T01:28:35Z",
+      "summary": "通用保留核定标题原名，不擅加、漏掉或重复一种；先纠正权项名称再同步方案，防止同错通过，保留类别名与普通修饰词。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "NAME-01",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "all",
+            "level": "must",
+            "instruction": "正式交付DOCX文件名去掉扩展名后须与说明书内正式完整发明名称逐字一致，包括原有一种及名称中的系统/方法等字样。以本案来源确认的正式名称冻结selection.title，正文完整名称引用同步；不得为了文件名而任意改发明名称，不截短、不追加修改版/最终版/案号。 标题按本案核定原名逐字使用，没有一种不得添加，原有一种不得删除或重复；目的段、权项开头、技术方案及其他完整名称引用均适用。先修正错误权项名称及从属引用，再同步方案，不能两处同错通过。双权、三权按来源分别核准各类别名称，不机械改成总标题；普通一种修饰词不得全局删除。",
+            "check": "初建队列核对正式名称、Windows合法文件名与同目录重名；复查模型最终核对文内正式标题与冻结名称，交付前复用同稿结构证据核一致性。同名或名称含非法字符时保留原稿并明确待解决冲突，不擅加后缀或覆盖，已运行旧命名契约不静默迁移。 版本31生成前及同次invention_evidence定位完整名称槽中与本案标题仅一种前缀增删或重复不同的title_reference_prefix，命中拒绝生成或验收，不全稿替换。其他句式、图中文字、异名及类别专属名称在原source_support和claims_alignment核对来源，不把程序未命中当作正确；复用原检查不增加模型阶段。",
+            "exceptions": [],
+            "evidence": [
+              {
+                "source": "references/footer-wording-user-requirement.txt",
+                "locator": "2026-10-15全文"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "版本18新增页脚结构、全稿措辞、说明书范围及名称一致要求"
+              },
+              {
+                "source": "references/model-policy-user-requirement.txt",
+                "locator": "2026-10-15用户最新要求及通用执行解释"
+              },
+              {
+                "source": "references/title-identity-user-requirement.txt",
+                "locator": "2026-10-16用户通用修改要求及执行边界"
+              },
+              {
+                "source": "references/invention-content-standard.md",
+                "locator": "版本31 名称原样引用"
               }
             ]
           }

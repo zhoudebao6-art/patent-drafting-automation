@@ -4,6 +4,8 @@
 
 本页是可直接操作的接口说明。`rules.json`和[人工定稿规范](manual-format-and-wording.md)优先；本工具并非所有 Word 内容的无损转换器。遇到下面明确不支持的内容应保留原件，使用原有可审计手工生成路径，不删掉内容来迁就 schema。
 
+版本31名称校验：project_title须使用本案核定名称原文，不能默认拼接一种。名称槽中与其仅一种前缀增删或重复不同的写法，会触发NAME-01/title_reference_prefix；先按来源修正权项与完整名称引用，再生成方案。原标题自带一种保留，其他类别专属名称另按来源核定，普通一种用法和公式不自动替换。详见[名称原样引用](invention-content-standard.md#版本31-名称原样引用)。
+
 ## 三个命令
 
 使用本机文档技能解析出的 Python；脚本依赖`python-docx`、`lxml`、`Pillow`及同目录`inspect_docx.py`。`$docPython`须来自已验证的文档运行环境，不指向任意全局 Python。以下路径仅示意，`--case-root`必须是当前案的独立可写根目录。

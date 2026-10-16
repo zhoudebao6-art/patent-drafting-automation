@@ -15,6 +15,26 @@ def purpose(title):
     return '本发明的目的在于提供'+title+'，'+PURPOSE_END
 
 
+def name_prefix_issue(text, title):
+    """Check complete name slots, never globally remove the classifier 一种.
+
+    Other category names and ordinary prose are deliberately not inferred from
+    a composite project title. Source/claim review still checks their identity.
+    """
+    head=re.split('[，。；：]',re.sub(r'^[1-9][0-9]*[.．、]','',text),maxsplit=1)[0]
+    if head.startswith('根据权利要求'):
+        match=re.fullmatch(r'根据权利要求.+?所述的(.+)',head)
+        if not match:return None
+        name=match[1]
+    else:
+        prefix=next((p for p in ('本发明的目的在于提供','本发明提供','本发明公开','本发明涉及') if head.startswith(p)),None)
+        name=head[len(prefix):] if prefix else head
+    base=lambda value:re.sub(r'^(?:一种)+','',value)
+    if name!=title and base(name) and base(name)==base(title):
+        return dict(code='title_reference_prefix',expected=title,actual=name)
+    return None
+
+
 def claim_head(text):
     match=re.match(r'^([1-9][0-9]*)[.．、]',text)
     if not match:raise ValueError('Claim requires an explicit numbered first paragraph')
@@ -58,6 +78,8 @@ def expand(spec):
     for block in claims:
         if block.get('role')!='body':raise ValueError('Claim prose must use body role')
         text=block_text(block)
+        if name_prefix_issue(text,spec['project_title']):
+            raise ValueError('NAME-01 title_reference_prefix: use the official name unchanged in claim '+block['id'])
         if re.match(r'^[1-9][0-9]*[.．、]',text):
             number,_,converted=claim_head(text);numbers.append(number)
         elif numbers:converted=text
@@ -109,6 +131,11 @@ def evidence(report,body,claims,title):
     def issue(code,paragraph=None,**extra):
         out['issues'].append(dict(code=code,part='word/document.xml',paragraph=paragraph,**extra))
     if not title:issue('title_unresolved');return out
+    # Also inspect name slots when claims and solution share the same mistake.
+    # Reuse accepted-view paragraphs (including cross-run text), not a ZIP pass.
+    for p in body:
+        mismatch=name_prefix_issue(p['text'],title['text'])
+        if mismatch:issue(mismatch.pop('code'),p['p'],**mismatch)
     def meaningful(p):return bool(p['text'].strip() or p.get('formulas') or p.get('media') or p.get('font_encoded_symbols') or p.get('content_evidence',{}).get('objects'))
     direct=[p for p in body if p.get('body_direct',True) and meaningful(p)]
     starts=[i for i,p in enumerate(direct) if p['p']>title['paragraph'] and p['text']=='发明内容']
