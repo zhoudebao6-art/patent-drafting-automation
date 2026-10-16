@@ -27,7 +27,7 @@ python scripts/cli_pool.py status --manifest 批次manifest.json
 
 每个attempt保存`cli-job.json`、`cli-launch-intent.json`、`prompt.txt`、`dispatch.json`、原始`events.jsonl`、`worker-final.json`、实际`session.jsonl`、`cli-exit.json`和`cli-completion.json`。PID必须同时绑定创建时间和exe，避免PID复用。CLI退出后由supervisor封存五份证据的SHA；收稿核对事件、实际会话中的模型/强度/cwd/sandbox、原始prompt、真实最终回复和退出码，任一矛盾均不能收为成功。
 
-这是总控采集的本地执行证据，不是外部签名或独立服务商证明。CLI成功只证明一次执行完成；仍调用原`parallel_batch.record`检查来源、attempt、DOCX与哈希、六项审查、最终渲染及全部页面证据。模型必须实际逐页查看。模型自报pass、进程退出或缓存命中均不能单独成为交付条件。
+这是总控采集的本地执行证据，不是外部签名或独立服务商证明。CLI成功只证明一次执行完成；仍调用原`parallel_batch.record`检查来源、attempt、DOCX与哈希、六项审查、最终渲染及全部页面证据。模型必须实际查看首次、改变和未审页；verified_scope_v1允许已实际审过且与当前渲染一致的页按原回执证据继承。模型自报pass、进程退出或缓存命中均不能单独成为交付条件。
 
 总控只写manifest；每个supervisor只写本attempt的执行记录，不改业务状态。worker只写本attempt产物，不下派其他worker、CLI或后台服务；来源快照、旧稿和规则只读。按prepared实际路径读缓存、规则active条目和导航，必要时读取完整OMML；原有源N→稿N、零源不造式、所述前置及公式字形/结构规则完整保留。
 

@@ -54,6 +54,30 @@ class BundleTests(unittest.TestCase):
         (self.skill/'references/manual-format-and-wording.md').write_text('changed live rules', encoding='utf-8')
         self.assertEqual((s.verify(self.m)/'worker-draft.md').read_bytes(), before)
 
+    def test_incremental_policy_routes_review_without_changing_legacy_or_writer_roles(self):
+        root = s.verify(self.m)
+        for enabled in (False, True):
+            with self.subTest(incremental=enabled):
+                policy = dict(self.policy)
+                if enabled: policy['review_reuse'] = 'verified_scope_v1'
+                b.atomic(root/'references/batch-policy.json', policy)
+                packet, _ = s.build_packet(root, self.rules, 'review')
+                self.assertEqual('后轮按prepared.review_reuse' in packet, enabled)
+                reserved = {'attempt': {'stage':'review','id':'test-review'},
+                    'spawn_arguments': {'model':'gpt-6.1-sol','reasoning_effort':'xhigh'},
+                    'receipt_template': {}, 'source_snapshots': [],
+                    'worker_context': {'review_mode':'review_only',
+                        'prepared': {'pipeline': {'root':str(root),'stage_guide':'guide',
+                            'math_guide':'math','toolkit_guide':'toolkit-guide','toolkit':'toolkit'}}}}
+                if enabled: reserved['worker_context']['review_reuse']='verified_scope_v1'
+                prompt = cli_pool.worker_prompt(reserved)
+                self.assertEqual('只读取待审范围所需' in prompt, enabled)
+                self.assertEqual('page-map识别' in prompt, enabled)
+                self.assertIn('本轮不修改DOCX' if not enabled else '不改DOCX', prompt)
+                reserved['attempt']['stage'] = 'draft'
+                prompt = cli_pool.worker_prompt(reserved)
+                self.assertIn('完整核对原始公式', prompt)
+
     def test_wps_helper_is_explicitly_frozen_without_arbitrary_powershell(self):
         helper = self.skill/'scripts/wps_readonly_pdf.ps1'
         helper.write_text('# runtime helper fixture', encoding='utf-8')

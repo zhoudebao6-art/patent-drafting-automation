@@ -114,6 +114,12 @@ def validate_policy(p):
         raise BatchError('Invalid post-review optimization contract')
     if p.get('post_review_optimization') and p.get('execution_optimization') != 'lean_execution_v24':
         raise BatchError('Single closeout requires lean execution')
+    if p.get('review_reuse') not in (None, 'verified_scope_v1'):
+        raise BatchError('Invalid incremental review contract')
+    if p.get('review_reuse') and (p.get('worker_preparation') != 'frozen_stage_packet_v1'
+                                 or p.get('review_mode') != 'review_only'
+                                 or p.get('execution_optimization') != 'lean_execution_v24'):
+        raise BatchError('Incremental review requires lean frozen preparation and independent read-only review')
     if p.get('stage_scheduling') not in (None, IMMEDIATE_STAGES, THREE_POOLS):
         raise BatchError('Invalid stage scheduling policy')
     if p.get('stage_scheduling') == THREE_POOLS:
@@ -574,6 +580,7 @@ def reservation_payload(m, c, a, prepared=None):
                                'primary_snapshot': next(s['snapshot_path'] for s in c['sources'] if s['original_path'] == c['primary_source']),
                                'input_artifact': a['input_artifact'], 'input_artifact_sha256': a['input_artifact_sha256'],
                                'review_mode': m['policy'].get('review_mode', 'review_only'),
+                               'review_reuse': m['policy'].get('review_reuse'),
                                'prepared': prepared,
                                'latest_review': copy.deepcopy(latest_review),
                                'receipt_path': str(folder / 'receipt.json'), 'dispatch_path': str(folder / 'dispatch.json'),
@@ -692,6 +699,12 @@ def record(path, case_id, attempt, receipt, controller='controller'):
         # This is controller evidence, never a worker-supplied shortcut.
         if m['policy'].get('post_review_optimization') == 'single_closeout_v25':
             r.pop('render_validation', None)
+        r.pop('review_reuse_validation', None)
+        if m['policy'].get('review_reuse'):
+            import incremental_review
+            reuse_validation = incremental_review.validate(m, c, a, r)
+            if reuse_validation is not None:
+                r['review_reuse_validation'] = reuse_validation
         if verdict in {'failed', 'needs_input'}:
             if not isinstance(r.get('reason'), str) or not r['reason'].strip(): raise BatchError('Concrete failure reason required')
             c['status'] = verdict

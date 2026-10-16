@@ -32,6 +32,7 @@ GROUPS = {
     'pages': ('排版与最终页面', ['test_authoring_toolkit', 'test_authoring_pagination', 'test_page_flow_contract',
                              'test_render_docx_checked', 'test_style_evidence', 'test_content_spacing']),
     'workflow': ('调度回执与交付', ['test_batch_tool', 'test_parallel_batch', 'test_cli_evidence', 'test_cli_pool',
+                                'test_incremental_review',
                                 'test_efficiency_cli', 'test_worker_receipt', 'test_three_stage_pools',
                                 'test_nonblocking_pools', 'test_overlapped_pipeline', 'test_inline_review',
                                 'test_incremental_delivery', 'test_flat_delivery', 'test_post_review',
@@ -55,6 +56,7 @@ SCRIPT_GROUPS = {
     'wps_render_backend.py': ['pages', 'workflow'], 'wps_readonly_pdf.ps1': ['pages', 'workflow'],
     'cli_pool.py': ['workflow', 'maintenance'], 'cli_evidence.py': ['workflow'],
     'stage_pool_runner.py': ['workflow'], 'worker_receipt.py': ['workflow'],
+    'incremental_review.py': ['source', 'pages', 'workflow'],
     'flat_delivery.py': ['claims', 'workflow', 'maintenance'], 'recover_cli_batch.py': ['workflow'],
     'rules_tool.py': ['maintenance'],
 }

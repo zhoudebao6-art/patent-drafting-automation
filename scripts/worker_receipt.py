@@ -216,6 +216,9 @@ def assemble(job_path, decisions):
     m = {'batch_dir': str(case_root.parent.parent), 'policy': contract}
     case = {'id': case_root.name, 'artifact_sha256': attempt.get('input_artifact_sha256')}
     precheck_receipt(m, case, attempt, receipt)
+    if contract.get('review_reuse'):
+        import incremental_review
+        incremental_review.validate(m, case, attempt, receipt, controller=False)
     if receipt.get('verdict') == 'pass':
         import render_docx_checked as renderer
         renderer.verify_render(Path(receipt['render']['evidence']).parent, attempt['input_artifact'])

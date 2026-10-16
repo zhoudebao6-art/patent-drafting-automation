@@ -1,4 +1,4 @@
-"""Controller-owned case preparation; cached data never grants review approval."""
+"""Controller-owned preparation; reuse requires separately verified review coverage."""
 from pathlib import Path
 import json
 import inspect_docx as inspector
@@ -161,6 +161,14 @@ def prepare(m, case, attempt):
               'boundary': 'Read content and index first; load full OMML for relevant IDs. Reuse data, never semantic approval. Verify render candidates before viewing; invalid or distorted output cannot pass.'}
     if pipeline:
         result['pipeline'] = pipeline
+    if attempt.get('input_artifact') and attempt['stage'] == 'review':
+        import incremental_review
+        if incremental_review.enabled(m['policy']):
+            result['review_reuse'] = incremental_review.prepare(m, case, attempt, out)
+            result['boundary'] = ('Use the sealed incremental review plan and prior validated coverage. '
+                                  'Review differences, repairs, new and dependency-affected scopes; '
+                                  'only unchanged explicitly passed scopes may inherit after independent impact review. '
+                                  'Current render evidence remains required; identical previously viewed pages may inherit.')
     result['prepared_files'] = [{'file': p.name, 'sha256': inspector.file_sha(p)} for p in sorted(out.glob('*.json'))]
     path = out/'handoff.json'
     save_new(path, result)

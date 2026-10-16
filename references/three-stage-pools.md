@@ -8,7 +8,7 @@
 |review复查|3|gpt-6.1-sol/xhigh|只读复查初稿或修订稿；问题交修改池，通过则交付|
 |revise修改|3|gpt-6.1-sol/xhigh|按findings集中修改、同步关联内容，另存新稿后回复查池|
 
-没有问题的稿件直接从review验收交付，不强行经过修改。需要修改时draft→review→revise→新的review；复查与重验共享3个review槽，新attempt及新会话保证修改者不直接签通过。保留六项审查及全部最终页检查，缓存只复用客观数据。review发现内容问题后不提前反复渲染已知待改稿，返回fix_required；revise返回complete后案件状态为revised，不能pass。旧review_fix_then_recheck才允许review本轮小修返回revised。
+没有问题的稿件直接从review验收交付，不强行经过修改。需要修改时draft→review→revise→新的review；复查与重验共享3个review槽，新attempt及新会话保证修改者不直接签通过。保留六项及全部当前页覆盖；verified_scope_v1将有证据且未受影响的通过范围交给新独立review沿用，只检查差异与关联、未通过或未审范围。缓存数据本身不证明通过。review发现内容问题后不提前反复渲染已知待改稿，返回fix_required；revise返回complete后案件状态为revised，不能pass。旧review_fix_then_recheck才允许review本轮小修返回revised。
 
 顶层stage_pools给出三个正整数上限，之和等于concurrency.target_workers，默认6/3/3，总目标12；max_in_flight_cases默认24。reserved和bound都计数，CLI与本批collaboration共用这些限制；同案最多一个活跃attempt。每池不借位超限，启动时只有初稿待办就最多6个初稿，不启动12个初稿占满后续池。
 

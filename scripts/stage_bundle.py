@@ -115,6 +115,13 @@ def build_packet(snapshot, rules, stage):
         stage_text = ('独立只读完成六项审查。发现问题返回fix_required和精确findings，由独立revise工作池修改；'
                       '本轮不修改DOCX、不返回revised。修改后回到review池由新会话独立重验。'
                       '只有当前稿六项及全部最终页实际检查通过，才能pass；未做项写not_run。')
+    reuse = policy.get('review_reuse') == 'verified_scope_v1'
+    if reuse and stage == 'review':
+        stage_text = ('独立只读审查；首次无覆盖证据时完整检查，集中汇总本轮能确认的问题后交revise池。'
+                      '后轮按prepared.review_reuse调用incremental_review.py summary读取差异摘要，不整读内部逐段哈希；核差异与依赖，仅复查修改、新增、受影响、未通过或未审范围；'
+                      '可验证且未受影响的已通过范围沿用，不再次整篇读源、重查所有公式/所述或重复看相同页。'
+                      '当前稿六项和全部页面由本轮实查加有效继承完整覆盖才pass，修改者不能自验。'
+                      '在原回执附review_coverage；具体字段及page-map调用见references/worker-receipt.md。')
     sections = [f'# 本批{stage}执行清单（规则v{rules["version"]}）', f'本阶段模型/强度：{identity}。'+stage_text,
                 '本清单包含全部active规则的原文指令、检查及例外，以及必需写作规范。正常阶段读一次本清单，不再重复读取rules.active.json、整个SKILL或其已包含的参考文件。疑点按索引查询；不能用此安排跳过宿主要求或本案来源。',
                 '## 原文规则（含适用范围）']
@@ -150,7 +157,7 @@ def build_packet(snapshot, rules, stage):
     sections += ['# 按需资料与执行工具',
                  '有公式或附图时读worker-math.md一次；不能因只看到零个OMML就判定无公式，仍检查文本/图片/OLE。它包含技术校核和公式结构规范的完整原文。',
                  '制作或修改Word遵守当前可用documents技能。通用生成器的输入与调用见references/authoring-toolkit.md；运行环境见references/runtime.json及runtime.md。生成器仅负责可验证的机械生成，语义由指定模型完成。',
-                 '来源content/index、完整数学对象及当前稿的实际路径见本attempt的prepared/handoff.json。只写本attempt，其他文件只读。复用缓存数据不继承任何通过结论。',
+                 '来源content/index、完整数学对象及当前稿的实际路径见本attempt的prepared/handoff.json。只写本attempt，其他文件只读。'+('只允许prepared.review_reuse绑定的真实已通过范围继承；数据缓存本身不证明通过。' if reuse else '复用缓存数据不继承任何通过结论。'),
                  '最后依据实际工作填写回执模板；自动生成的哈希/索引不是检查通过证据。未做检查写not_run，未解决问题不得交付。']
     output = '\n\n'.join(sections).rstrip()+'\n'
     coverage = {'stage': stage, 'active_rule_ids': [r['id'] for r in active],

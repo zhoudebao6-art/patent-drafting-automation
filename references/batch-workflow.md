@@ -90,9 +90,9 @@ stop-evidence含tool=collaboration.interrupt_agent、原context、arguments.targ
 
 默认使用[提效流程](efficiency.md)中的缓存、简短回执和按需检查。正常直接reserve，避免plan→reserve重复读取；总控在worker工作时可提前用本地工具提取下一案来源。--compact只缩短返回内容，不删证据。
 
-环境预检每批一次，依赖改变后重新检查和实测。来源快照按源SHA和提取器哈希复用提取结果，同名异内容不能命中；复查复用数据结构但独立核对原材料及OMML。一个evidence.json可以汇总来源/术语/公式/附图，避免重复台账。独立只读检查批量执行。
+环境预检每批一次，依赖改变后重新检查和实测。来源快照按源SHA和提取器哈希复用提取结果，同名异内容不能命中；复查复用数据结构并独立核对待审范围所需的原材料及完整OMML。一个evidence.json可以汇总来源/术语/公式/附图，避免重复台账。独立只读检查批量执行。
 
-Word字节未变且render_docx_checked.py --verify通过时，直接复用同案已生成PDF/全部PNG，不重复转换。任何修订改变DOCX后重新渲染。最终复查模型仍查看全部页、完成六项检查；可聚焦变更及依赖，不以省略验收换效率。
+Word字节未变且render_docx_checked.py --verify通过时，直接复用同案已生成PDF/全部PNG，不重复转换。任何修订改变DOCX后重新渲染。verified_scope_v1复查按差异与依赖完成六项覆盖；当前渲染中与已审通过页一致的页可验证继承，仅对其他页实际查看。旧冻结策略仍按原范围执行。
 
 ## 桌面交付
 
