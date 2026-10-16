@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "Compact workflow plus verbatim rules; v41 duplicate name-only operator explanations omitted after complete same-identity meaning is retained, unique information and independent symbols preserved. v39/v40 and earlier scopes retained. Source edits require renewed coverage review.",
+  "description": "Compact workflow plus verbatim rules; v42 flowchart reuse requires correct logic and readable crossing-free routing, real shared endpoints and optional same-figure paired continuations preserve source edges. Final image and DOCX pages reviewed in existing stages; v39-v41 and earlier scopes retained. Source edits require renewed coverage review.",
   "files": {
     "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
     "terminology-and-formula.md": "dc54b8c18902b4bb26d2c73a23b59050c067e95e64595361519297d01c95d855",
-    "reference-style-standard.md": "9420c0062884394843cd5426b2cbcbccb4ad8c300985398c3e4e8aab526bb1c8",
+    "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
     "manual-format-and-wording.md": "d3146a25704ce8716129cbe1da1a39c23bbcf87d1635b73c28b7fcb65bc2fdad",
-    "worker-standard.md": "9381b076bb21fb57859213799e5c9a138875171084c06c42b06967ac14436432"
+    "worker-standard.md": "0e0b869da6459658aed4d49c935f37081fb35d342c273e181614c105f3d82467"
   }
 }
