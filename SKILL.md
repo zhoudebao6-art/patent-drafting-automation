@@ -24,7 +24,7 @@ description: 按用户指定文件夹滚动并行撰写专利文件，使用GPT-
 ## 主控批量执行
 
 1. 按[批处理流程](references/batch-workflow.md)识别来源、冻结队列；模型及交付配置见[batch-policy.json](references/batch-policy.json)。新批次用parallel_batch.py，旧serial批次仍用batch_tool.py及其[历史流程](references/batch-workflow-serial.md)。安装更新只影响以后新建批次，不修改运行中的skill-snapshot。
-2. 每批按[运行环境](references/runtime.md)预检一次，首次配置、依赖变动或新故障才做小样。普通批次不跑技能回归、不检查GitHub、不通读历史案例或无关配置。init一次冻结工具和规范并编译清单，不逐案重编译。
+2. 每批按[运行环境](references/runtime.md)预检一次，首次配置、依赖变动或新故障才做小样；已验证WPS后端直接走正式转换，避免因LO字形失真反复改正确公式。普通批次不跑技能回归、不检查GitHub、不通读历史案例或无关配置。init一次冻结工具和规范并编译清单，不逐案重编译。
 3. 默认使用[多CLI池](references/cli-workers.md)滚动补位：6个draft、3个review、3个revise为硬上限，总目标12，最多24案在制；必须显式传实际可用--workers，不能把配置数当作可用额度或实跑证明。没有CLI时使用实际可用子代理名额；不得降级模型或更改全局安全设置。手工通道直接reserve --prepare，不先重复plan。
 4. draft固定gpt-6.1-sol/high；review、revise及修改后独立重验固定gpt-6.1-sol/xhigh。每案最多一个活动attempt，阶段新会话隔离；三池准备/收稿与单写交付通道独立，初稿完成即排复查，待修稿即排修改，通过即交付，有对应池空位立即接手。慢I/O不占主清单长锁；详见[三池执行](references/three-stage-pools.md)。
 5. 最终source_support、antecedents、claims_alignment、formulas、figures、rendered_pages六项及全部最终页均实际通过、身份和哈希一致后，立即将DOCX交付桌面唯一批次文件夹根目录。所有成稿同层追加，不按案件/阶段另建目录、不散放桌面、不等整批。工作证据留在工作区，详细规则见[唯一交付目录](references/batch-workflow.md#版本46唯一桌面交付目录)。

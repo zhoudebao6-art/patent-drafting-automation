@@ -54,6 +54,23 @@ class BundleTests(unittest.TestCase):
         (self.skill/'references/manual-format-and-wording.md').write_text('changed live rules', encoding='utf-8')
         self.assertEqual((s.verify(self.m)/'worker-draft.md').read_bytes(), before)
 
+    def test_wps_helper_is_explicitly_frozen_without_arbitrary_powershell(self):
+        helper = self.skill/'scripts/wps_readonly_pdf.ps1'
+        helper.write_text('# runtime helper fixture', encoding='utf-8')
+        unrelated = self.skill/'scripts/unrelated.ps1'
+        unrelated.write_text('# excluded', encoding='utf-8')
+        selected = s.selected_files(self.skill)
+        self.assertIn(helper, selected)
+        self.assertNotIn(unrelated, selected)
+        other_batch = self.root/'wps-batch'; other_batch.mkdir()
+        record = s.freeze(self.skill, other_batch, self.rules_bytes, self.policy)
+        manifest = dict(self.m, batch_dir=str(other_batch), skill_snapshot=record)
+        root = s.verify(manifest)
+        self.assertEqual((root/'scripts/wps_readonly_pdf.ps1').read_bytes(), helper.read_bytes())
+        (root/'scripts/wps_readonly_pdf.ps1').write_text('changed frozen helper', encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'Frozen skill file changed'):
+            s.verify(manifest)
+
     def test_compiler_does_not_drop_unknown_or_project_scoped_rules(self):
         rules = copy.deepcopy(self.rules)
         new = copy.deepcopy(rules['rules'][0]); new.update(id='FUTURE-01', scope='project:测试', instruction='只在指定项目适用；保留例外。', exceptions=['名称中保留原词'])

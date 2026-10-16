@@ -52,6 +52,7 @@ SCRIPT_GROUPS = {
     'prepare_handoff.py': list(GROUPS),
     'stage_bundle.py': ['source', 'workflow', 'maintenance'],
     'render_docx_checked.py': ['pages', 'workflow'], 'evidence_query.py': ['source'],
+    'wps_render_backend.py': ['pages', 'workflow'], 'wps_readonly_pdf.ps1': ['pages', 'workflow'],
     'cli_pool.py': ['workflow', 'maintenance'], 'cli_evidence.py': ['workflow'],
     'stage_pool_runner.py': ['workflow'], 'worker_receipt.py': ['workflow'],
     'flat_delivery.py': ['claims', 'workflow', 'maintenance'], 'recover_cli_batch.py': ['workflow'],
@@ -94,6 +95,8 @@ def select(groups=(), changed=(), all_tests=False):
             selected.update(SCRIPT_GROUPS[path.name])
         elif rel == 'references/batch-policy.json':
             selected.update(GROUPS)
+        elif rel == 'references/runtime.json':
+            selected.update(('pages', 'workflow'))
         elif (rel.startswith('references/') and path.suffix in {'.md', '.txt'}
               or rel in {'references/rules.json', 'references/worker-standard-coverage.json'}
               or rel.startswith('references/rule-backups/') and path.suffix == '.json'):

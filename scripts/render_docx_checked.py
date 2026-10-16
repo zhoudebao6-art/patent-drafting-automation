@@ -31,19 +31,27 @@ def dump(path, value):
 def preflight(config):
     if config.get('schema_version') != 1:
         raise RenderError('Unsupported runtime configuration')
-    paths = {name: Path(config[name]) for name in ('python', 'renderer', 'libreoffice', 'poppler_dir')}
+    backend = config.get('conversion_backend', 'libreoffice')
+    if backend not in {'libreoffice', 'wps'}:
+        raise RenderError('Unsupported conversion backend')
+    required = ('python', 'poppler_dir') if backend == 'wps' else ('python', 'renderer', 'libreoffice', 'poppler_dir')
+    paths = {name: Path(config[name]) for name in required}
     if any(not p.is_absolute() for p in paths.values()):
         raise RenderError('Runtime paths must be absolute')
-    for key in ('python', 'renderer', 'libreoffice'):
+    for key in set(required)-{'poppler_dir'}:
         if not paths[key].is_file():
             raise RenderError('Missing configured runtime: ' + key)
     for name in ('pdfinfo.exe', 'pdftoppm.exe'):
         if not (paths['poppler_dir']/name).is_file():
             raise RenderError('Missing bundled Poppler: ' + name)
-    if paths['libreoffice'].name.lower() != 'soffice.exe':
-        raise RenderError('Expected the verified native soffice.exe')
-    if sha(paths['libreoffice']) != config.get('libreoffice_sha256'):
-        raise RenderError('LibreOffice executable changed; re-detect and verify the configured installation')
+    if backend == 'libreoffice':
+        if paths['libreoffice'].name.lower() != 'soffice.exe':
+            raise RenderError('Expected the verified native soffice.exe')
+        if sha(paths['libreoffice']) != config.get('libreoffice_sha256'):
+            raise RenderError('LibreOffice executable changed; re-detect and verify the configured installation')
+    else:
+        import wps_render_backend
+        paths.update(wps_render_backend.preflight(config))
     # This wrapper must run in the document runtime, not a random system Python.
     if not os.path.samefile(sys.executable, paths['python']):
         raise RenderError('Run this helper with the configured document Python runtime')
@@ -122,7 +130,10 @@ def font_identity(config):
 
 def runtime_fingerprint(paths, config, dpi):
     """Bind reuse to configured conversion tools and options, not timestamps."""
-    tools = {name: paths[name] for name in ('python', 'renderer', 'libreoffice')}
+    names = (('python', 'wps_program', 'wps_powershell', 'wps_helper', 'wps_backend')
+             if config.get('conversion_backend', 'libreoffice') == 'wps'
+             else ('python', 'renderer', 'libreoffice'))
+    tools = {name: paths[name] for name in names}
     tools.update({name: paths['poppler_dir']/name for name in ('pdfinfo.exe', 'pdftoppm.exe')})
     payload = {'config': config, 'dpi': dpi, 'wrapper_sha256': sha(__file__),
                'tools': {name: {'path': str(path), 'sha256': sha(path)} for name, path in tools.items()},
@@ -137,6 +148,7 @@ def compact_result(evidence, output_dir):
 
 def render(input_path, output_dir, config, timeout=180, dpi=144, reuse=False):
     paths = preflight(config)
+    backend = config.get('conversion_backend', 'libreoffice')
     source = Path(input_path).resolve(strict=True)
     if source.suffix.lower() != '.docx':
         raise RenderError('Only DOCX is supported by this workflow')
@@ -156,43 +168,50 @@ def render(input_path, output_dir, config, timeout=180, dpi=144, reuse=False):
     out.mkdir(parents=True, exist_ok=False)
     initial = sha(source)
     evidence = {'schema_version': 1, 'input': str(source), 'input_sha256': initial,
-                'renderer': str(paths['renderer']), 'renderer_sha256': sha(paths['renderer']),
-                'libreoffice': str(paths['libreoffice']), 'libreoffice_sha256': sha(paths['libreoffice']),
+                'conversion_backend': backend,
                 'python': str(paths['python']), 'dpi': dpi,
                 'runtime_fingerprint': fingerprint,
                 'status': 'running', 'visual_review': 'not_run'}
+    if backend == 'libreoffice':
+        evidence.update(renderer=str(paths['renderer']), renderer_sha256=sha(paths['renderer']),
+                        libreoffice=str(paths['libreoffice']), libreoffice_sha256=sha(paths['libreoffice']))
     dump(out/'render.json', evidence)
-    env = os.environ.copy()
-    env['PATH'] = os.pathsep.join([str(paths['libreoffice'].parent), str(paths['poppler_dir']),
-                                  str(paths['python'].parent), str(Path(os.environ.get('SystemRoot', r'C:\Windows'))/'System32')])
-    if Path(shutil.which('soffice.exe', path=env['PATH']) or '').resolve() != paths['libreoffice'].resolve():
-        raise RenderError('Configured executable would not be selected')
-    command = [str(paths['python']), '-X', 'utf8', str(paths['renderer']), str(source),
-               '--output_dir', str(out), '--emit_pdf', '--dpi', str(dpi), '--verbose']
-    evidence['command'] = command
     start = time.monotonic()
     try:
-        with (out/'renderer.log').open('w', encoding='utf-8') as log:
-            proc = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT,
-                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-            evidence['renderer_pid'] = proc.pid
-            try:
-                code = proc.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                # Target only the still-live process tree created by this helper.
-                # Never kill all Office/LibreOffice instances by executable name.
-                if proc.poll() is None:
-                    killer = Path(os.environ.get('SystemRoot', r'C:\Windows'))/'System32/taskkill.exe'
-                    cleanup = subprocess.run([str(killer), '/PID', str(proc.pid), '/T', '/F'], capture_output=True, timeout=20,
-                                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-                    evidence['timeout_cleanup_exit'] = cleanup.returncode
-                    proc.wait(timeout=20)
-                raise RenderError('Renderer timed out; see isolated invocation log')
-        evidence['exit_code'] = code
-        if code != 0:
-            raise RenderError('Canonical renderer failed; see renderer.log')
+        if backend == 'wps':
+            import wps_render_backend
+            evidence.update(wps_render_backend.convert(source, out, paths, config, timeout, dpi))
+        else:
+            env = os.environ.copy()
+            env['PATH'] = os.pathsep.join([str(paths['libreoffice'].parent), str(paths['poppler_dir']),
+                                          str(paths['python'].parent), str(Path(os.environ.get('SystemRoot', r'C:\Windows'))/'System32')])
+            if Path(shutil.which('soffice.exe', path=env['PATH']) or '').resolve() != paths['libreoffice'].resolve():
+                raise RenderError('Configured executable would not be selected')
+            command = [str(paths['python']), '-X', 'utf8', str(paths['renderer']), str(source),
+                       '--output_dir', str(out), '--emit_pdf', '--dpi', str(dpi), '--verbose']
+            evidence['command'] = command
+            with (out/'renderer.log').open('w', encoding='utf-8') as log:
+                proc = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT,
+                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                evidence['renderer_pid'] = proc.pid
+                try:
+                    code = proc.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    # This is the isolated LO renderer tree, not a shared COM app.
+                    if proc.poll() is None:
+                        killer = Path(os.environ.get('SystemRoot', r'C:\Windows'))/'System32/taskkill.exe'
+                        cleanup = subprocess.run([str(killer), '/PID', str(proc.pid), '/T', '/F'], capture_output=True, timeout=20,
+                                                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                        evidence['timeout_cleanup_exit'] = cleanup.returncode
+                        proc.wait(timeout=20)
+                    raise RenderError('Renderer timed out; see isolated invocation log')
+            evidence['exit_code'] = code
+            if code != 0:
+                raise RenderError('Canonical renderer failed; see renderer.log')
         if sha(source) != initial:
             raise RenderError('DOCX changed while rendering')
+        if runtime_fingerprint(paths, config, dpi) != fingerprint:
+            raise RenderError('Render backend, tools or fonts changed during conversion')
         pdfs = list(out.glob('*.pdf'))
         if len(pdfs) != 1:
             raise RenderError('Expected exactly one output PDF')

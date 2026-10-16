@@ -12,5 +12,11 @@
     "math": "C:\\Windows\\Fonts\\cambria.ttc",
     "body": "C:\\Windows\\Fonts\\simsun.ttc",
     "header": "C:\\Windows\\Fonts\\simhei.ttf"
-  }
+  },
+  "conversion_backend": "wps",
+  "wps_program": "C:\\Users\\HS\\AppData\\Local\\Kingsoft\\WPS Office\\12.1.0.29161\\office6\\wps.exe",
+  "wps_program_sha256": "5de5a5c7c8bdaa74c2ba6cdb7fee12810045208cbec0da1758e045d06138bab0",
+  "wps_powershell": "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "wps_powershell_sha256": "870eda04ea71cc066ec907f005e1d05ce592f04799c60e600e2cb986dc85b5eb",
+  "wps_progid": "KWPS.Application"
 }

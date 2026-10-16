@@ -52,6 +52,10 @@ def selected_files(skill):
     skill = Path(skill).resolve(strict=True)
     selected = [skill/'SKILL.md']
     selected += [p for p in (skill/'scripts').glob('*.py') if not p.name.startswith('test_')]
+    # The COM helper is a runtime dependency, not an arbitrary script glob.
+    wps_helper = skill/'scripts/wps_readonly_pdf.ps1'
+    if wps_helper.is_file():
+        selected.append(wps_helper)
     for p in (skill/'references').rglob('*'):
         if p.is_file() and 'rule-backups' not in p.relative_to(skill).parts:
             selected.append(p)

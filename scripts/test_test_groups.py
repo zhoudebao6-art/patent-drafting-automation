@@ -23,6 +23,11 @@ class GroupSelectionTests(unittest.TestCase):
         docs = groups.run_plan(groups.select(changed=['README.md']))
         self.assertEqual(docs['status'], 'no_runtime_tests_required')
         self.assertIsNone(docs['passed'])
+        expected_render = groups.select(['pages', 'workflow'])['test_ids']
+        for changed in ('scripts/wps_render_backend.py', 'scripts/wps_readonly_pdf.ps1',
+                        'references/runtime.json'):
+            with self.subTest(render_change=changed):
+                self.assertEqual(groups.select(changed=[changed])['test_ids'], expected_render)
         for script, consumers in {
             'parallel_batch.py': ['test_punctuation_contract', 'test_figure_caption_contract',
                                   'test_figure_description_contract', 'test_formula_prose_contract'],
@@ -37,7 +42,7 @@ class GroupSelectionTests(unittest.TestCase):
 
     def test_unknown_changes_expand_and_invalid_selection_never_silently_passes(self):
         all_ids = groups.select(all_tests=True)['test_ids']
-        for path in ('scripts/future_shared_gate.py', 'references/runtime.json',
+        for path in ('scripts/future_shared_gate.py',
                      'references/source-manifest.json', 'references/future_config.json',
                      'references/batch-policy.json'):
             with self.subTest(changed=path):
