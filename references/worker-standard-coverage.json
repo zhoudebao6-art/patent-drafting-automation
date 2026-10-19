@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.37 independently reviewed compact worker interface, 65 active rules at version 66. FORMULA-03 requires all formula and explanation displays upright while preserving complete symbols, semantic bold and alphabet families; source trees and hashes remain immutable. STYLE-01 fixes the claim introduction to a Chinese comma, including cross-run and continuation cases; normal includes-colon syntax stays intact. Four CORE/worker sources were synchronized with these constraints. Other rules, source boundaries, independent stages, six checks, current-page coverage, verified-scope reuse and immediate delivery remain unchanged. Semantic coverage review is required before changing hashes.",
+  "description": "v6.38 independently reviewed compact worker interface, 65 active rules at version 67. TXT-10 and FORMULA-05 require each identical complete symbol with the same meaning and scope to be defined only after its first formula in final reading order; later formulas define new symbols only and retain genuinely local conditions. Every formula retains full symbol coverage linked to the first explanation. Writing, terminology and worker sources were synchronized. Runtime code, source boundaries, independent stages, six checks, current-page coverage, verified-scope reuse and immediate delivery remain unchanged. Semantic coverage review is required before changing hashes.",
   "files": {
-    "writing-standard.md": "0ed8ac1e393c273e6cc4f509143c55a5c7880217d432fb6a1e7eb88afbe8f3c1",
+    "writing-standard.md": "10a7730a3aa15d1fe6950d188424a67cd6a2e481a3cd2fb44261b0c1062d8a6c",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "af9797d34bb11d6e4b9cd7e830992b4ed4e297abef9079c764f4b1e4b9619932",
+    "terminology-and-formula.md": "fb8965c505e24776e4d6ad20f9d4913ea19330a9b75535f5440823dc8eca47bd",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
     "manual-format-and-wording.md": "d6186581e64837be21730939acc5cbf5296cd2077d8dfbb146c3a6ea8e0dc755",
-    "worker-standard.md": "eb98f1a4d7991a607f4f3fdb7d4b0b8720b3901a483b6d4e32e801784e9ddb5a"
+    "worker-standard.md": "58b752bf60ffcee1726b81eb79cfe80a81978710b39814adea8e3bd709ea9940"
   }
 }
