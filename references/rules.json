@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 58,
-  "updated_at": "2026-10-16T09:11:06Z",
+  "version": 59,
+  "updated_at": "2026-10-19T00:53:48Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -1241,7 +1241,7 @@
       "scope": "global",
       "section": "formula",
       "level": "must",
-      "instruction": "按本案实际数学角色选择表示，以原式或授权规范式的完整数学记号作为公式及其引用/解释的共同基准。逐字符核Unicode、大小写及I/l/1等形似字符，保留字体族、正斜体、粗细、花体/黑板体、帽号、上下标及顺序、实际参数、作用范围和有义外层运算；优先复制完整数学片段，不重键形似字符、不只改解释名称为正体。同为Cambria Math或普通文本相同不足以证明一致。 来源绑定的量/算子引用即使只有一个字符，也保留核定数学结构和字形，不能降为正文；旧裸量普通run例外不覆盖该绑定。只有明确独立索引名字、普通文字提及、标签和普通数字叙述算例按文字角色，可据原样式用宋体14pt或已核定reference_letter的Cambria Math12pt正体基线，不推广12pt或强拆单字OMML。完整公式及结构量以Cambria Math14pt为起始基准，有义正斜/粗细等沿核定原式保留，不能以普通样式覆盖完整身份。完整符号解释、平方项/函数实参/求导变量/功能标识及去重按TXT-10，不拿索引或占位解释替代完整量。 含本案公式符号、变量、函数或数学算子的等式全部置于一个完整数学对象，左右式、等号、正负号、数值及运算连续；直接数值赋值也不拆。max/min等实参全为数字仍是函数式；纯数字普通算术叙述等式和非公式字段/编号保持文字，不能只因等号升格为公式。解释算子本体使用来源完整name(·)，其必要数学括号不受普通文字禁括号限制，实际调用不能改为占位；不新增算子或关系。单条长式按FORMULA-04局部缩小公式及收尾分号至可读单行，保留显式字号比例和有义字形，正文解释不随之缩小，不横向压扁或改全篇页边距；局部字号差异本身不等于符号身份错误。 来源核定为普通矩阵/向量转置时用真实右上标⊺（U+22BA），已正确者不重复；保留完整被转置对象、上下标、矩阵粗体、括号及嵌套运算。不以基线⊺、形似字母、图片旋转或删除上标代替；温度/周期/终时刻变量T、指数/标签T、共轭转置H、共轭星号、伪逆加号等不同含义不误替。上标单T仅为角色候选，逐处按源核定。公式内中文按FORMULA-02映射对应英文数学记号；转置与中文映射是原字符保真的明确授权例外，只改已核定记号表示。原件只读，保留原SHA/raw_formula/源位置及原树，normalized_formula/canonical_math_fragment和解释用同一规范记号，记录完整旧→新身份及依据，不用新树冒充原树。数学关系、主式N、运算顺序、数值、单位含义、条件和作用域不变；同步本案全部公式出现、行内关系、说明和相关引用。",
+      "instruction": "按本案实际数学角色选择表示，以原式或授权规范式的完整数学记号作为公式及其引用/解释的共同基准。逐字符核Unicode、大小写及I/l/1等形似字符，保留字体族、正斜体、粗细、花体/黑板体、帽号、上下标及顺序、实际参数、作用范围和有义外层运算；优先复制完整数学片段，不重键形似字符、不只改解释名称为正体。同为Cambria Math或普通文本相同不足以证明一致。 来源绑定的量/算子引用即使只有一个字符，也保留核定数学结构和字形，不能降为正文；旧裸量普通run例外不覆盖该绑定。只有明确独立索引名字、普通文字提及、标签和普通数字叙述算例按文字角色，可据原样式用宋体14pt或已核定reference_letter的Cambria Math12pt正体基线，不推广12pt或强拆单字OMML。完整公式及结构量以Cambria Math14pt为起始基准，有义正斜/粗细等沿核定原式保留，不能以普通样式覆盖完整身份。完整符号解释、平方项/函数实参/求导变量/功能标识及去重按TXT-10，不拿索引或占位解释替代完整量。 含本案公式符号、变量、函数或数学算子的等式全部置于一个完整数学对象，左右式、等号、正负号、数值及运算连续；直接数值赋值也不拆。max/min等实参全为数字仍是函数式；纯数字普通算术叙述等式和非公式字段/编号保持文字，不能只因等号升格为公式。解释算子本体使用来源完整name(·)，其必要数学括号不受普通文字禁括号限制，实际调用不能改为占位；不新增算子或关系。单条长式按FORMULA-04局部缩小公式及收尾分号至可读单行，保留显式字号比例和有义字形，正文解释不随之缩小，不横向压扁或改全篇页边距；局部字号差异本身不等于符号身份错误。 来源核定为普通矩阵/向量转置时用真实右上标⊺（U+22BA），已正确者不重复；保留完整被转置对象、上下标、矩阵粗体、括号及嵌套运算。不以基线⊺、形似字母、图片旋转或删除上标代替；温度/周期/终时刻变量T、指数/标签T、共轭转置H、共轭星号、伪逆加号等不同含义不误替。上标单T仅为角色候选，逐处按源核定。公式内中文按FORMULA-02映射对应英文数学记号；转置、中文映射及版本59数值记号规范化是原字符保真的明确授权例外，只改已核定记号表示。原件只读，保留原SHA/raw_formula/源位置及原树，normalized_formula/canonical_math_fragment和解释用同一规范记号，记录完整旧→新身份及依据，不用新树冒充原树。数学关系、主式N、运算顺序、数值、单位含义、条件和作用域不变；同步本案全部公式出现、行内关系、说明和相关引用。 版本59在文件全部可见内容中，数字前确实表示正号、负号或正负号的正、负、正负分别写为+、−、±；负号为U+2212，不写连字符或+-。两个数之间明确的加/加上、减/减去、乘/乘以、除以分别写为+、−、×、÷，等于写为=，其他已明确数值运算或比较关系使用对应数学符号；不凭两数相邻新增关系。适用于阿拉伯数字及明确的中文数词，保留数值、有效位、小数、百分数、单位、上下标、条件、结果及分组次序。正负整体识别，不逐字替成+−；除和除以须据源确认被除数/除数，不能按词序机械替换。正向、负载、正负极等技术词，正式名称/型号/编号和非运算连接不按子串替换。只转换已核定数学表示，不自行改数值、求新结果、替换原有不同含义算子或编造公式；歧义据来源解决，未解决不记通过。纯数字普通算例仍为文字，含变量/函数的等式仍按既有规则整式数学格式。本次是原字符保真的授权例外，原件只读，保留原SHA/raw/源位置及旧→新表示，权项与技术方案、公式与解释及相关出现同步。",
       "evidence": [
         {
           "source": "references/terminology-formula-user-requirement.txt",
@@ -1314,9 +1314,13 @@
         {
           "source": "references/complete-references-v45-user-requirement.txt",
           "locator": "2026-10-16按用户第二图保留完整符号解释，不以星号、裸字母或泛称代替"
+        },
+        {
+          "source": "references/numeric-notation-v59-user-requirement.txt",
+          "locator": "2026-10-19用户原话"
         }
       ],
-      "check": "复用同次inspection、formula_registry.symbols/source_objects、format_check/layout_changes、explanation_occurrences及review_notes。逐处对照来源、当前式和解释的完整片段，查m:rPr/w:rPr及冲突、m:sty/m:scr、显式/继承/替代字体、角色与最终显示，区分向量和标量分量；用户明确项目样式可记录覆盖，但不改变技术符号身份。普通plain/body、reference_letter和structured_math须有角色与来源依据；源绑定单字仍走数学引用。 source_symbol含auto及注册为symbol_reference的formula复用完整OMML；从最外层完整符号选节点，保留上下标/时刻/修饰。完整m:func或相邻函数头与参数结构可用连续node_paths，拒绝只取头、参数括号或结构量中的裸字母；参数内完整输入量可单独解释但不覆盖整个调用。带formula_id的普通symbol_reference须是已登记裸量同字符并转换为同源数学引用，拒绝显式body/reference_letter样式覆盖；无来源绑定的普通索引不证明完整量覆盖。source_operator只对已核定算子本体将参数替成占位点，保留名称字符和m:rPr/w:rPr；不擅把邻接括号当函数。歧义乘积、不支持结构或无法复制完整项走原保真路径，保留源位置/处理依据，未解决不通过。 核纯文字、跨run、math加text/分散math等式、链式关系与显示段；整式单一数学对象及精确候选关闭按FORMULA-05，直接赋值与数字实参函数无拆分例外。文字源式保真重建并绑定位置，普通数值叙述保留数值、运算符、负号和顺序，不新增关系或主式。 记号规范化同时记录源/规范树与源/稿SHA和精确位置；OMML、文本、图片、OLE同样核转置角色、中文映射及全部解释，原生节点零命中不证明全稿正确。公式内中文不得以source_math_identity/not_formula豁免，误包普通中文须改稿。上标单T只有确认非转置时可用not_matrix_transpose，逐槽绑定源SHA、当前稿SHA、object_id及精确math_path和来源理由；真正转置必须改，未知不通过。完整定义及去重语义依TXT-10核对，原formulas与rendered_pages实际查看最终式/解释，树SHA、计数及工具成功不代替语义或显示证明。只复用既有记录与检查，不新增字段、台账、全篇扫描或模型阶段；修改后独立复查，旧冻结批次不改。",
+      "check": "复用同次inspection、formula_registry.symbols/source_objects、format_check/layout_changes、explanation_occurrences及review_notes。逐处对照来源、当前式和解释的完整片段，查m:rPr/w:rPr及冲突、m:sty/m:scr、显式/继承/替代字体、角色与最终显示，区分向量和标量分量；用户明确项目样式可记录覆盖，但不改变技术符号身份。普通plain/body、reference_letter和structured_math须有角色与来源依据；源绑定单字仍走数学引用。 source_symbol含auto及注册为symbol_reference的formula复用完整OMML；从最外层完整符号选节点，保留上下标/时刻/修饰。完整m:func或相邻函数头与参数结构可用连续node_paths，拒绝只取头、参数括号或结构量中的裸字母；参数内完整输入量可单独解释但不覆盖整个调用。带formula_id的普通symbol_reference须是已登记裸量同字符并转换为同源数学引用，拒绝显式body/reference_letter样式覆盖；无来源绑定的普通索引不证明完整量覆盖。source_operator只对已核定算子本体将参数替成占位点，保留名称字符和m:rPr/w:rPr；不擅把邻接括号当函数。歧义乘积、不支持结构或无法复制完整项走原保真路径，保留源位置/处理依据，未解决不通过。 核纯文字、跨run、math加text/分散math等式、链式关系与显示段；整式单一数学对象及精确候选关闭按FORMULA-05，直接赋值与数字实参函数无拆分例外。文字源式保真重建并绑定位置，普通数值叙述保留数值、运算符、负号和顺序，不新增关系或主式。 记号规范化同时记录源/规范树与源/稿SHA和精确位置；OMML、文本、图片、OLE同样核转置角色、中文映射及全部解释，原生节点零命中不证明全稿正确。公式内中文不得以source_math_identity/not_formula豁免，误包普通中文须改稿。上标单T只有确认非转置时可用not_matrix_transpose，逐槽绑定源SHA、当前稿SHA、object_id及精确math_path和来源理由；真正转置必须改，未知不通过。完整定义及去重语义依TXT-10核对，原formulas与rendered_pages实际查看最终式/解释，树SHA、计数及工具成功不代替语义或显示证明。只复用既有记录与检查，不新增字段、台账、全篇扫描或模型阶段；修改后独立复查，旧冻结批次不改。 在既有写稿/修稿及formulas、rendered_pages检查中，复用当前提取和来源定位核对正文、表格、图内文字、公式及说明中的正负/运算文字；同时核对跨run和图片/OLE实际显示。检查操作数、除法方向、分组/指数、单位、条件及结果不变，按QA-04复算既有算例；确认普通技术词和标识未误改，纯数字文字例外未被取消，已有正确符号不重复转换。记录使用原review_notes/format_check，不新增自动全局替换器、扫描、独立台账或模型阶段，旧冻结批次不静默迁移。",
       "exceptions": [
         "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
       ]
@@ -1768,8 +1772,8 @@
       "scope": "global",
       "section": "formula",
       "level": "must",
-      "instruction": "公式解释引导语用其中，不用式中；独立完整公式后以一个分号收尾，优先在公式对象外使用普通中文分号。按本案来源核定完整公式、符号引用、标签及普通算例后选择表示；正文内容不得因含变量、运算字符或等号而自动生成公式对象。 同组完整多式分行时非末行必须以一个逗号收尾，最后一行以一个分号收尾；不为每个显示容器新增定义式或公式编号。 版本40文中只要等式包含本案公式中的符号、变量、函数或数学算子，就将整条等式置于一个完整数学对象，包含左右式、等号、正负号、数值及运算部分；直接数值赋值也不拆开。max/min等函数即使实参全为数字仍整体公式化。纯数字叙述算例继续用普通文字，非等式的孤立符号解释、标签按原角色；不能因为含等号就把普通字段或编号升格为公式。",
-      "check": "复用同次formula_prose_evidence检查引导语、独立公式末尾及裸符号/标签/算例对象。明确错误须修复；实际合法数学身份或复杂分组由FORMULA-05的source_math_identity结论以当前稿SHA、来源SHA、精确位置、registry_id、source_locator及理由核定。来源N与主公式N对应，不把对象减少当成删掉技术公式。最终同稿逐页核对基线、完整上下标、真实字形及分号不孤行，纳入既有formulas/rendered_pages审查，不新增模型轮次。 并按formula-detail-standard.md核对完整符号解释和分行，仍使用原formulas/rendered_pages检查，不增模型轮次。 同次预检增加组内逗号与行内表达式候选；新候选关闭还须精确offset/end_offset及format_disposition=not_formula或format_already_correct，分别说明非公式误报或格式确已正确的依据。真实格式错误必须改稿重提取，不能以source_math_identity豁免；组内逗号确定性错误不可豁免。 版本34的single_equation_continuation_hits并入原formulas，已识别单式纯显示续行必须改稿重提取，不可用source_math_identity关闭。大小变更使旧页证据失效；沿用既有最终页验收，不新增重复扫描或模型阶段。 版本40同次提取覆盖纯文字、跨run、math加text及多个math对象拼接，保留函数参数逗号与链式等号，居中或显示段落不能免查；源函数名及复杂表达式由原formulas核定。格式正确必须整条处于同一数学对象，不能凭每个字符各在math对象就判通过。截图类数字参数函数不是纯数字例外。来源为文字的既有等式保真转OMML并映射原位置，不新增来源主式，不改数值或解释，不增加复查轮次。",
+      "instruction": "公式解释引导语用其中，不用式中；独立完整公式后以一个分号收尾，优先在公式对象外使用普通中文分号。按本案来源核定完整公式、符号引用、标签及普通算例后选择表示；正文内容不得因含变量、运算字符或等号而自动生成公式对象。 同组完整多式分行时非末行必须以一个逗号收尾，最后一行以一个分号收尾；不为每个显示容器新增定义式或公式编号。 版本40文中只要等式包含本案公式中的符号、变量、函数或数学算子，就将整条等式置于一个完整数学对象，包含左右式、等号、正负号、数值及运算部分；直接数值赋值也不拆开。max/min等函数即使实参全为数字仍整体公式化。纯数字叙述算例继续用普通文字，非等式的孤立符号解释、标签按原角色；不能因为含等号就把普通字段或编号升格为公式。 版本59纯数字普通算例也须把真实正/负/正负和数间运算文字写成对应符号，但仍保留普通文字角色；不因换成运算符号而升格OMML。具体边界按FORMULA-03与formula-detail-standard.md版本59执行。",
+      "check": "复用同次formula_prose_evidence检查引导语、独立公式末尾及裸符号/标签/算例对象。明确错误须修复；实际合法数学身份或复杂分组由FORMULA-05的source_math_identity结论以当前稿SHA、来源SHA、精确位置、registry_id、source_locator及理由核定。来源N与主公式N对应，不把对象减少当成删掉技术公式。最终同稿逐页核对基线、完整上下标、真实字形及分号不孤行，纳入既有formulas/rendered_pages审查，不新增模型轮次。 并按formula-detail-standard.md核对完整符号解释和分行，仍使用原formulas/rendered_pages检查，不增模型轮次。 同次预检增加组内逗号与行内表达式候选；新候选关闭还须精确offset/end_offset及format_disposition=not_formula或format_already_correct，分别说明非公式误报或格式确已正确的依据。真实格式错误必须改稿重提取，不能以source_math_identity豁免；组内逗号确定性错误不可豁免。 版本34的single_equation_continuation_hits并入原formulas，已识别单式纯显示续行必须改稿重提取，不可用source_math_identity关闭。大小变更使旧页证据失效；沿用既有最终页验收，不新增重复扫描或模型阶段。 版本40同次提取覆盖纯文字、跨run、math加text及多个math对象拼接，保留函数参数逗号与链式等号，居中或显示段落不能免查；源函数名及复杂表达式由原formulas核定。格式正确必须整条处于同一数学对象，不能凭每个字符各在math对象就判通过。截图类数字参数函数不是纯数字例外。来源为文字的既有等式保真转OMML并映射原位置，不新增来源主式，不改数值或解释，不增加复查轮次。 同次复查核数字算例的符号化与数学格式分类分别正确，不以纯数字文字例外豁免正负/运算符号要求。",
       "exceptions": [
         "实施方式中、公式中的等正常词语不按式中子串替换；式中的某符号等回指需保留原意改写。",
         "源数学内部已有末尾分号不再重复；内部关系分隔符、参数分号不是段末分号。多式分组、公式号或图像/OLE公式按来源定位复核，不能靠文本拼接猜末端。",
@@ -1812,6 +1816,10 @@
         {
           "source": "references/whole-equation-v40-user-requirement.txt",
           "locator": "2026-10-16符号等式整体公式化并覆盖旧数值赋值拆分例外"
+        },
+        {
+          "source": "references/numeric-notation-v59-user-requirement.txt",
+          "locator": "2026-10-19用户原话"
         }
       ]
     },
@@ -8266,6 +8274,169 @@
               }
             ],
             "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 59,
+      "previous_version": 58,
+      "updated_at": "2026-10-19T00:53:48Z",
+      "summary": "数值前正负文字和数字间运算文字使用对应符号；保留原值、语义、完整公式格式与纯数字文字例外",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMULA-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "按本案实际数学角色选择表示，以原式或授权规范式的完整数学记号作为公式及其引用/解释的共同基准。逐字符核Unicode、大小写及I/l/1等形似字符，保留字体族、正斜体、粗细、花体/黑板体、帽号、上下标及顺序、实际参数、作用范围和有义外层运算；优先复制完整数学片段，不重键形似字符、不只改解释名称为正体。同为Cambria Math或普通文本相同不足以证明一致。 来源绑定的量/算子引用即使只有一个字符，也保留核定数学结构和字形，不能降为正文；旧裸量普通run例外不覆盖该绑定。只有明确独立索引名字、普通文字提及、标签和普通数字叙述算例按文字角色，可据原样式用宋体14pt或已核定reference_letter的Cambria Math12pt正体基线，不推广12pt或强拆单字OMML。完整公式及结构量以Cambria Math14pt为起始基准，有义正斜/粗细等沿核定原式保留，不能以普通样式覆盖完整身份。完整符号解释、平方项/函数实参/求导变量/功能标识及去重按TXT-10，不拿索引或占位解释替代完整量。 含本案公式符号、变量、函数或数学算子的等式全部置于一个完整数学对象，左右式、等号、正负号、数值及运算连续；直接数值赋值也不拆。max/min等实参全为数字仍是函数式；纯数字普通算术叙述等式和非公式字段/编号保持文字，不能只因等号升格为公式。解释算子本体使用来源完整name(·)，其必要数学括号不受普通文字禁括号限制，实际调用不能改为占位；不新增算子或关系。单条长式按FORMULA-04局部缩小公式及收尾分号至可读单行，保留显式字号比例和有义字形，正文解释不随之缩小，不横向压扁或改全篇页边距；局部字号差异本身不等于符号身份错误。 来源核定为普通矩阵/向量转置时用真实右上标⊺（U+22BA），已正确者不重复；保留完整被转置对象、上下标、矩阵粗体、括号及嵌套运算。不以基线⊺、形似字母、图片旋转或删除上标代替；温度/周期/终时刻变量T、指数/标签T、共轭转置H、共轭星号、伪逆加号等不同含义不误替。上标单T仅为角色候选，逐处按源核定。公式内中文按FORMULA-02映射对应英文数学记号；转置、中文映射及版本59数值记号规范化是原字符保真的明确授权例外，只改已核定记号表示。原件只读，保留原SHA/raw_formula/源位置及原树，normalized_formula/canonical_math_fragment和解释用同一规范记号，记录完整旧→新身份及依据，不用新树冒充原树。数学关系、主式N、运算顺序、数值、单位含义、条件和作用域不变；同步本案全部公式出现、行内关系、说明和相关引用。 版本59在文件全部可见内容中，数字前确实表示正号、负号或正负号的正、负、正负分别写为+、−、±；负号为U+2212，不写连字符或+-。两个数之间明确的加/加上、减/减去、乘/乘以、除以分别写为+、−、×、÷，等于写为=，其他已明确数值运算或比较关系使用对应数学符号；不凭两数相邻新增关系。适用于阿拉伯数字及明确的中文数词，保留数值、有效位、小数、百分数、单位、上下标、条件、结果及分组次序。正负整体识别，不逐字替成+−；除和除以须据源确认被除数/除数，不能按词序机械替换。正向、负载、正负极等技术词，正式名称/型号/编号和非运算连接不按子串替换。只转换已核定数学表示，不自行改数值、求新结果、替换原有不同含义算子或编造公式；歧义据来源解决，未解决不记通过。纯数字普通算例仍为文字，含变量/函数的等式仍按既有规则整式数学格式。本次是原字符保真的授权例外，原件只读，保留原SHA/raw/源位置及旧→新表示，权项与技术方案、公式与解释及相关出现同步。",
+            "evidence": [
+              {
+                "source": "references/terminology-formula-user-requirement.txt",
+                "locator": "2026-10-13 第3至4项"
+              },
+              {
+                "source": "references/terminology-formula-evidence.md",
+                "locator": "历史主公式映射及数学格式证据"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "2026-10-14 实际问题与反例、写作时的处理顺序"
+              },
+              {
+                "source": "user:2026-10-14-manual-reference-format-wording",
+                "locator": "人工稿格式、每权项至少三个所述、孤立符号、权项禁词、模块及本发明称谓的通用更新"
+              },
+              {
+                "source": "references/manual-format-and-wording.md",
+                "locator": "人工定稿格式与分范围用词，原稿SHA及正文/页眉/符号证据"
+              },
+              {
+                "source": "references/formula-prose-user-requirement.txt",
+                "locator": "2026-10-15全部要求"
+              },
+              {
+                "source": "user:2026-10-15-complete-formula-symbols-spacing",
+                "locator": "用户提供文稿与三图，要求公式分行、解释完整符号及全稿无空格的通用修复"
+              },
+              {
+                "source": "references/formula-detail-standard.md",
+                "locator": "版本26相关节"
+              },
+              {
+                "source": "user:2026-10-16-inline-equation-format",
+                "locator": "同组首式逗号、完整算子引用、行内符号等式与直接数值赋值的通用修改"
+              },
+              {
+                "source": "references/formula-detail-standard.md",
+                "locator": "版本30 行内等式与公式组标点"
+              },
+              {
+                "source": "references/single-line-formula-user-requirement.txt",
+                "locator": "2026-10-16用户原话及通用执行"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "写作时的处理顺序版本34"
+              },
+              {
+                "source": "references/symbol-explanation-v39-user-requirement.txt",
+                "locator": "2026-10-16全部完整公式符号须在文件内容中解释"
+              },
+              {
+                "source": "references/whole-equation-v40-user-requirement.txt",
+                "locator": "2026-10-16符号等式整体公式化并覆盖旧数值赋值拆分例外"
+              },
+              {
+                "source": "references/symbol-explanation-dedup-v41-user-requirement.txt",
+                "locator": "2026-10-16完整算子解释保留，前置重复名称解释省略"
+              },
+              {
+                "source": "references/symbol-identity-v43-user-requirement.txt",
+                "locator": "2026-10-16用户要求公式符号完全一样并通用修复"
+              },
+              {
+                "source": "references/transpose-english-v44-user-requirement.txt",
+                "locator": "2026-10-16转置上标按正确图改为⊺、公式内中文改英文符号并同步解释"
+              },
+              {
+                "source": "references/complete-references-v45-user-requirement.txt",
+                "locator": "2026-10-16按用户第二图保留完整符号解释，不以星号、裸字母或泛称代替"
+              },
+              {
+                "source": "references/numeric-notation-v59-user-requirement.txt",
+                "locator": "2026-10-19用户原话"
+              }
+            ],
+            "check": "复用同次inspection、formula_registry.symbols/source_objects、format_check/layout_changes、explanation_occurrences及review_notes。逐处对照来源、当前式和解释的完整片段，查m:rPr/w:rPr及冲突、m:sty/m:scr、显式/继承/替代字体、角色与最终显示，区分向量和标量分量；用户明确项目样式可记录覆盖，但不改变技术符号身份。普通plain/body、reference_letter和structured_math须有角色与来源依据；源绑定单字仍走数学引用。 source_symbol含auto及注册为symbol_reference的formula复用完整OMML；从最外层完整符号选节点，保留上下标/时刻/修饰。完整m:func或相邻函数头与参数结构可用连续node_paths，拒绝只取头、参数括号或结构量中的裸字母；参数内完整输入量可单独解释但不覆盖整个调用。带formula_id的普通symbol_reference须是已登记裸量同字符并转换为同源数学引用，拒绝显式body/reference_letter样式覆盖；无来源绑定的普通索引不证明完整量覆盖。source_operator只对已核定算子本体将参数替成占位点，保留名称字符和m:rPr/w:rPr；不擅把邻接括号当函数。歧义乘积、不支持结构或无法复制完整项走原保真路径，保留源位置/处理依据，未解决不通过。 核纯文字、跨run、math加text/分散math等式、链式关系与显示段；整式单一数学对象及精确候选关闭按FORMULA-05，直接赋值与数字实参函数无拆分例外。文字源式保真重建并绑定位置，普通数值叙述保留数值、运算符、负号和顺序，不新增关系或主式。 记号规范化同时记录源/规范树与源/稿SHA和精确位置；OMML、文本、图片、OLE同样核转置角色、中文映射及全部解释，原生节点零命中不证明全稿正确。公式内中文不得以source_math_identity/not_formula豁免，误包普通中文须改稿。上标单T只有确认非转置时可用not_matrix_transpose，逐槽绑定源SHA、当前稿SHA、object_id及精确math_path和来源理由；真正转置必须改，未知不通过。完整定义及去重语义依TXT-10核对，原formulas与rendered_pages实际查看最终式/解释，树SHA、计数及工具成功不代替语义或显示证明。只复用既有记录与检查，不新增字段、台账、全篇扫描或模型阶段；修改后独立复查，旧冻结批次不改。 在既有写稿/修稿及formulas、rendered_pages检查中，复用当前提取和来源定位核对正文、表格、图内文字、公式及说明中的正负/运算文字；同时核对跨run和图片/OLE实际显示。检查操作数、除法方向、分组/指数、单位、条件及结果不变，按QA-04复算既有算例；确认普通技术词和标识未误改，纯数字文字例外未被取消，已有正确符号不重复转换。记录使用原review_notes/format_check，不新增自动全局替换器、扫描、独立台账或模型阶段，旧冻结批次不静默迁移。",
+            "exceptions": [
+              "用户明确另定项目数学样式时记录覆盖；不得改变源符号语义。"
+            ]
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "FORMULA-05",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "公式解释引导语用其中，不用式中；独立完整公式后以一个分号收尾，优先在公式对象外使用普通中文分号。按本案来源核定完整公式、符号引用、标签及普通算例后选择表示；正文内容不得因含变量、运算字符或等号而自动生成公式对象。 同组完整多式分行时非末行必须以一个逗号收尾，最后一行以一个分号收尾；不为每个显示容器新增定义式或公式编号。 版本40文中只要等式包含本案公式中的符号、变量、函数或数学算子，就将整条等式置于一个完整数学对象，包含左右式、等号、正负号、数值及运算部分；直接数值赋值也不拆开。max/min等函数即使实参全为数字仍整体公式化。纯数字叙述算例继续用普通文字，非等式的孤立符号解释、标签按原角色；不能因为含等号就把普通字段或编号升格为公式。 版本59纯数字普通算例也须把真实正/负/正负和数间运算文字写成对应符号，但仍保留普通文字角色；不因换成运算符号而升格OMML。具体边界按FORMULA-03与formula-detail-standard.md版本59执行。",
+            "check": "复用同次formula_prose_evidence检查引导语、独立公式末尾及裸符号/标签/算例对象。明确错误须修复；实际合法数学身份或复杂分组由FORMULA-05的source_math_identity结论以当前稿SHA、来源SHA、精确位置、registry_id、source_locator及理由核定。来源N与主公式N对应，不把对象减少当成删掉技术公式。最终同稿逐页核对基线、完整上下标、真实字形及分号不孤行，纳入既有formulas/rendered_pages审查，不新增模型轮次。 并按formula-detail-standard.md核对完整符号解释和分行，仍使用原formulas/rendered_pages检查，不增模型轮次。 同次预检增加组内逗号与行内表达式候选；新候选关闭还须精确offset/end_offset及format_disposition=not_formula或format_already_correct，分别说明非公式误报或格式确已正确的依据。真实格式错误必须改稿重提取，不能以source_math_identity豁免；组内逗号确定性错误不可豁免。 版本34的single_equation_continuation_hits并入原formulas，已识别单式纯显示续行必须改稿重提取，不可用source_math_identity关闭。大小变更使旧页证据失效；沿用既有最终页验收，不新增重复扫描或模型阶段。 版本40同次提取覆盖纯文字、跨run、math加text及多个math对象拼接，保留函数参数逗号与链式等号，居中或显示段落不能免查；源函数名及复杂表达式由原formulas核定。格式正确必须整条处于同一数学对象，不能凭每个字符各在math对象就判通过。截图类数字参数函数不是纯数字例外。来源为文字的既有等式保真转OMML并映射原位置，不新增来源主式，不改数值或解释，不增加复查轮次。 同次复查核数字算例的符号化与数学格式分类分别正确，不以纯数字文字例外豁免正负/运算符号要求。",
+            "exceptions": [
+              "实施方式中、公式中的等正常词语不按式中子串替换；式中的某符号等回指需保留原意改写。",
+              "源数学内部已有末尾分号不再重复；内部关系分隔符、参数分号不是段末分号。多式分组、公式号或图像/OLE公式按来源定位复核，不能靠文本拼接猜末端。",
+              "真实数学关系、结构记号和有义字形保持；纯平面正文算例转为普通字符时保留每个数值、运算符和顺序，不造算例。",
+              "旧批次不自动迁移。"
+            ],
+            "evidence": [
+              {
+                "source": "references/formula-prose-user-requirement.txt",
+                "locator": "全文"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "版本23 文中符号、普通算例和公式收尾"
+              },
+              {
+                "source": "user:2026-10-15-complete-formula-symbols-spacing",
+                "locator": "用户提供文稿与三图，要求公式分行、解释完整符号及全稿无空格的通用修复"
+              },
+              {
+                "source": "references/formula-detail-standard.md",
+                "locator": "版本26相关节"
+              },
+              {
+                "source": "user:2026-10-16-inline-equation-format",
+                "locator": "同组首式逗号、完整算子引用、行内符号等式与直接数值赋值的通用修改"
+              },
+              {
+                "source": "references/formula-detail-standard.md",
+                "locator": "版本30 行内等式与公式组标点"
+              },
+              {
+                "source": "references/single-line-formula-user-requirement.txt",
+                "locator": "2026-10-16用户原话及通用执行"
+              },
+              {
+                "source": "references/formula-layout-standard.md",
+                "locator": "写作时的处理顺序版本34"
+              },
+              {
+                "source": "references/whole-equation-v40-user-requirement.txt",
+                "locator": "2026-10-16符号等式整体公式化并覆盖旧数值赋值拆分例外"
+              },
+              {
+                "source": "references/numeric-notation-v59-user-requirement.txt",
+                "locator": "2026-10-19用户原话"
+              }
+            ]
           }
         }
       ]
