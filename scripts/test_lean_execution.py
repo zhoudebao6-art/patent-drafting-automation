@@ -1,6 +1,7 @@
 """General throughput contracts using isolated fixtures; no model/Word run claimed."""
 import copy
 import json
+import re
 import shutil
 import unittest
 from pathlib import Path
@@ -50,6 +51,15 @@ class LeanTests(unittest.TestCase):
             pieces=[(root/p['file']).read_text(encoding='utf-8') for p in record['read_parts']]
             self.assertEqual(''.join(pieces),packet)
             self.assertTrue(all(len(x)<=7000 for x in pieces))
+        # The conditional index must lead to complete frozen sources, not drop
+        # math/figure requirements or force both document families to be read.
+        math_index = (root/'worker-math.md').read_text(encoding='utf-8')
+        destinations = {url.split('#', 1)[0] for url in re.findall(r'\]\(([^)]+)\)', math_index)}
+        self.assertEqual(destinations, {'references/'+name for name in s.MATH})
+        for name in s.MATH:
+            self.assertEqual((root/'references'/name).read_bytes(),
+                             (self.actual/'references'/name).read_bytes())
+        self.assertLess(len(math_index), sum(len((root/'references'/name).read_text(encoding='utf-8')) for name in s.MATH))
         policy=b.read(root/'references/batch-policy.json');policy.pop('execution_optimization')
         b.atomic(root/'references/batch-policy.json',policy)
         full,_=s.build_packet(root, {'version':m['rule_version'],'rules':rules}, 'draft')

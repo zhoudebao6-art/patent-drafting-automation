@@ -71,12 +71,16 @@ class BundleTests(unittest.TestCase):
                             'math_guide':'math','toolkit_guide':'toolkit-guide','toolkit':'toolkit'}}}}
                 if enabled: reserved['worker_context']['review_reuse']='verified_scope_v1'
                 prompt = cli_pool.worker_prompt(reserved)
-                self.assertEqual('只读取待审范围所需' in prompt, enabled)
-                self.assertEqual('page-map识别' in prompt, enabled)
-                self.assertIn('本轮不修改DOCX' if not enabled else '不改DOCX', prompt)
-                reserved['attempt']['stage'] = 'draft'
-                prompt = cli_pool.worker_prompt(reserved)
-                self.assertIn('完整核对原始公式', prompt)
+                self.assertIn('冻结阶段清单执行', prompt)
+                self.assertIn('review只读', prompt)
+                self.assertNotIn('撰写/修改时读toolkit-guide', prompt)
+                self.assertEqual('核差异与依赖' in packet, enabled)
+                self.assertIn('独立只读', packet)
+                for writer in ('draft', 'revise'):
+                    reserved['attempt']['stage'] = writer
+                    prompt = cli_pool.worker_prompt(reserved)
+                    self.assertIn('撰写/修改时读toolkit-guide', prompt)
+                    self.assertIn('线性索引不代替完整公式', prompt)
 
     def test_wps_helper_is_explicitly_frozen_without_arbitrary_powershell(self):
         helper = self.skill/'scripts/wps_readonly_pdf.ps1'

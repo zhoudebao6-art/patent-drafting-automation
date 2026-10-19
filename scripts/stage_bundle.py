@@ -155,7 +155,8 @@ def build_packet(snapshot, rules, stage):
     spans.append({'file': 'references/data-contracts.md', 'mode': 'project_section',
                   'sha256': sha(snapshot/'references/data-contracts.md')})
     sections += ['# 按需资料与执行工具',
-                 '有公式或附图时读worker-math.md一次；不能因只看到零个OMML就判定无公式，仍检查文本/图片/OLE。它包含技术校核和公式结构规范的完整原文。',
+                 ('有公式或附图时按worker-math.md索引读对应冻结原节一次；仅有图不加载公式排版和符号细则，公式图片仍属公式。不能因零OMML判无公式，仍核文本/图片/OLE。索引不代替对应完整原节。' if lean else
+                  '有公式或附图时读worker-math.md一次；不能因只看到零个OMML就判定无公式，仍检查文本/图片/OLE。它包含技术校核和公式结构规范的完整原文。'),
                  '制作或修改Word遵守当前可用documents技能。通用生成器的输入与调用见references/authoring-toolkit.md；运行环境见references/runtime.json及runtime.md。生成器仅负责可验证的机械生成，语义由指定模型完成。',
                  '来源content/index、完整数学对象及当前稿的实际路径见本attempt的prepared/handoff.json。只写本attempt，其他文件只读。'+('只允许prepared.review_reuse绑定的真实已通过范围继承；数据缓存本身不证明通过。' if reuse else '复用缓存数据不继承任何通过结论。'),
                  '最后依据实际工作填写回执模板；自动生成的哈希/索引不是检查通过证据。未做检查写not_run，未解决问题不得交付。']
@@ -224,8 +225,24 @@ def freeze(skill, batch, rules_bytes, policy):
         active = [r for r in rules['rules'] if r['status']=='active']
         (root/'rules.active.json').write_text(json.dumps({'schema_version': 1, 'rule_version': rules['version'],
             'rules_sha256': hashlib.sha256(rules_bytes).hexdigest(), 'rules': active}, ensure_ascii=False), encoding='utf-8')
-    (root/'worker-math.md').write_text('\n\n'.join('# '+n+'\n\n'+normalize_links(
-        (root/'references'/n).read_text(encoding='utf-8-sig')) for n in MATH), encoding='utf-8')
+    if policy.get('execution_optimization') == LEAN:
+        # Route to the frozen originals instead of copying all math/figure text into
+        # one mandatory bundle. No content is removed from the snapshot or rules.
+        math_text = '''# 公式与附图按需资料
+
+按本案实际内容读取对应完整原节一次，已读部分不重复。阶段包中的全部适用规则仍生效；本索引不是验收结果。
+
+- 有公式、完整符号或公式图片：读取[技术校核](references/technical-review.md#公式)的公式节、[公式排版](references/formula-layout-standard.md)及[公式细则](references/formula-detail-standard.md)。完整符号、源公式唯一N及每式一次、初稿正确性校核和独立复查均保留。
+- 有附图：读取[技术校核](references/technical-review.md#图的身份和检查)的图的身份和检查、排序、流程图按本案内容修正及版本42流程图连线无交叉。技术正确性仅审流程图，其他图仍核身份、图号、位置与显示；不因有图就展开公式资料。
+- 同时有公式与图：以上两项取并集，每个原节只读一次。图中的公式仍走公式分支。不能仅据零OMML判无公式，结合文本、图片和OLE核定。
+- 只有数值正负/运算表示疑点：读取[公式细则](references/formula-detail-standard.md#版本59-数值正负号与运算符号)版本59及阶段包QA-04，不加载其余无关数学资料。
+
+本轮已审且未受影响内容的复用范围仍按prepared.review_reuse；实际来源、完整数学对象和当前页面按需核查，不能以索引或缓存代签通过。
+'''
+    else:
+        math_text = '\n\n'.join('# '+n+'\n\n'+normalize_links(
+            (root/'references'/n).read_text(encoding='utf-8-sig')) for n in MATH)
+    (root/'worker-math.md').write_text(math_text, encoding='utf-8')
     (root/'packet-coverage.json').write_text(json.dumps(coverage, ensure_ascii=False, indent=2), encoding='utf-8')
     files = {p.relative_to(root).as_posix(): sha(p) for p in sorted(root.rglob('*')) if p.is_file()}
     manifest = {'schema_version': 1, 'mode': MODE, 'rules_sha256': hashlib.sha256(rules_bytes).hexdigest(),

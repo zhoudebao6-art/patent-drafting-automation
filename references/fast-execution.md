@@ -16,11 +16,11 @@
 
 `batch-policy.json.worker_preparation=frozen_stage_packet_v1`启用本模式。`parallel_batch.py init`建立`skill-snapshot`，复制当前规则、引用规范、运行脚本和必要资产，保存文件SHA及规则/策略身份。历史规则备份、测试脚本不随每批复制。来源技术正文仍分案管理。
 
-在快照根生成`worker-draft.md`、`worker-review.md`、`worker-revise.md`及按需的`worker-math.md`。v5.7新批次还启用`execution_optimization=lean_execution_v24`：worker适用规则的instruction、check、exceptions、scope、section、level及origin原样进入阶段清单；已知纯主控global规则原文另放`worker-controller.md`。未知和project范围规则始终保留在worker清单，不靠关键词过滤。完整active集合另冻结为一份rules.active.json，完整evidence仍在rules.json；覆盖清单记录全部ID、路由和字段摘要哈希。
+在快照根生成`worker-draft.md`、`worker-review.md`、`worker-revise.md`；lean新批次的`worker-math.md`只作公式/附图详细规范的场景索引，原文直接读取一次，不再复制成一个混合大包。非lean兼容路径保留原全文包。v5.7新批次还启用`execution_optimization=lean_execution_v24`：worker适用规则的instruction、check、exceptions、scope、section、level及origin原样进入阶段清单；已知纯主控global规则原文另放`worker-controller.md`。未知和project范围规则始终保留在worker清单，不靠关键词过滤。完整active集合另冻结为一份rules.active.json，完整evidence仍在rules.json；覆盖清单记录全部ID、路由和字段摘要哈希。
 
 人工规范使用经独立复核的`worker-standard.md`执行要点和条件原文索引；触发索引条件必须读对应完整规范，不以简版覆盖例外。`worker-standard-coverage.json`绑定简版及五份原始规范SHA，任一改变后先维护覆盖并复核，编译不接受过期覆盖。项目证据契约仍完整提供。没有lean标志的旧批次继续把全部active规则及五份原始规范放入阶段清单。
 
-以后各attempt接收`prepared.pipeline.stage_read_parts`与工具路径。各块不超过7000字符，顺序拼接恰好等于stage_guide；每块完整读一次，避免整份输出截断后再读重叠区段。若工具输出仍截断，只补未读范围。不要再读同样的active JSON和已包含规范；公式/附图按需读math清单一次。保留宿主要求、当前documents技能和按来源深入核对。
+以后各attempt接收`prepared.pipeline.stage_read_parts`与工具路径。各块不超过7000字符，顺序拼接恰好等于stage_guide；每块完整读一次，避免整份输出截断后再读重叠区段。若工具输出仍截断，只补未读范围。不要再读同样的active JSON和已包含规范；公式/附图按math索引读取对应完整章节；仅有图不展开公式排版与符号细则，公式图片仍转公式分支。保留宿主要求、当前documents技能和按来源深入核对。
 
 来源提取验证后，精简导航以inspection与映射器SHA为键，生成在本案source-navigation并由manifest记录SHA，各阶段只读复用；不改写提取cache目录。规则active只在批次冻结一次，不在每个attempt重写。已有证据用`evidence_query.py`按段落、对象ID和非重叠分页读取，避免每案编写同类查询程序。自定义技术推算仍由本案模型依据来源完成，不能把它当重复步骤删除。
 
