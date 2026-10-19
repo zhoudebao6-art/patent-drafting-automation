@@ -120,8 +120,8 @@ class FormulaProseTests(unittest.TestCase):
         candidate['object_id']=''
         with self.assertRaisesRegex(b.BatchError,'formula/prose review'):self.accept(r,[invalid],[SOURCE_HASH])
 
-    def test_bare_latin_greek_and_numeric_inline_require_plain_text(self):
-        for text,key in [('x','bare_symbol_omml_candidates'),('θ','bare_symbol_omml_candidates'),
+    def test_bare_ascii_and_numeric_inline_require_plain_text(self):
+        for text,key in [('x','bare_symbol_omml_candidates'),('Z','bare_symbol_omml_candidates'),
                          ('3−0+1=4','inline_numeric_omml_candidates'),('6−1+0=5','inline_numeric_omml_candidates')]:
             with self.subTest(text=text):
                 r=self.with_paragraph('<w:r><w:t>本例中</w:t></w:r>'+omml(text)+'<w:r><w:t>表示结果。</w:t></w:r>')
@@ -131,6 +131,14 @@ class FormulaProseTests(unittest.TestCase):
                 # Literal text carrying exactly the same glyphs is acceptable.
                 plain=self.with_paragraph('<w:r><w:t>本例中'+text+'表示结果。</w:t></w:r>')
                 self.accept(plain)
+
+    def test_single_non_ascii_math_symbols_are_not_plain_text_candidates(self):
+        for text in ['α','β','θ','Γ','Ω','ℓ','∇','∞','∑','é','𝒳']:
+            with self.subTest(text=text):
+                r=self.with_paragraph('<w:r><w:t>其中，</w:t></w:r>'+omml(text)+'<w:r><w:t>表示源中对应量。</w:t></w:r>')
+                self.assertFalse(r['formula_prose_evidence']['bare_symbol_omml_candidates'])
+                self.assertFalse(r['isolated_symbol_evidence'])
+                self.accept(r)
 
     def test_source_exception_requires_both_hashes_exact_location_and_registry(self):
         r=self.with_paragraph('<w:r><w:t>定义</w:t></w:r>'+omml('x'))

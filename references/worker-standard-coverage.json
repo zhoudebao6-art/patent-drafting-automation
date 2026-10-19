@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.40：规则v68仍65条，仅TXT-10细化独立完整符号与已定义运算组合的边界；变量及算子定义充分且无独有信息时，不逐层展开重复解释。完整记号、独有条件及跨式首式唯一解释保持；经独立语义复查后更新实际变动的规范指纹。既有来源、三池、模型及验收覆盖不变，不新增字段、台账、扫描或阶段。",
+  "description": "v6.41：规则v69仍65条，仅FORMULA-03/05将普通正文单字符例外明确限于A-Z/a-z全部大小写；其他单个公式符号使用OMML。生成、候选检查及原语义/最终页复查一致，独立审阅后刷新变动规范指纹。完整结构、有义字形、正体、来源及主公式数量保持；不新增扫描、字段或模型阶段。",
   "files": {
     "writing-standard.md": "10a7730a3aa15d1fe6950d188424a67cd6a2e481a3cd2fb44261b0c1062d8a6c",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "96fc9493e4a880378db8f4bf49bf2227ef327c7f3c70db3f3cb641907b816a8b",
+    "terminology-and-formula.md": "5f0393f2b3c0e29ddc19d5ecdaa1d9b7e4e152b26e349381e0b8f97b793e7b71",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
-    "manual-format-and-wording.md": "d6186581e64837be21730939acc5cbf5296cd2077d8dfbb146c3a6ea8e0dc755",
-    "worker-standard.md": "26e2bb83da18cb93dd26497b47314e5160e435894b6ce58f37ef0555e73c7c51"
+    "manual-format-and-wording.md": "ba419ea6eeb9dfd05ec2d4e2bee2d50b902691a5b7e4b130bb5a2a40de005496",
+    "worker-standard.md": "99e7002e00057828bab58691b9a33150aa14dac1e88a021d3f0ebfa82413bf60"
   }
 }

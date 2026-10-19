@@ -70,8 +70,8 @@ class ClaimWordingTests(unittest.TestCase):
         def atom(xml):
             return isolated_symbol_candidate(ET.fromstring(f'<m:oMath xmlns:m="{NS["m"]}">{xml}</m:oMath>'))
         self.assertTrue(atom('<m:r><m:t>g</m:t></m:r>'))
-        self.assertTrue(atom('<m:r><m:t>α</m:t></m:r>'))
-        for xml in ['<m:r><m:t>g=1</m:t></m:r>','<m:r><m:t>字</m:t></m:r>',
+        for xml in ['<m:r><m:t>α</m:t></m:r>','<m:r><m:t>ℓ</m:t></m:r>',
+                    '<m:r><m:t>é</m:t></m:r>','<m:r><m:t>g=1</m:t></m:r>','<m:r><m:t>字</m:t></m:r>',
                     '<m:r><m:t> g</m:t></m:r>',
                     '<m:sSub><m:e><m:r><m:t>g</m:t></m:r></m:e><m:sub><m:r><m:t>i</m:t></m:r></m:sub></m:sSub>',
                     '<m:acc><m:e><m:r><m:t>g</m:t></m:r></m:e></m:acc>']:

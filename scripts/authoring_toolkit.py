@@ -221,11 +221,11 @@ def inventory(case_root, source):
 
 
 def ordinary_reference_letter(text):
-    """Ordinary alphabet letters only; mathematical alphabet variants stay native."""
-    return bool(re.fullmatch(r'[A-Za-z\u0391-\u03a1\u03a3-\u03a9\u03b1-\u03c9]', text))
+    """Only an ordinary ASCII letter can be an unwrapped prose reference."""
+    return bool(re.fullmatch(r'[A-Za-z]', text))
 
 
-def plain_source_text(node, category, allow_greek=True):
+def plain_source_text(node, category):
     """Convert only an explicitly classified, flat scalar/prose example.
 
     This is not a math recognizer. Scripts, accents, vectors and operators
@@ -268,7 +268,7 @@ def plain_source_text(node, category, allow_greek=True):
                     return None
     text = ''.join(n.text or '' for run in children for n in run.findall('m:t', NS))
     if category == 'symbol_reference':
-        return text if ordinary_reference_letter(text) and (allow_greek or text.isascii()) else None
+        return text if ordinary_reference_letter(text) else None
     if category == 'prose_label':
         return text if re.fullmatch(r'[A-Za-z][A-Za-z0-9]*', text) else None
     return text if re.fullmatch(r'[0-9+\-−×÷*/=.,%]+', text) and '=' in text else None
@@ -664,8 +664,8 @@ def validate(case_root, spec):
                         fields(run, ('type', 'text', 'formula_id'), ('style',), 'bound symbol_reference')
                         original=formulas.get(run['formula_id'])
                         if (original is None or original['category']!='symbol_reference' or
-                                plain_source_text(original['node'],'symbol_reference',allow_greek=True)!=run['text']):
-                            fail('Bound plain symbol_reference must match the complete registered bare symbol; never replace a structured quantity with a letter')
+                                plain_source_text(original['node'],'symbol_reference')!=run['text']):
+                            fail('Bound plain symbol_reference must match the complete registered bare symbol and be an ordinary ASCII letter; use source_symbol or formula for other symbols, never replace a structured quantity with a letter')
                         if run.get('style','body') not in {'body','reference_letter'}:
                             fail('Unknown plain symbol style')
                         fid=run['formula_id']
@@ -676,7 +676,7 @@ def validate(case_root, spec):
                         string += visible_value(run['text'], 'run.text')
                         if rtype == 'symbol_reference':
                             if not ordinary_reference_letter(run['text']):
-                                fail('Plain symbol_reference is one ordinary Latin/Greek letter; use source OMML for structured/special glyphs')
+                                fail('Plain symbol_reference is one ordinary ASCII letter (A-Z/a-z); use source_symbol or formula with source OMML for other symbols')
                             if run.get('style', 'body') not in {'body', 'reference_letter'}:
                                 fail('Unknown plain symbol style')
                     elif rtype == 'formula':

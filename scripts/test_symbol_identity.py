@@ -1,6 +1,7 @@
 """Bound notation must survive generation and exact DOCX readback."""
 from copy import deepcopy
 import unittest
+import string
 from lxml import etree as ET
 import authoring_toolkit as t
 import math_fragments as f
@@ -23,22 +24,26 @@ class SymbolIdentity(unittest.TestCase):
     create=fixtures.FormulaProseTests.create
     mutate=fixtures.FormulaProseTests.mutate
 
-    def test_source_symbol_auto_and_math_use_body_for_ordinary_letters_keep_special_glyph(self):
-        source=math(styled('I')+styled('l')+styled('i')+styled('ℓ'))
+    def test_source_symbol_auto_and_math_use_body_only_for_ascii_letters(self):
+        # source_symbol's existing fragment contract accepts actual letters;
+        # operator glyphs use the registered source OMML route tested below.
+        special=['α','β','θ','Γ','Ω','ℓ','é']
+        symbols=['I','l','i']+special
+        source=math(''.join(styled(symbol) for symbol in symbols))
         fid=self.source([source],['main_formula'])[0]
         self.spec['sections'][3]['blocks'].append(dict(id='eq',type='formula',formula_id=fid))
-        for i in range(1,5):
+        for i in range(1,len(symbols)+1):
             for representation in ('auto','math'):
                 self.spec['sections'][3]['blocks'].append(dict(id=f'ref{i}{representation}',type='paragraph',role='body',runs=[
                     dict(type='source_symbol',formula_id=fid,node_path=f'./m:r[{i}]',representation=representation),
                     dict(type='text',text='表示源中对应量。')]))
         ctx,target,result,doc=self.create()
         refs=doc.findall('.//m:oMath',t.NS)
-        self.assertEqual(len(refs),3)
+        self.assertEqual(len(refs),1+2*len(special))
         original=ET.fromstring(source)
         self.assertEqual(t.tree_signature(refs[0]),t.tree_signature(t.upright_math_display(original)))
-        for ref in refs[1:]:
-            self.assertEqual(''.join(ref.xpath('.//m:t/text()',namespaces=t.NS)),'ℓ')
+        for ref,expected in zip(refs[1:],[symbol for symbol in special for _ in range(2)]):
+            self.assertEqual(''.join(ref.xpath('.//m:t/text()',namespaces=t.NS)),expected)
             self.assertEqual(ref.find('m:r/m:rPr/m:sty',t.NS).get(t.qn('m:val')),'p')
         plain=[row for row in result['source_objects'] if row['kind']=='source_text']
         self.assertEqual([row['text'] for row in plain],['I','I','l','l','i','i'])
@@ -107,8 +112,8 @@ class SymbolIdentity(unittest.TestCase):
         self.assertEqual(result['counts']['omml_occurrences'],0)
         self.assertIn('3−0+1=4',''.join(doc.xpath('//w:t/text()',namespaces=t.NS)))
 
-    def test_all_ordinary_latin_and_greek_paths_use_body_runs(self):
-        letters=['m','a','b','q','k','j','d','n','θ','Ω']
+    def test_all_ascii_uppercase_and_lowercase_reference_paths_use_body_runs(self):
+        letters=list(string.ascii_letters)
         ids=self.source([math(styled(letter).replace('</w:rPr>',
             '<w:vertAlign w:val="baseline"/><w:position w:val="0"/><w:spacing w:val="0"/></w:rPr>'))
             for letter in letters],['symbol_reference']*len(letters))
@@ -119,11 +124,36 @@ class SymbolIdentity(unittest.TestCase):
                 dict(type='symbol_reference',text=letter,style='reference_letter'),dict(type='text',text='表示对应量。')]))
         _,_,result,doc=self.create()
         self.assertEqual(result['counts']['omml_occurrences'],0)
-        self.assertEqual(result['counts']['source_text_occurrences'],20)
+        self.assertEqual(result['counts']['source_text_occurrences'],2*len(letters))
         for run in doc.findall('.//w:r',t.NS):
             if t.word_text(run) in letters:
                 self.assertEqual(run.find('w:rPr/w:sz',t.NS).get(t.qn('w:val')),'28')
                 self.assertEqual(run.find('w:rPr/w:i',t.NS).get(t.qn('w:val')),'0')
+
+    def test_non_ascii_plain_reference_routes_require_source_math(self):
+        symbols=['α','β','θ','Γ','Ω','ℓ','∇','∞','∑','é']
+        ids=self.source([math(styled(symbol)) for symbol in symbols],['symbol_reference']*len(symbols))
+        initial=deepcopy(self.spec['sections'][3]['blocks'])
+        self.spec['sections'][3]['blocks']=initial+[dict(id='native',type='paragraph',role='body',runs=[
+            dict(type='formula',formula_id=fid) for fid in ids])]
+        _,_,result,doc=self.create()
+        self.assertEqual(result['counts']['source_text_occurrences'],0)
+        self.assertEqual(result['counts']['omml_occurrences'],len(symbols))
+        self.assertEqual([''.join(node.xpath('.//m:t/text()',namespaces=t.NS))
+                          for node in doc.findall('.//m:oMath',t.NS)],symbols)
+        for symbol,fid in zip(symbols,ids):
+            for bound in (False,True):
+                run=dict(type='symbol_reference',text=symbol)
+                if bound:run['formula_id']=fid
+                self.spec['sections'][3]['blocks']=initial+[dict(id='plain',type='paragraph',role='body',runs=[run])]
+                with self.subTest(symbol=symbol,bound=bound),self.assertRaisesRegex(t.AuthoringError,'use source_symbol or formula'):
+                    t.validate(self.root,self.spec)
+        # Ordinary text has no declared mathematical role; do not infer one
+        # solely from a Greek glyph or manufacture its source representation.
+        self.spec=fixtures.minimal_spec()
+        self.spec['sections'][3]['blocks'].append(dict(id='label',type='paragraph',role='body',text='α射线标签保留。'))
+        _,_,result,_=self.create()
+        self.assertEqual(result['counts']['omml_occurrences'],0)
 
     def test_complex_reference_resizes_display_only_and_rejects_tamper(self):
         symbol='<m:sSubSup><m:e>'+styled('W')+'</m:e><m:sub>'+styled('k,m')+'</m:sub><m:sup>'+styled('new')+'</m:sup></m:sSubSup>'

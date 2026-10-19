@@ -87,15 +87,15 @@ class FormulaProseTests(unittest.TestCase):
         self.assertIn('3−0+1=4', ''.join(doc.xpath('//w:t/text()',namespaces=t.NS)))
         self.assertEqual(source_sha,t.sha(self.root/'source.docx'))
 
-    def test_ordinary_greek_is_text_but_structured_special_and_bold_stay_native(self):
+    def test_greek_structured_special_and_bold_symbols_stay_native(self):
         symbol = ET.fromstring(MATH)
         for child in list(symbol)[1:]: symbol.remove(child)
         ids=self.source([ET.tostring(symbol,encoding='unicode'),flat('Ω'),flat('ℕ'),flat('x','<m:rPr><m:sty m:val="b"/></m:rPr>')],['symbol_reference']*4)
         self.inline(ids)
         _, _, result, doc=self.create()
-        self.assertEqual(result['counts']['omml_occurrences'],3)
-        self.assertEqual(result['counts']['source_text_occurrences'],1)
-        self.assertEqual([r['text'] for r in result['source_objects'] if r['kind']=='source_text'],['Ω'])
+        self.assertEqual(result['counts']['omml_occurrences'],4)
+        self.assertEqual(result['counts']['source_text_occurrences'],0)
+        self.assertFalse([r for r in result['source_objects'] if r['kind']=='source_text'])
         self.assertIsNotNone(doc.find('.//m:sSub',t.NS))
 
     def test_unrepresentable_prose_rejected_not_flattened(self):

@@ -436,7 +436,7 @@ def word_run_formats(paragraph):
 
 
 def isolated_symbol_candidate(math):
-    """Only a bare single letter; never flatten scripts, accents or operators."""
+    """Only a bare ASCII letter; never flatten Greek, scripts or operators."""
     children = [n for n in math if n.tag != f'{{{NS["m"]}}}oMathPr']
     if len(children) != 1 or children[0].tag != f'{{{NS["m"]}}}r':
         return False
@@ -445,7 +445,7 @@ def isolated_symbol_candidate(math):
     if any(n.tag not in allowed for n in run):
         return False
     text = visible_text(math)
-    return len(text) == 1 and text.isalpha() and not ('\u3400' <= text <= '\u9fff')
+    return bool(re.fullmatch(r'[A-Za-z]', text))
 
 
 def math_operator_names(math):
@@ -611,16 +611,16 @@ def formula_prose_paragraph_evidence(paragraph, part, number, object_ids, previo
     centered=jc is not None and jc.get(w+'val')=='center'
     display=paragraph.find('.//m:oMathPara',NS) is not None
     out['review_candidates'].extend(inline_formula_candidates(tokens,part,number,operators))
-    # Ordinary bare Latin/Greek glyphs only. Script/blackboard Unicode letters,
-    # operators and real OMML structures are not flattened by this contract.
+    # Only ordinary bare ASCII letters can use plain prose. Greek, other
+    # Unicode symbols and real OMML structures keep their math representation.
     def bare_runs(node):
         children=[n for n in node if n.tag!=m+'oMathPr']
         return bool(children) and all(n.tag==m+'r' and all(c.tag in {m+'t',m+'rPr',w+'rPr'} for c in n)
                                       for n in children)
     for node,row in maths:
         out['review_candidates'].extend(dict(row,**hit) for hit in math_notation_candidates(node))
-        text=row['text'];name=unicodedata.name(text,'') if len(text)==1 else ''
-        if bare_runs(node) and len(text)==1 and text.isalpha() and name.startswith(('LATIN ','GREEK ')):
+        text=row['text']
+        if bare_runs(node) and re.fullmatch(r'[A-Za-z]',text):
             out['bare_symbol_omml_candidates'].append(dict(row,reason='bare_prose_symbol_requires_plain_run_or_source_math_identity'))
         elif bare_runs(node) and re.fullmatch(r'[A-Za-z]{2,}',text):
             out['plain_label_omml_candidates'].append(dict(row,reason='flat_ascii_label_requires_plain_run_or_source_math_identity'))
