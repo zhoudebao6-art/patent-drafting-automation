@@ -8,6 +8,8 @@
 
 ## 三个命令
 
+版本63先执行[初稿公式正确性校核](technical-review.md#公式)，再提交已核定的内容JSON；生成器只证明受支持结构及映射，不能证明源式数学正确。唯一有据修正保留原/改式和来源，不支持的结构按既有保真路径处理；未知保留formula_registry的unresolved并按needs_input交接，不把工具成功当初稿语义通过。不新增生成前脚本或独立校核模型。
+
 使用本机文档技能解析出的 Python；脚本依赖`python-docx`、`lxml`、`Pillow`及同目录`inspect_docx.py`。`$docPython`须来自已验证的文档运行环境，不指向任意全局 Python。以下路径仅示意，`--case-root`必须是当前案的独立可写根目录。
 
 ```powershell

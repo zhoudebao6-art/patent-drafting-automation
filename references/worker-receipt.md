@@ -35,6 +35,8 @@ v6.19识别三池独立准备的合法pending到ready转换：原始reservation.
 
 仅 `execution_optimization=lean_execution_v24` 的新冻结批次使用。工具只装配客观字段、检查结构，不签发语义或视觉通过，不修改队列，也不替总控核验真实CLI最终回复。
 
+版本63draft先在原formula_registry完成公式正确性判断及有据修正；complete只代表写稿阶段完成，不能冒充最终验收或填写独立review的pass。影响公式正确性的缺口未解决时保留候选稿，返回needs_input及精确reason，其他案件继续；不新增draft checks.formulas，也不能在后续review中把初稿自检当已通过范围继承。
+
 在当前attempt中写 `decisions.json`，填写实际完成的 `verdict`、输出 `artifact` 绝对路径，以及复查实际执行或有效继承的 `checks`、实际问题 `findings`。通过复查时提供 `render.evidence` 的实际 `render.json` 绝对路径。需要的六项为 `source_support`、`antecedents`、`claims_alignment`、`formulas`、`figures`、`rendered_pages`；未执行写 `not_run`，有问题如实记录，不复制模板的passed。
 
 版本28的figures技术审查范围只含流程图，另保留全图原有身份/图号/位置/显示检查。非流程图技术项在现有图台账中写not_in_scope，不能把它填为checks.figures的新枚举；无流程图则在证据说明该子项不适用，原基本检查实际完成后才passed。流程图错误需据本案内容修复，未完成或来源不明不得pass；review_only由review返回fix_required、revise修正后返回complete，再由新review独立重验；仅旧冻结策略允许review内修稿返回revised。

@@ -107,7 +107,7 @@ def build_packet(snapshot, rules, stage):
     config = policy['models'][stage]
     identity = config['model']+'/'+str(config['reasoning_effort'])
     stage_text = {
-        'draft': '形成完整初稿。先完成本案内容与结构预检；不模拟另一轮独立复查。使用通用生成器可支持的结构时，不另写排版及台账脚本。生成器已经提供有效inspection缓存时直接复用，不再执行一遍；回执使用返回的实际output路径和SHA。自行生成时才按prepared.draft_inspection_cache运行一次inspect_docx。',
+        'draft': '形成完整初稿。写入前先逐式判断来源公式是否正确，核完整结构、符号含义、运算关系、量纲/维数、定义域与本案条件，并真实复算源已有数值例；不能只原样复制或等review才判断。唯一有据错误在初稿修正并记录原式/改式/依据，未知记formula_registry的unresolved，保留候选稿并按needs_input说明缺口，不造式、不删式凑N。复用原assumptions、dimension_check、numerical_check、status及corrections；先完成本案内容与结构预检，不模拟另一轮独立复查，不给自己签pass。使用通用生成器可支持的结构时，不另写排版及台账脚本。生成器已经提供有效inspection缓存时直接复用，不再执行一遍；回执使用返回的实际output路径和SHA。自行生成时才按prepared.draft_inspection_cache运行一次inspect_docx。',
         'review': '独立完成六项审查。先审内容，有唯一依据的小问题可集中修正并返回revised，之后必须由新派发的复查模型独立重验；只有最终文件未被本轮修改且六项及所有最终页实际通过，才能pass。',
         'revise': '按问题与依赖关系修改，保留未受影响的内容与来源。不重新创作全文；修订后不能自己签发pass，交新派发的复查模型独立重验。',
     }[stage]

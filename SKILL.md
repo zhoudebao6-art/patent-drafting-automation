@@ -16,7 +16,7 @@ description: 支持用户仅发送案件文件夹路径，递归识别技术项�
 1. **有prepared.pipeline**：按stage_read_parts完整读每个不重叠块一次；无分块的旧批次读stage_guide一次。已包含的SKILL、rules.active及规范不再读；输出截断只补缺失区间。规则原文、检查、作用域及例外不删减，worker-standard索引触发时读相应完整原节；有公式或附图再读math_guide一次。宿主指令与可用documents技能仍遵守。
 2. 直接使用prepared中的来源content/index、当前稿inspection和页面候选。线性索引不能代替完整公式；通过evidence_query按位置读取完整数学对象。只读本案证据，不重新发现全批路径。
 3. 初稿和修改优先读toolkit_guide并调用公共Word生成器；自定义代码只补不支持部分，不展平或遗漏内容。生成器已有有效inspection直接交接，不再运行同一预检；自行生成才按draft_inspection_cache预检一次。新批次review_reuse=verified_scope_v1按已封存回执和真实差异继承已通过且未受影响的范围；首次、修改、新增、关联、失败或未审范围由本轮独立review实际检查。数据缓存本身不证明通过。
-4. draft完成初稿和结构检查；review只读完成六项，有问题给精确findings并返回fix_required；revise集中修正问题及关联章节，另存新稿后交新会话review按差异与依赖独立重验，不能自签pass。已知内容待改时不提前反复渲染，未做项写not_run。旧冻结review_fix_then_recheck按旧契约执行，修改者仍不能验收自己的新稿。
+4. draft写入公式前先按[公式校核](references/technical-review.md#公式)判断完整式、符号含义、量纲/维数、适用条件并复算源例；唯一有据错误在初稿修正，未解决缺口据实needs_input，不等复查才检查。完成初稿和结构检查；review只读完成六项，有问题给精确findings并返回fix_required；revise集中修正问题及关联章节，另存新稿后交新会话review按差异与依赖独立重验，不能自签pass。已知内容待改时不提前反复渲染，未做项写not_run。旧冻结review_fix_then_recheck按旧契约执行，修改者仍不能验收自己的新稿。
 5. review首轮集中汇总能确认的问题，后轮按prepared.review_reuse只查待审范围。内容稳定后验证同稿页面或渲染当前稿；已实际看过且与当前渲染一致的页可验证继承，其余页实际查看。六项及全部当前页须完整覆盖。各阶段最后用pipeline.receipt_tool按[回执规范](references/worker-receipt.md)组装真实身份、路径和哈希，本轮实查、有效继承及关联影响判断在同一review_coverage回执填写；成功回执原样提交，不再手写、另做验收台账或重复打包。工具运行中等待30–60秒，不重复启动或高频短轮询。
 
 **旧批次没有pipeline**：读取冻结active规则、[写作规范](references/writing-standard.md)、[所述与公式](references/terminology-and-formula.md)、[净稿与图序](references/reference-style-standard.md)、[人工格式与用词](references/manual-format-and-wording.md)和[项目记录](references/data-contracts.md#项目记录)；技术校核、公式结构按需读取。不假造历史快照或套用新版模型。

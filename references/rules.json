@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": 62,
-  "updated_at": "2026-10-19T03:46:03Z",
+  "version": 63,
+  "updated_at": "2026-10-19T04:00:05Z",
   "rules": [
     {
       "id": "TXT-01",
@@ -576,35 +576,43 @@
     {
       "id": "QA-03",
       "status": "active",
-      "origin": "workflow",
+      "origin": "user",
       "scope": "global",
       "section": "formula",
       "level": "must",
-      "instruction": "参数解释必须正确而不只是存在，检查物理量、维度、索引和同名符号。",
+      "instruction": "版本63初稿撰写阶段先判断每条来源公式是否正确，再据核定结果写入，不能等独立复查才发现已能确认的问题。既查数学结构和排版，也查实际数学/技术含义；原式来自交底书、OMML复制一致、数量相等或生成器成功均不等于正确。逐式结合本案用途、完整原式与上下文核对左右项、正负号/运算方向、括号/运算范围、指数/转置、链式关系、求和索引及范围、变量与完整符号解释、标量/向量/矩阵类型及维数、单位/量纲、适用条件和结果含义；分母非零、对数/根号定义域、逆/满秩、区间端点、空集等只按该式实际运算核查，不机械添加本案无关限制。确认其输入、输出与上下文技术步骤一致，参数解释必须正确而不只是存在，同名异义和索引错位不能放行。不适用项说明理由，缺单位/定义/条件不能猜为无量纲或已满足；源已有数值例按QA-04实际复算。来源及数学证据能唯一确定的算术、符号或抄录笔误，在初稿中直接修正，保留源文件/SHA、原式、修正式、理由和影响，原始来源只读，修正仅写当前attempt稿；生成器不支持修正式时走既有来源保真路径，不改原件或伪造源SHA来迁就工具。同步该式的完整符号解释及相关技术文字，保持唯一公式N及每式一次；仅为证实检查所做的内部计算不得写成新增公式或实验数据。存在多种解释、技术关系冲突或缺必要依据时，保留原证据与精确缺口，在现有formula_registry中记unresolved，继续能独立完成的部分；影响公式正确性的缺口未解决时，本案回执用needs_input和具体reason保留候选稿，不把不确定式标为正确或以complete掩盖，其他案件继续。不得凭常识造关系、参数、条件、数据，或删改公式凑数量。",
       "evidence": [
         {
           "source": "references/corpus/bolt-final.docx",
           "locator": "word/document.xml P0122-P0123"
+        },
+        {
+          "source": "references/draft-formula-v63-user-requirement.txt",
+          "locator": "2026-10-19 用户原话及通用执行"
         }
       ],
-      "check": "以地脚成稿P0123的yT疑点作负面回归。",
+      "check": "复用原formula_registry的status、assumptions、dimension_check、numerical_check、corrections及源/稿定位记录实际检查：verified表示撰写阶段已核清适用项目，corrected表示有唯一证据修正且已回算/回核，unresolved表示仍有明确缺口；每个结论附具体检查范围和来源依据，未检查不记verified，无数值例在numerical_check说明不适用而不编造例子。这些是初稿证据，不是独立验收通过；draft不新增checks.formulas、不签pass，complete仅表示初稿阶段完成。后续review仍独立完成原六项与当前页面验收，不能把初稿自检当已审范围继承。按唯一公式清单一次核对并关联重复源位置和必要说明；内部计算/提取证据可复用，修改仅回核变化及依赖，不加工作池、模型轮次、重复台账、全稿扫描或初稿全页最终验收。 原地脚成稿P0123的yT疑点仍可作为完整符号与含义不符的负面参照，不将该案技术事实移植到其他项目。",
       "exceptions": []
     },
     {
       "id": "QA-04",
       "status": "active",
-      "origin": "workflow",
+      "origin": "user",
       "scope": "global",
       "section": "formula",
       "level": "must",
-      "instruction": "重算普通正文和公式中的数值算例，对确定的笔误记录证据后修正。",
+      "instruction": "从初稿撰写阶段起，实际重算来源普通正文和公式中已有的数值算例，检查操作数、正负号、顺序、单位换算、边界及源已声明的舍入/容差；不能仅看排版或声称已计算。对唯一可确定笔误保留证据后在初稿修正并回算，同步相关位置。无来源数值例不强造示例、阈值、参数或结果；数值巧合不能证明一般公式成立。",
       "evidence": [
         {
           "source": "references/corpus/bolt-final.docx",
           "locator": "word/document.xml P0123"
+        },
+        {
+          "source": "references/draft-formula-v63-user-requirement.txt",
+          "locator": "2026-10-19 用户原话及通用执行"
         }
       ],
-      "check": "复算并记录容差，不能只检查OMML。",
+      "check": "在现有numerical_check/corrections中定位源例、原输入/结果、实际计算过程或代码输出、容差依据和结论，不只检查OMML。内部验算不增加正式文稿公式，缺输入/单位或冲突按QA-03保留unresolved，不以自检结果替代后续独立复查，不增加单独验算阶段。",
       "exceptions": []
     },
     {
@@ -8713,6 +8721,62 @@
               }
             ],
             "check": "复用原source_support、formulas、claims_alignment和rendered_pages及同次inspection，逐项确认源唯一清单覆盖完整、每一唯一完整式恰有一个目标出现、所有目标均有源；查一增一漏及跨章节/跨表示重复，计数相等、OMML数或指纹相等不代替语义判断。生成器每个源对象仍登记，确认的重复源项用duplicate_of加duplicate_reason指向唯一主项，不输出别名式；source_main_count仅合计非别名主项equation_count。同次提取记录重复完整关系候选，最终门禁拒收未解决重复，泛化source_math_identity不能豁免。只有来源确认的不同含义/作用域才按逐出现位置、当前稿SHA、源SHA及定义依据关闭同形候选；真实重复必须改稿，非OMML及复杂结构仍由原公式/页面核查。权项与技术方案先安排一致且来源支持的文字表达，完整式只在合适位置列一次，保留全部技术限定；不能单删一边造成章节不一致。修改后只复核变化和依赖，保留独立验收，不增加模型轮次、独立扫描或台账。",
+            "exceptions": []
+          }
+        }
+      ]
+    },
+    {
+      "version": 63,
+      "previous_version": 62,
+      "updated_at": "2026-10-19T04:00:05Z",
+      "summary": "初稿撰写先实际逐式核正确性，唯一有据错误当场修正、歧义保留缺口；复用现有公式记录，不增加模型阶段或自签验收。",
+      "changes": [
+        {
+          "action": "replace",
+          "rule": {
+            "id": "QA-03",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "版本63初稿撰写阶段先判断每条来源公式是否正确，再据核定结果写入，不能等独立复查才发现已能确认的问题。既查数学结构和排版，也查实际数学/技术含义；原式来自交底书、OMML复制一致、数量相等或生成器成功均不等于正确。逐式结合本案用途、完整原式与上下文核对左右项、正负号/运算方向、括号/运算范围、指数/转置、链式关系、求和索引及范围、变量与完整符号解释、标量/向量/矩阵类型及维数、单位/量纲、适用条件和结果含义；分母非零、对数/根号定义域、逆/满秩、区间端点、空集等只按该式实际运算核查，不机械添加本案无关限制。确认其输入、输出与上下文技术步骤一致，参数解释必须正确而不只是存在，同名异义和索引错位不能放行。不适用项说明理由，缺单位/定义/条件不能猜为无量纲或已满足；源已有数值例按QA-04实际复算。来源及数学证据能唯一确定的算术、符号或抄录笔误，在初稿中直接修正，保留源文件/SHA、原式、修正式、理由和影响，原始来源只读，修正仅写当前attempt稿；生成器不支持修正式时走既有来源保真路径，不改原件或伪造源SHA来迁就工具。同步该式的完整符号解释及相关技术文字，保持唯一公式N及每式一次；仅为证实检查所做的内部计算不得写成新增公式或实验数据。存在多种解释、技术关系冲突或缺必要依据时，保留原证据与精确缺口，在现有formula_registry中记unresolved，继续能独立完成的部分；影响公式正确性的缺口未解决时，本案回执用needs_input和具体reason保留候选稿，不把不确定式标为正确或以complete掩盖，其他案件继续。不得凭常识造关系、参数、条件、数据，或删改公式凑数量。",
+            "evidence": [
+              {
+                "source": "references/corpus/bolt-final.docx",
+                "locator": "word/document.xml P0122-P0123"
+              },
+              {
+                "source": "references/draft-formula-v63-user-requirement.txt",
+                "locator": "2026-10-19 用户原话及通用执行"
+              }
+            ],
+            "check": "复用原formula_registry的status、assumptions、dimension_check、numerical_check、corrections及源/稿定位记录实际检查：verified表示撰写阶段已核清适用项目，corrected表示有唯一证据修正且已回算/回核，unresolved表示仍有明确缺口；每个结论附具体检查范围和来源依据，未检查不记verified，无数值例在numerical_check说明不适用而不编造例子。这些是初稿证据，不是独立验收通过；draft不新增checks.formulas、不签pass，complete仅表示初稿阶段完成。后续review仍独立完成原六项与当前页面验收，不能把初稿自检当已审范围继承。按唯一公式清单一次核对并关联重复源位置和必要说明；内部计算/提取证据可复用，修改仅回核变化及依赖，不加工作池、模型轮次、重复台账、全稿扫描或初稿全页最终验收。 原地脚成稿P0123的yT疑点仍可作为完整符号与含义不符的负面参照，不将该案技术事实移植到其他项目。",
+            "exceptions": []
+          }
+        },
+        {
+          "action": "replace",
+          "rule": {
+            "id": "QA-04",
+            "status": "active",
+            "origin": "user",
+            "scope": "global",
+            "section": "formula",
+            "level": "must",
+            "instruction": "从初稿撰写阶段起，实际重算来源普通正文和公式中已有的数值算例，检查操作数、正负号、顺序、单位换算、边界及源已声明的舍入/容差；不能仅看排版或声称已计算。对唯一可确定笔误保留证据后在初稿修正并回算，同步相关位置。无来源数值例不强造示例、阈值、参数或结果；数值巧合不能证明一般公式成立。",
+            "evidence": [
+              {
+                "source": "references/corpus/bolt-final.docx",
+                "locator": "word/document.xml P0123"
+              },
+              {
+                "source": "references/draft-formula-v63-user-requirement.txt",
+                "locator": "2026-10-19 用户原话及通用执行"
+              }
+            ],
+            "check": "在现有numerical_check/corrections中定位源例、原输入/结果、实际计算过程或代码输出、容差依据和结论，不只检查OMML。内部验算不增加正式文稿公式，缺输入/单位或冲突按QA-03保留unresolved，不以自检结果替代后续独立复查，不增加单独验算阶段。",
             "exceptions": []
           }
         }
