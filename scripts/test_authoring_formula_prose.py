@@ -74,25 +74,26 @@ class FormulaProseTests(unittest.TestCase):
         self.assertEqual(context['block_texts']['intro'], '其中，x表示内容。')
         self.assertIn('具体实施方式中，公式中的条件保持。', ''.join(doc.xpath('//w:t/text()', namespaces=t.NS)))
 
-    def test_bound_latin_symbol_stays_math_and_numeric_prose_stays_text(self):
+    def test_bound_latin_symbol_and_numeric_prose_stay_source_bound_text(self):
         ids=self.source([flat('x'),flat('3−0+1=4')],['symbol_reference','prose_example'])
         self.inline(ids)
         source_sha=t.sha(self.root/'source.docx')
         _, _, result, doc=self.create()
-        self.assertEqual(result['counts']['omml_occurrences'],1)
-        self.assertEqual(result['counts']['source_text_occurrences'],1)
+        self.assertEqual(result['counts']['omml_occurrences'],0)
+        self.assertEqual(result['counts']['source_text_occurrences'],2)
         self.assertEqual(result['counts']['main_formula_occurrences'],0)
-        self.assertEqual([r['text'] for r in result['source_objects'] if r['kind']=='source_text'],['3−0+1=4'])
-        self.assertEqual(''.join(doc.find('.//m:oMath',t.NS).xpath('.//m:t/text()',namespaces=t.NS)),'x')
+        self.assertEqual([r['text'] for r in result['source_objects'] if r['kind']=='source_text'],['x','3−0+1=4'])
+        self.assertEqual(result['source_objects'][0]['source_sha256'],source_sha)
         self.assertIn('3−0+1=4', ''.join(doc.xpath('//w:t/text()',namespaces=t.NS)))
         self.assertEqual(source_sha,t.sha(self.root/'source.docx'))
 
-    def test_structured_special_greek_and_bold_symbols_stay_native(self):
-        ids=self.source([MATH,flat('Ω'),flat('x','<m:rPr><m:sty m:val="b"/></m:rPr>')],['symbol_reference']*3)
+    def test_ordinary_greek_is_text_but_structured_special_and_bold_stay_native(self):
+        ids=self.source([MATH,flat('Ω'),flat('ℕ'),flat('x','<m:rPr><m:sty m:val="b"/></m:rPr>')],['symbol_reference']*4)
         self.inline(ids)
         _, _, result, doc=self.create()
         self.assertEqual(result['counts']['omml_occurrences'],3)
-        self.assertEqual(result['counts']['source_text_occurrences'],0)
+        self.assertEqual(result['counts']['source_text_occurrences'],1)
+        self.assertEqual([r['text'] for r in result['source_objects'] if r['kind']=='source_text'],['Ω'])
         self.assertIsNotNone(doc.find('.//m:sSub',t.NS))
 
     def test_unrepresentable_prose_rejected_not_flattened(self):
@@ -170,8 +171,8 @@ class FormulaProseTests(unittest.TestCase):
         self.spec['sections'][3]['blocks'].append(dict(id='letter',type='paragraph',role='body',runs=[{'type':'symbol_reference','text':'J','style':'reference_letter'},{'type':'text','text':'表示已核对的计数。'}]))
         context, target, _, doc=self.create()
         run=next(r for r in doc.findall('.//w:r',t.NS) if t.word_text(r)=='J')
-        self.assertEqual(run.find('w:rPr/w:rFonts',t.NS).get(t.qn('w:ascii')),'Cambria Math')
-        self.assertEqual(run.find('w:rPr/w:sz',t.NS).get(t.qn('w:val')),'24')
+        self.assertEqual(run.find('w:rPr/w:rFonts',t.NS).get(t.qn('w:ascii')),'宋体')
+        self.assertEqual(run.find('w:rPr/w:sz',t.NS).get(t.qn('w:val')),'28')
         def change(root):
             r=next(r for r in root.findall('.//w:r',t.NS) if t.word_text(r)=='J')
             r.find('w:rPr/w:rFonts',t.NS).set(t.qn('w:ascii'),'Arial')

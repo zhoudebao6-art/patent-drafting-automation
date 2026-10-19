@@ -218,7 +218,12 @@ def inventory(case_root, source):
             'boundary': 'Inventory is navigation only. Classify each object and inspect text/image/OLE formulas; null categories are not buildable. oMath count is not the semantic main-formula count.'}
 
 
-def plain_source_text(node, category, allow_greek=False):
+def ordinary_reference_letter(text):
+    """Ordinary alphabet letters only; mathematical alphabet variants stay native."""
+    return bool(re.fullmatch(r'[A-Za-z\u0391-\u03a1\u03a3-\u03a9\u03b1-\u03c9]', text))
+
+
+def plain_source_text(node, category, allow_greek=True):
     """Convert only an explicitly classified, flat scalar/prose example.
 
     This is not a math recognizer. Scripts, accents, vectors and operators
@@ -234,24 +239,63 @@ def plain_source_text(node, category, allow_greek=False):
             return None
         if any(n.tag not in {qn('m:sty'), qn('m:nor')} for props in run.findall('m:rPr', NS) for n in props):
             return None
-        safe_word_props = {'rFonts', 'sz', 'szCs', 'i', 'iCs', 'b', 'bCs', 'color', 'lang'}
+        safe_word_props = {'rFonts', 'sz', 'szCs', 'i', 'iCs', 'b', 'bCs', 'color', 'lang',
+                           'vertAlign', 'position', 'spacing'}
         if any(ET.QName(n).localname not in safe_word_props for props in run.findall('w:rPr', NS) for n in props):
             return None
-        if run.xpath('./m:rPr/m:scr | ./w:rPr/w:vertAlign | ./w:rPr/w:position', namespaces=NS):
+        if run.xpath('./m:rPr/m:scr', namespaces=NS):
+            return None
+        if any(n.get(qn('w:val')) != 'baseline' for n in run.findall('w:rPr/w:vertAlign', NS)):
+            return None
+        if any(n.get(qn('w:val')) != '0'
+               for n in run.xpath('./w:rPr/w:position | ./w:rPr/w:spacing', namespaces=NS)):
             return None
         if any(n.get(qn('m:val')) not in {'p', 'i'} for n in run.findall('m:rPr/m:sty', NS)):
             return None
         if any(n.get(qn('w:val'), '1') not in {'0', 'false', 'off'}
                for n in run.xpath('./w:rPr/w:b | ./w:rPr/w:bCs', namespaces=NS)):
             return None
+        if category == 'symbol_reference':
+            # Symbol/custom-font encodings can change the visible identity of
+            # an ordinary Unicode letter. Do not guess their rendered glyph.
+            ordinary_fonts = {'Cambria Math', 'Cambria', 'Times New Roman', '宋体', 'SimSun', 'Arial', 'Calibri'}
+            for fonts in run.findall('w:rPr/w:rFonts', NS):
+                if any(ET.QName(key).localname not in {'ascii', 'hAnsi', 'eastAsia', 'cs', 'hint'} or
+                       (ET.QName(key).localname != 'hint' and value not in ordinary_fonts)
+                       for key, value in fonts.attrib.items()):
+                    return None
     text = ''.join(n.text or '' for run in children for n in run.findall('m:t', NS))
     if category == 'symbol_reference':
-        # The reference uses plain Latin letters in prose. Greek math glyphs
-        # retain their source rendering unless explicitly authored as text.
-        return text if re.fullmatch(r'[A-Za-z]', text) or (allow_greek and len(text)==1 and text.isalpha() and ord(text)<=0x3FF) else None
+        return text if ordinary_reference_letter(text) and (allow_greek or text.isascii()) else None
     if category == 'prose_label':
         return text if re.fullmatch(r'[A-Za-z][A-Za-z0-9]*', text) else None
     return text if re.fullmatch(r'[0-9+\-−×÷*/=.,%]+', text) and '=' in text else None
+
+
+def symbol_display(formula):
+    """Size a complex inline reference for body prose without changing its source."""
+    # A derived fragment cannot inherit a display tree for its complete parent.
+    formula.pop('display_node', None)
+    formula.pop('display_tree_sha256', None)
+    if formula['category'] != 'symbol_reference' or formula['plain_text'] is not None:
+        return formula
+    node = deepcopy(formula['node'])
+    # OMML scripts retain their structural scale relative to this 14pt base.
+    # Typography, glyphs, operators, source tree and source hashes stay intact.
+    for owner in node.xpath('.//m:r | .//m:ctrlPr', namespaces=NS):
+        props = owner.find('w:rPr', NS)
+        if props is None:
+            props = ET.Element(qn('w:rPr'))
+            position = 1 if owner.find('m:rPr', NS) is not None else 0
+            owner.insert(position, props)
+        for name in ('sz', 'szCs'):
+            prop = props.find('w:' + name, NS)
+            if prop is None:
+                prop = ET.SubElement(props, qn('w:' + name))
+            prop.set(qn('w:val'), '28')
+    formula['display_node'] = node
+    formula['display_tree_sha256'] = tree_signature(node)
+    return formula
 
 
 def explanation_intro(block):
@@ -347,12 +391,10 @@ def source_formula(row, sources):
             fail('OMML has a paragraph-style/font dependency; manual source-preserving route required: ' + row['id'])
     if node.getparent() is not None and node.getparent().tag == qn('m:oMath'):
         fail('Nested oMath objects are unsupported')
-    # A source-bound mathematical symbol keeps its source typography even when
-    # it consists of one letter. Only explicitly ordinary prose is flattened.
-    plain = None if row['category'] == 'symbol_reference' else plain_source_text(node, row['category'])
+    plain = plain_source_text(node, row['category'])
     if row['category'] in {'prose_example', 'prose_label'} and plain is None:
         fail('Prose example is not safely representable as flat text; use the reviewed source-preserving route: ' + row['id'])
-    return dict(row, node=node, plain_text=plain)
+    return symbol_display(dict(row, node=node, plain_text=plain))
 
 
 def validate(case_root, spec):
@@ -524,10 +566,10 @@ def validate(case_root, spec):
                         fid='symbol_'+digest(json.dumps([run['formula_id'],source_path,transform,representation],ensure_ascii=False).encode())[:32]
                         if fid in formulas and not formulas[fid].get('source_fragment_path'):
                             fail('Derived symbol id collides with a registered formula')
-                        formulas[fid]=dict(parent,id=fid,category='symbol_reference',node=node,
-                            tree_sha256=tree_signature(node),plain_text=None,
+                        formulas[fid]=symbol_display(dict(parent,id=fid,category='symbol_reference',node=node,
+                            tree_sha256=tree_signature(node),plain_text=plain_source_text(node,'symbol_reference'),
                             source_formula_id=parent['id'],source_tree_sha256=parent['tree_sha256'],
-                            source_fragment_path=source_path,source_transform=transform)
+                            source_fragment_path=source_path,source_transform=transform))
                         run.clear();run.update(type='formula',formula_id=fid)
                         rtype='formula'
                     if rtype == 'symbol_reference' and 'formula_id' in run:
@@ -536,8 +578,8 @@ def validate(case_root, spec):
                         if (original is None or original['category']!='symbol_reference' or
                                 plain_source_text(original['node'],'symbol_reference',allow_greek=True)!=run['text']):
                             fail('Bound plain symbol_reference must match the complete registered bare symbol; never replace a structured quantity with a letter')
-                        if 'style' in run:
-                            fail('Bound symbol_reference preserves source typography; a body/reference_letter style override is not allowed')
+                        if run.get('style','body') not in {'body','reference_letter'}:
+                            fail('Unknown plain symbol style')
                         fid=run['formula_id']
                         run.clear();run.update(type='formula',formula_id=fid)
                         rtype='formula'
@@ -545,12 +587,10 @@ def validate(case_root, spec):
                         fields(run, ('type', 'text'), ('formula_id', 'style') if rtype == 'symbol_reference' else (), 'run')
                         string += visible_value(run['text'], 'run.text')
                         if rtype == 'symbol_reference':
-                            if len(run['text']) != 1 or not run['text'].isalpha() or ord(run['text']) > 0x3FF:
+                            if not ordinary_reference_letter(run['text']):
                                 fail('Plain symbol_reference is one ordinary Latin/Greek letter; use source OMML for structured/special glyphs')
                             if run.get('style', 'body') not in {'body', 'reference_letter'}:
                                 fail('Unknown plain symbol style')
-                            if run.get('style') == 'reference_letter' and not re.fullmatch(r'[A-Za-z]', run['text']):
-                                fail('Reference letter style is evidenced only for an ordinary Latin letter')
                     elif rtype == 'formula':
                         fields(run, ('type', 'formula_id'), where='formula run')
                         if run['formula_id'] not in formulas:
@@ -925,19 +965,13 @@ def render_document(context, path):
                     if run['type'] == 'formula':
                         formula = context['formulas'][run['formula_id']]
                         if formula['plain_text'] is None:
-                            p._p.append(deepcopy(formula['node']))
+                            p._p.append(deepcopy(formula.get('display_node',formula['node'])))
                         else:
                             font(p.add_run(formula['plain_text']), bold=block['role'] in {'heading', 'project_title'})
                     else:
                         string = '图' + str(context['figures'][run['figure_id']]['number']) if run['type'] == 'figure_ref' else run['text']
-                        reference = run.get('style') == 'reference_letter'
                         added = p.add_run(string)
-                        font(added, name='Cambria Math' if reference else '宋体',
-                             size=12 if reference else 14, bold=block['role'] in {'heading', 'project_title'})
-                        if reference:
-                            slots = added._r.find('w:rPr/w:rFonts', NS)
-                            slots.set(qn('w:eastAsia'), '宋体')
-                            slots.set(qn('w:cs'), 'Times New Roman')
+                        font(added, bold=block['role'] in {'heading', 'project_title'})
             elif btype == 'formula':
                 paragraph_format(p, 'formula', kind)
                 if 'single_line' in block:
@@ -1133,7 +1167,6 @@ def verify_document(context, path):
     require(list(observed) == expected_order, 'block/caption order changed')
     expected_math_count = 0
     object_rows, block_rows = [], []
-    reference_letter_runs = set()
     scaled_math_suffix_sizes = {}
     for block in context['blocks']:
         index, p, section = observed[block['bookmark']]
@@ -1227,7 +1260,7 @@ def verify_document(context, path):
                     if r['type'] == 'formula':
                         f = context['formulas'][r['formula_id']]
                         if f['plain_text'] is None:
-                            expected_tokens.append(('math', f['tree_sha256']))
+                            expected_tokens.append(('math', f.get('display_tree_sha256',f['tree_sha256'])))
                             continue
                         value = f['plain_text']
                         object_rows.append({'kind': 'source_text', 'id': f['id'], 'category': f['category'],
@@ -1244,15 +1277,14 @@ def verify_document(context, path):
                     expected_tokens.append(('text', value))
                     actual_run = next(actual_runs, None)
                     require(actual_run is not None, 'ordinary source/symbol run missing')
-                    if r.get('style') == 'reference_letter':
-                        reference_letter_runs.add(actual_run)
             else:
                 expected_tokens = [('text', context['block_texts'][block['id']])]
         math = p.xpath('.//m:oMath', namespaces=NS)
         require(len(math) == len(expected_formulas), 'formula occurrence count mismatch in ' + block['id'])
         for number, (node, formula_id) in enumerate(zip(math, expected_formulas), 1):
             formula = context['formulas'][formula_id]
-            expected_tree=block.get('display_tree_sha256',formula['tree_sha256']) if block['type']=='formula' else formula['tree_sha256']
+            expected_tree=(block.get('display_tree_sha256',formula['tree_sha256']) if block['type']=='formula'
+                           else formula.get('display_tree_sha256',formula['tree_sha256']))
             require(tree_signature(node) == expected_tree, 'source OMML content/structure changed: ' + formula_id)
             object_rows.append({'kind': 'formula', 'id': formula_id, 'category': formula['category'],
                                 'source_file': context['sources'][formula['source_id']]['file'],
@@ -1290,12 +1322,13 @@ def verify_document(context, path):
             if run.find('w:t', NS) is not None:
                 props = run.find('w:rPr', NS)
                 require(props is not None and attributes(props.find('w:color', NS)).get('val') == '000000', 'body text is not explicitly black')
-                expected_fonts = (dict(ascii='Cambria Math', hAnsi='Cambria Math', eastAsia='宋体', cs='Times New Roman')
-                                  if run in reference_letter_runs else {k:'宋体' for k in ('ascii','hAnsi','eastAsia','cs')})
+                expected_fonts = {k:'宋体' for k in ('ascii','hAnsi','eastAsia','cs')}
                 require(all(attributes(props.find('w:rFonts', NS)).get(slot) == name
                             for slot,name in expected_fonts.items()), 'ordinary body text font changed')
-                require(attributes(props.find('w:sz', NS)).get('val') == scaled_math_suffix_sizes.get(run,('24' if run in reference_letter_runs else '28')),
+                require(attributes(props.find('w:sz', NS)).get('val') == scaled_math_suffix_sizes.get(run,'28'),
                         'ordinary body text size changed')
+                require(attributes(props.find('w:szCs', NS)).get('val') == scaled_math_suffix_sizes.get(run,'28'),
+                        'ordinary body complex-script text size changed')
                 require(attributes(props.find('w:i', NS)).get('val') == '0', 'ordinary text italic changed')
                 require(attributes(props.find('w:vertAlign', NS)).get('val') == 'baseline', 'ordinary symbol vertical alignment changed')
                 require(attributes(props.find('w:position', NS)).get('val', '0') == '0',

@@ -101,7 +101,7 @@ class ReferenceTests(unittest.TestCase):
         source=ET.fromstring(math(mr('sg')+'<m:d><m:e>'+mr('x,y')+'</m:e></m:d>'))
         with self.assertRaises(ValueError):f.operator_reference(source,'./m:r[1]','./m:d[1]')
 
-    def test_legacy_split_assignment_is_reported_after_source_preserving_generation(self):
+    def test_legacy_split_assignment_cannot_force_bare_letter_into_math(self):
         fid=self.source([math(mr('x')+mr('=y'))],['main_formula'])[0]
         self.spec['sections'][3]['blocks'] += [dict(id='eq',type='formula',formula_id=fid),
             dict(id='refs',type='paragraph',role='body',runs=[
@@ -109,12 +109,12 @@ class ReferenceTests(unittest.TestCase):
                 dict(type='source_symbol',formula_id=fid,node_path='./m:r[1]',representation='math'),dict(type='text',text='=4时继续。')])]
         _,_,result,doc=self.create()
         refs=doc.findall('.//m:oMath',t.NS)
-        self.assertEqual(len(refs),3)
-        self.assertEqual(''.join(refs[-1].xpath('.//m:t/text()',namespaces=t.NS)),'x')
-        self.assertEqual(t.word_text(refs[-1].getparent()),'表示索引，当=4时继续。')
+        self.assertEqual(len(refs),1)
+        paragraph=next(p for p in doc.findall('.//w:p',t.NS) if t.word_text(p)=='x表示索引，当x=4时继续。')
+        self.assertEqual(result['counts']['source_text_occurrences'],2)
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
         import inspect_docx
-        evidence=inspect_docx.formula_prose_paragraph_evidence(refs[-1].getparent(),'word/document.xml',1,{id(n):f'm{i}' for i,n in enumerate(refs)})
+        evidence=inspect_docx.formula_prose_paragraph_evidence(paragraph,'word/document.xml',1,{id(n):f'm{i}' for i,n in enumerate(refs)})
         self.assertEqual([h['text'] for h in evidence['review_candidates']],['x=4'])
 
     def test_operator_name_italic_word_override_is_preserved_in_reference(self):
@@ -127,15 +127,18 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual(t.tree_signature(node),before)
 
     def test_symbolic_inline_formula_with_numeric_constant_stays_complete(self):
-        source=flat('L=log(1+exp(−Δζ))')
-        fid=self.source([source],['main_formula'])[0]
+        sources=[flat('L=log(1+exp(−Δζ))'),flat('x=−4')]
+        ids=self.source(sources,['main_formula']*2)
         self.spec['sections'][3]['blocks'].append(dict(id='inline',type='paragraph',role='body',runs=[
-            dict(type='text',text='按'),dict(type='formula',formula_id=fid),dict(type='text',text='计算。')]))
+            dict(type='text',text='按'),dict(type='formula',formula_id=ids[0]),dict(type='text',text='计算，当'),
+            dict(type='formula',formula_id=ids[1]),dict(type='text',text='时继续。')]))
         _,_,result,doc=self.create()
-        node=doc.find('.//m:oMath',t.NS)
-        self.assertEqual(t.tree_signature(node),t.tree_signature(ET.fromstring(source)))
-        self.assertEqual(t.word_text(node.getparent()),'按计算。')
-        self.assertEqual(result['counts']['main_formula_occurrences'],1)
+        nodes=doc.findall('.//m:oMath',t.NS)
+        self.assertEqual(len(nodes),2)
+        for node,source in zip(nodes,sources):
+            self.assertEqual(t.tree_signature(node),t.tree_signature(ET.fromstring(source)))
+        self.assertEqual(t.word_text(nodes[0].getparent()),'按计算，当时继续。')
+        self.assertEqual(result['counts']['main_formula_occurrences'],2)
 
 
 if __name__=='__main__':unittest.main()

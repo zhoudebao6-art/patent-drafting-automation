@@ -29,7 +29,16 @@ class CompleteSymbols(unittest.TestCase):
         before=toolkit.sha(self.root/'source.docx');spec=deepcopy(self.spec)
         ctx,target,result,doc=self.create()
         original=ET.fromstring(CALL);ref=doc.findall('.//m:oMath',toolkit.NS)[-1]
-        self.assertEqual([toolkit.tree_signature(n) for n in ref],[toolkit.tree_signature(n) for n in list(original)[1:]])
+        # The body reference now has an explicit 14pt display base; every
+        # non-size source node, real argument and source equation stays intact.
+        self.assertEqual({n.get(toolkit.qn('w:val')) for n in ref.findall('.//w:sz',toolkit.NS)}, {'28'})
+        structural=deepcopy(ref)
+        for props in list(structural.findall('.//w:rPr',toolkit.NS)):
+            for size in list(props):
+                if size.tag in {toolkit.qn('w:sz'),toolkit.qn('w:szCs')}:props.remove(size)
+            if not len(props):props.getparent().remove(props)
+        self.assertEqual([toolkit.tree_signature(n) for n in structural],[toolkit.tree_signature(n) for n in list(original)[1:]])
+        self.assertEqual(toolkit.tree_signature(doc.findall('.//m:oMath',toolkit.NS)[0]),toolkit.tree_signature(original))
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
         self.assertEqual(before,toolkit.sha(self.root/'source.docx'));self.assertEqual(spec,self.spec)
         def truncate(root):
