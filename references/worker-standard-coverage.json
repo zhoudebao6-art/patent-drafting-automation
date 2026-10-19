@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.42：规则v70仍65条，FORMULA-03/05明确数值区间端点省略冗余一元正号，正文数值负号同正文非粗体；独立语义复查确认数值、精度、单位、开闭和运算/技术记号例外保留后刷新规范指纹。原生成器正文样式及原formulas/rendered_pages复查继续使用，不新增扫描、字段或阶段。",
+  "description": "v6.44：规则v72仍65条，FORMULA-04要求核定的连续集合定义式大括号内续行合为单行；完整节点及条件保留，分段/矩阵/上下限不盲展平。已独立核对worker-standard与完整规范的约束、反例和按需入口后刷新指纹。复用原formulas/rendered_pages及layout候选，不新增扫描、模型阶段或自动语义通过。",
   "files": {
     "writing-standard.md": "10a7730a3aa15d1fe6950d188424a67cd6a2e481a3cd2fb44261b0c1062d8a6c",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "5f0393f2b3c0e29ddc19d5ecdaa1d9b7e4e152b26e349381e0b8f97b793e7b71",
+    "terminology-and-formula.md": "4d464ce51bde985d39587e2ca3321895421cf7e187ab33fb194b401dd14d5c06",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
     "manual-format-and-wording.md": "355d682e6b1e560a2a006e3755e11b19480ce08ce86eadc01f49f70888e015b9",
-    "worker-standard.md": "29da9d48d73aebf628d40b3e5caea90be20ac4e8cdc0aada909dd69749f0735f"
+    "worker-standard.md": "8a713ebf513678b54bc5bdeb99f65c64a855aced737f515180493257e47872f5"
   }
 }

@@ -258,6 +258,7 @@ def math_layout_evidence(math):
     walk(math, 'oMath')
     return {'equation_arrays': arrays, 'empty_required_slots': gaps,
             'single_equation_continuation_candidate':single_line_math.continuation_rows(math) is not None,
+            'set_builder_continuation_candidate':single_line_math.set_builder_rows(math) is not None,
             'explicit_breaks_or_tabs': breaks, 'conflicting_run_properties': conflicts,
             'boundary': 'Arrays can encode conditions, matrices or complete equations. These are review cues, not permission to flatten, invent operands, or certify visual fit.'}
 
@@ -1325,6 +1326,8 @@ def precheck(result, kind):
         layout = formula.get('math_evidence', {}).get('layout', {})
         if layout.get('single_equation_continuation_candidate'):
             add('MATH_SINGLE_EQUATION_CONTINUATION','Source-confirmed one equation must be reflowed into one line with readable local sizing; do not count display rows as separate equations.',locator)
+        if layout.get('set_builder_continuation_candidate'):
+            add('MATH_SET_BUILDER_CONTINUATION_REVIEW','Closed-brace membership/filter rows may be one continuous set expression. Confirm source semantics, then use set_builder to join only existing connectors; preserve genuine multiline conditions and verify final visual fit.',locator)
         for array in layout.get('equation_arrays', []):
             if array['top_level'] and any(row['trailing_operator'] for row in array['rows'][:-1]):
                 add('MATH_ARRAY_TRAILING_OPERATOR', 'Top-level equation array has a row ending at an operator. Check source semantics and reflow display-only breaks; preserve conditional and multi-equation structures.', locator + ' ' + array['path'])

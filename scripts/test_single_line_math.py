@@ -14,6 +14,7 @@ import test_authoring_formula_prose as fixtures
 
 
 OPTIONS = {'classification': 'single_equation', 'font_size_pt': 12, 'source_base_pt': 14}
+SET_OPTIONS = dict(OPTIONS, classification='set_builder')
 
 
 def mr(text, properties=''):
@@ -48,6 +49,15 @@ def three_rows(terminal='；'):
     lhs = '<m:sSub><m:e>' + hat + '</m:e><m:sub>' + mr('q') + '</m:sub></m:sSub>'
     return array(lhs + mr('(k+h|k)=') + sub('y', 'q') + mr('(k)'),
                  mr('+') + sum_term(), mr('+') + sum_term() + (mr(terminal) if terminal else ''))
+
+
+def set_builder(*rows, begin='{', end='}', props=''):
+    if not rows:
+        rows=(mr('u∈')+sub('B','e')+mr('|∃v∈')+sub('V','p')+mr(':'),
+              mr('M(u,e,v)=1∧A(e,v)=1∧H(u,e,p,v)=1'))
+    return omml(sub('C','e,p')+mr('=')+'<m:d><m:dPr><m:begChr m:val="'+begin
+                +'"/><m:endChr m:val="'+end+'"/>'+props+'</m:dPr><m:e><m:eqArr>'
+                +''.join('<m:e>'+row+'</m:e>' for row in rows)+'</m:eqArr></m:e></m:d>')
 
 
 def without_sizes(node):
@@ -216,7 +226,7 @@ class SingleLineMathTests(unittest.TestCase):
             self.assertEqual(t.tree_signature(node), before)
 
     def test_invalid_sizes_or_classification_cannot_bypass_single_equation_contract(self):
-        variants = [None, {}, dict(OPTIONS, classification='group'), dict(OPTIONS, extra=True)]
+        variants = [None, {}, dict(OPTIONS, classification='group'), dict(OPTIONS, classification=[]), dict(OPTIONS, extra=True)]
         variants += [dict(OPTIONS, font_size_pt=value) for value in [True, math.nan, math.inf, 8.5, 14.5, 12.25, '12']]
         variants += [dict(OPTIONS, source_base_pt=value) for value in [False, 11, math.nan, '14', 73]]
         for options in variants:
@@ -315,6 +325,108 @@ class SingleLineMathTests(unittest.TestCase):
         self.assertEqual(report['formula_prose_evidence']['single_equation_continuation_hits'], [])
         contract.check(report, self.spec['project_title'], strict_formulas=True)
         self.assertIn('single_line_math.py', scan.extractor_dependencies())
+
+    def test_set_builder_reflows_only_connected_rows_and_preserves_complete_native_nodes(self):
+        examples=[set_builder(props='<m:ctrlPr><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></m:ctrlPr>'),
+                  set_builder(mr('u∈B∣p(u)∧'),mr('q(u)')),
+                  set_builder(mr('u∈B|p(u)'),mr('∨q(u)'))]
+        for content in examples:
+            with self.subTest(content=content):
+                source=ET.fromstring(content)
+                before=t.tree_signature(source)
+                rows=layout.set_builder_rows(source)
+                expected=[without_sizes(child) for row in rows for child in row]
+                display=layout.render(source,SET_OPTIONS,1)
+                expression=display.find('m:d/m:e',t.NS)
+                self.assertEqual([without_sizes(child) for child in expression],expected)
+                self.assertIsNone(expression.find('m:eqArr',t.NS))
+                self.assertEqual(without_sizes(source.find('m:d/m:dPr',t.NS)),
+                                 without_sizes(display.find('m:d/m:dPr',t.NS)))
+                self.assertEqual(t.tree_signature(source),before)
+        single=omml(mr('C=')+'<m:d><m:dPr><m:begChr m:val="{"/><m:endChr m:val="}"/>'
+                    +'</m:dPr><m:e>'+mr('u∈B|p(u)')+'</m:e></m:d>')
+        node=ET.fromstring(single)
+        self.assertIsNone(layout.set_builder_rows(node))
+        self.assertEqual(without_sizes(layout.render(node,OPTIONS,1)),without_sizes(node))
+
+    def test_set_builder_source_mapping_readback_and_review_cue_cover_the_same_object(self):
+        _,block=self.formula(set_builder(),options=None)
+        _,target,_,_=self.create()
+        before=self.inspect_target(target)
+        layout_evidence=before['formulas'][0]['math_evidence']['layout']
+        self.assertTrue(layout_evidence['set_builder_continuation_candidate'])
+        self.assertTrue(layout_evidence['equation_arrays'][0]['path'].endswith('/d[1]/e[1]/eqArr[1]'))
+        self.assertIn('MATH_SET_BUILDER_CONTINUATION_REVIEW',{i['code'] for i in before['issues']})
+        self.assertEqual(before['formula_prose_evidence']['single_equation_continuation_hits'],[])
+        block['single_line']=deepcopy(SET_OPTIONS)
+        spec_before=deepcopy(self.spec)
+        source_sha=t.sha(self.root/'source.docx')
+        context,target,result,document=self.create()
+        self.assertEqual(self.spec,spec_before)
+        self.assertEqual(t.sha(self.root/'source.docx'),source_sha)
+        self.assertEqual(result['counts']['main_formula_occurrences'],1)
+        self.assertEqual(result['counts']['omml_occurrences'],1)
+        trace=result['source_objects'][0]
+        self.assertNotEqual(trace['source_tree_sha256'],trace['display_tree_sha256'])
+        self.assertEqual(trace['equation_count'],1)
+        self.assertIsNone(document.find('.//m:oMath/m:d/m:e/m:eqArr',t.NS))
+        after=self.inspect_target(target)
+        self.assertFalse(after['formulas'][0]['math_evidence']['layout']['set_builder_continuation_candidate'])
+        self.assertNotIn('MATH_SET_BUILDER_CONTINUATION_REVIEW',{i['code'] for i in after['issues']})
+        contract.check(after,self.spec['project_title'],strict_formulas=True)
+        def mutate_index(root):
+            root.find('.//m:oMath/m:d/m:e/m:sSub/m:sub/m:r/m:t',t.NS).text='x'
+        def mutate_order(root):
+            expression=root.find('.//m:oMath/m:d/m:e',t.NS)
+            child=expression[0];expression.remove(child);expression.append(child)
+        for mutation in (mutate_index,mutate_order):
+            t.render_document(context,target)
+            self.mutate(target,mutation)
+            with self.subTest(mutation=mutation.__name__),self.assertRaises(t.AuthoringError):
+                t.verify_document(context,target)
+        self.assertIn('single_line_math.py',scan.extractor_dependencies())
+
+    def test_set_builder_rejects_other_arrays_missing_connectors_and_unknown_discarded_data(self):
+        examples=[set_builder(mr('u∈B|u&gt;0'),mr('u&lt;1')),
+                  set_builder(mr('u∈|p(u):'),mr('q(u)')),
+                  set_builder(mr('x=1'),mr('y=2')),
+                  set_builder(mr('u∈B|p(u):'),mr('otherwise')),
+                  set_builder(mr('u∈B|p(u):'),mr('∧')),
+                  set_builder(begin='(',end=')'),set_builder(end=''),
+                  array(mr('a=b'),mr('c=d')),omml(sum_term()),
+                  omml(mr('C=')+'<m:m><m:mr><m:e>'+mr('u∈B|p(u):')+'</m:e><m:e>'
+                       +mr('q(u)')+'</m:e></m:mr></m:m>')]
+        unknown=ET.fromstring(set_builder())
+        unknown.find('m:d/m:e/m:eqArr',t.NS).set('{urn:test}unknown','1')
+        examples.append(ET.tostring(unknown))
+        control=ET.fromstring(set_builder())
+        array_node=control.find('m:d/m:e/m:eqArr',t.NS)
+        array_node.insert(0,ET.fromstring('<m:eqArrPr xmlns:m="'+t.NS['m']+'"><m:ctrlPr/></m:eqArrPr>'))
+        examples.append(ET.tostring(control))
+        multiple=ET.fromstring(set_builder())
+        multiple.find('m:d',t.NS).append(deepcopy(multiple.find('m:d/m:e',t.NS)))
+        examples.append(ET.tostring(multiple))
+        for content in examples:
+            with self.subTest(content=content):
+                node=ET.fromstring(content)
+                before=t.tree_signature(node)
+                self.assertIsNone(layout.set_builder_rows(node))
+                with self.assertRaises(ValueError):layout.render(node,SET_OPTIONS,1)
+                self.assertEqual(t.tree_signature(node),before)
+        with self.assertRaises(ValueError):layout.render(ET.fromstring(set_builder()),SET_OPTIONS,2)
+
+    def test_set_builder_removes_only_selected_row_breaks_and_retains_nested_math_structures(self):
+        marked=mr('u∈B|p(u):','<m:rPr><m:brk/><m:aln/></m:rPr>')
+        node=ET.fromstring(set_builder(marked,mr('q(u)=')+sum_term()))
+        before=t.tree_signature(node)
+        display=layout.render(node,SET_OPTIONS,1)
+        self.assertFalse(display.xpath('.//m:brk | .//m:aln',namespaces=t.NS))
+        self.assertEqual(len(display.findall('.//m:nary/m:sub/m:eqArr',t.NS)),1)
+        self.assertEqual(t.tree_signature(node),before)
+        for mark in ('<m:brk/>','<w:br/>','<w:tab/>'):
+            nested='<m:sSub><m:e>'+mr('a','<m:rPr>'+mark+'</m:rPr>')+'</m:e><m:sub>'+mr('i')+'</m:sub></m:sSub>'
+            with self.subTest(mark=mark),self.assertRaises(ValueError):
+                layout.render(ET.fromstring(set_builder(mr('u∈B|p(u):'),nested)),SET_OPTIONS,1)
 
     def test_complete_multiequation_group_is_not_misclassified_as_single_continuation(self):
         node = ET.fromstring(array(mr('a=b，'), mr('c=d；')))
