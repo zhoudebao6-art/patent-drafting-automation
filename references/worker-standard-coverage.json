@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.39：规则v67的65条保持不变；重复数学规范合并至完整规范正文，保留原入口和全部唯一内容，经独立语义复查后刷新覆盖指纹。同次增量验收仅核验一次完整历史证据链，规则快照同字节验SHA与解析版本；各独立边界重新核验，无跨事务免检缓存。来源、模型、三池、六类验收、完整规则覆盖及通过即交付不变。",
+  "description": "v6.40：规则v68仍65条，仅TXT-10细化独立完整符号与已定义运算组合的边界；变量及算子定义充分且无独有信息时，不逐层展开重复解释。完整记号、独有条件及跨式首式唯一解释保持；经独立语义复查后更新实际变动的规范指纹。既有来源、三池、模型及验收覆盖不变，不新增字段、台账、扫描或阶段。",
   "files": {
     "writing-standard.md": "10a7730a3aa15d1fe6950d188424a67cd6a2e481a3cd2fb44261b0c1062d8a6c",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "66db30f1fa32acda6e9b8fe9fc428f1694efccb858c077b4245f99f6c386fc07",
+    "terminology-and-formula.md": "96fc9493e4a880378db8f4bf49bf2227ef327c7f3c70db3f3cb641907b816a8b",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
     "manual-format-and-wording.md": "d6186581e64837be21730939acc5cbf5296cd2077d8dfbb146c3a6ea8e0dc755",
-    "worker-standard.md": "58b752bf60ffcee1726b81eb79cfe80a81978710b39814adea8e3bd709ea9940"
+    "worker-standard.md": "26e2bb83da18cb93dd26497b47314e5160e435894b6ce58f37ef0555e73c7c51"
   }
 }
