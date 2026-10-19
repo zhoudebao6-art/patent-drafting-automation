@@ -14,7 +14,7 @@ description: 从指定案件文件夹递归识别技术项目优化书，滚动�
 1. 有`prepared.pipeline`：完整读`stage_read_parts`各不重叠块一次；旧批无分块时读`stage_guide`一次。截断只补缺失部分，不重读同内容的SKILL、rules.active或散文件。阶段职责以该清单为唯一执行入口，条件细节按其索引读取；宿主指令及可用documents技能仍遵守。
 2. 直接用prepared的来源content/index、当前稿inspection及页面候选；完整数学对象用`evidence_query`按位置查，索引不代替原式。`math_guide`按公式/附图场景路由，不要求仅有流程图也读全套公式资料。只读本案证据，不重新发现全批路径。
 3. draft/revise按`toolkit_guide`调用公共生成器，只补工具不支持的部分，不展平或遗漏。有效inspection直接交接；自行生成才预检一次。draft在写入前核公式正确性并复算源例，唯一有据错误修正，缺依据记具体缺口，不猜改。review只读、集中报问题；revise修正关联内容，再由新会话review独立重验，修改者不能自验。
-4. 依据冻结`review_reuse`处理覆盖：新策略只继承有证据且未受影响的已通过范围，变化、关联、失败及未审范围实际检查；六项与全部当前页完整覆盖后才通过。初稿自检、缓存和工具成功均不等于独立验收。已知待改时不提前反复渲染。最后按[回执规范](references/worker-receipt.md)用`receipt_tool`提交一次真实回执，未做项如实写not_run；不另造验收台账或手写重复回执。
+4. 依据冻结`review_reuse`处理覆盖：新策略只继承有证据且未受影响的已通过范围，变化、关联、失败及未审范围实际检查；六项与全部当前页完整覆盖后才通过。初稿自检、缓存和工具成功均不等于独立验收。已知待改时不提前反复渲染。最后按[回执规范](references/worker-receipt.md)用`receipt_tool`提交一次真实回执，未做项如实写not_run；不另造验收台账或手写重复回执。提交前保存产物并结束已不再需要的本阶段专属工具，提交后立即返回，不留下后台任务；共享宿主和其他案件进程保留。
 
 没有pipeline的旧worker读取本批active规则、[写作规范](references/writing-standard.md)、[所述与公式](references/terminology-and-formula.md)、[净稿图序](references/reference-style-standard.md)、[人工格式](references/manual-format-and-wording.md)和[项目记录](references/data-contracts.md#项目记录)，其余按内容读取；不假造旧快照或自动套用新策略。
 
@@ -29,7 +29,7 @@ description: 从指定案件文件夹递归识别技术项目优化书，滚动�
 
 主控独占状态写入，同案最多一个活动attempt，保留锁、唯一启动意图及进程身份。中断先收已有结果、取消前确认worker停止，不重复收费重放。已知本案错误按范围隔离；未知身份、哈希或完整性异常停止新派发。已确认工具缺陷按[故障接续](references/tool-fault-recovery.md)直接修复、定向验证并继续已授权任务，保护原证据，不增加人工确认或继承pass。
 
-最终source_support、antecedents、claims_alignment、formulas、figures、rendered_pages六项及全部当前页完整覆盖且通过、身份和哈希一致，即交付DOCX到桌面唯一批次目录根部。新目录名为“原始输入文件夹完整名称_终稿_冻结批次标识”，续跑沿用；不按案件/阶段分目录或散放桌面。证据留工作区，未改稿通过后只做一次机械收尾。细节见[交付](references/batch-workflow.md#版本46唯一桌面交付目录)、[提效执行索引](references/efficiency.md)。
+最终source_support、antecedents、claims_alignment、formulas、figures、rendered_pages六项及全部当前页完整覆盖且通过、身份和哈希一致，即交付DOCX到桌面唯一批次目录根部。新目录名为“原始输入文件夹完整名称_终稿_冻结批次标识”，续跑沿用；不按案件/阶段分目录或散放桌面。证据留工作区，未改稿通过后只做一次机械收尾。每案交付后立即按[完成即退出](references/cli-workers.md#完成即退出)确认本案专属进程退出并释放资源，不等全批；全批无在途任务后结束本批控制器，不终止共享宿主或其他项目。细节见[交付](references/batch-workflow.md#版本46唯一桌面交付目录)、[提效执行索引](references/efficiency.md)。
 
 ## 按问题定位详细规范
 

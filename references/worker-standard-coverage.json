@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.44：规则v72仍65条，FORMULA-04要求核定的连续集合定义式大括号内续行合为单行；完整节点及条件保留，分段/矩阵/上下限不盲展平。已独立核对worker-standard与完整规范的约束、反例和按需入口后刷新指纹。复用原formulas/rendered_pages及layout候选，不新增扫描、模型阶段或自动语义通过。",
+  "description": "v6.45：规则v73仍65条，BATCH-09明确单案交付后立即确认专属进程退出及全批结束退出控制器。worker-standard新增阶段产物保存、专属任务结束、回执后立即返回与残留归属核查入口，已独立核对完整约束/例外。沿用既有进程退出证据及收稿机制，不增扫描或模型阶段，保护在途案、用户窗口与共享宿主。",
   "files": {
     "writing-standard.md": "10a7730a3aa15d1fe6950d188424a67cd6a2e481a3cd2fb44261b0c1062d8a6c",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
     "terminology-and-formula.md": "4d464ce51bde985d39587e2ca3321895421cf7e187ab33fb194b401dd14d5c06",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
     "manual-format-and-wording.md": "355d682e6b1e560a2a006e3755e11b19480ce08ce86eadc01f49f70888e015b9",
-    "worker-standard.md": "8a713ebf513678b54bc5bdeb99f65c64a855aced737f515180493257e47872f5"
+    "worker-standard.md": "02cbd0986ba195e42a3ba51ad16800b9f9b300581d4db5c0d92d49b6cc9b8b23"
   }
 }
