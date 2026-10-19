@@ -197,6 +197,8 @@ v5.9的manual-v26-complete-symbols-no-spaces-v5提前拒绝可见文字与源数
 v5.5的manual-v22-natural-flow-v3按角色控制分页：body的keepLines/keepNext/pageBreakBefore/widowControl为0，短标题与文末图片采用必要的keepNext，完整公式及图下号保持keepLines。分节直接附在本节最后内容段；空逻辑节才保留最小1pt结构载体。没有减少或拆分技术文字、重排公式节点，也没有改变页脚定位空段。摘要图的客观记录caption_locator/caption_text为null，文末图仍有图号定位。读回拒绝普通正文重新启用分页束缚、摘要多出图号、额外满行高分节载体；后续验收复用page_flow_evidence，实际页面仍须查看。
 
 
+### 正文符号与来源绑定
+
 按已核定身份选择表示。生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，为统一正体及正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。prose_example/prose_label仍保留每个原有数值、记号和顺序；source_text_occurrences与omml_occurrences分开报告，main_formula核算主式N。源中已有普通文字直接用text，不绕道OMML。
 
 普通符号示例：`{"type":"symbol_reference","text":"J","style":"reference_letter"}`。版本60中该参数为body兼容别名，输出正文宋体14pt正体；普通Latin/Greek单字母不包OMML，结构记号和有义字形仍保留完整数学结构。正文/benefit开头式中，或式中：定向改为其中，或其中：，支持跨相邻text run，保留实施方式中/公式中的；其他回指由模型依原意改写。所有读回仍比对片段次序、精确文字、源树、字体和分号，最终视觉/语义不由manifest代签。
@@ -243,7 +245,7 @@ source_symbol可用node_path指向完整m:func，或用相邻node_paths同时选
 
 ### v6.15 来源绑定符号保真
 
-生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，为统一正体及正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。
+与[正文符号与来源绑定](#正文符号与来源绑定)为同一契约，按该节执行，不重复读取；完整结构及源/显示树核对不变。
 
 ### v6.16 转置与英文记号检查
 

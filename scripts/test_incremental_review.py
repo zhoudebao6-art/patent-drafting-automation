@@ -313,6 +313,48 @@ class IncrementalReviewTests(unittest.TestCase):
                     self.root, self.case, self.m, self.counter = oldroot, oldcase, oldm, counter
                     self.case_root = self.root / 'cases/001'
 
+    def test_history_chain_verified_once_per_boundary_with_and_without_pages(self):
+        from unittest.mock import patch
+        first, _, pointer = self.attempt(['A', 'B'])
+        oldest_plan = Path(pointer['path'])
+        self.record(first, self.receipt(first, pointer))
+        second, plan, pointer = self.attempt(['A', 'B corrected'])
+        self.record(second, self.inherited_receipt(second, plan, pointer))
+        third, plan, pointer = self.attempt(['A', 'B corrected again'])
+        current = self.inherited_receipt(third, plan, pointer)
+        render = self.render(third, ['white', 'black'])
+        variants = {'no_pages': copy.deepcopy(current)}
+        for mode in ('partial_pages', 'pass'):
+            receipt = copy.deepcopy(current)
+            receipt['render'] = render
+            receipt['review_coverage']['pages'] = [
+                {'page': 1, 'mode': 'fresh', 'status': 'passed'},
+                {'page': 2, 'mode': 'fresh', 'status': 'passed' if mode == 'pass' else 'not_run'}]
+            if mode == 'pass':
+                receipt['verdict'] = 'pass'; receipt['checks']['rendered_pages'] = 'passed'
+            variants[mode] = receipt
+        prior_inputs = [Path(a['input_artifact']) for a in (first, second)]
+        for mode, receipt in variants.items():
+            for controller in (False, True):
+                with self.subTest(mode=mode, controller=controller), patch.object(b, 'sha', wraps=b.sha) as hashes:
+                    reuse.validate(self.m, self.case, third, receipt, controller=controller)
+                    seen = [Path(call.args[0]) for call in hashes.call_args_list]
+                    for path in prior_inputs:
+                        self.assertEqual(seen.count(path), 1, 'verify each ancestor once in each invocation')
+        # A successful worker or controller call must never cache historical trust
+        # for the next boundary. Check tampering in the oldest ancestor of the chain.
+        for path in (prior_inputs[0], Path(first['directory']) / 'receipt.json', oldest_plan):
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + b' ')
+                for mode, receipt in variants.items():
+                    for controller in (False, True):
+                        with self.subTest(tamper=path.name, mode=mode, controller=controller):
+                            with self.assertRaises(b.BatchError):
+                                reuse.validate(self.m, self.case, third, receipt, controller=controller)
+            finally:
+                path.write_bytes(original)
+
     def test_policy_is_opt_in_and_old_receipts_keep_previous_contract(self):
         from test_parallel_batch import POLICY
         legacy = copy.deepcopy(POLICY); queue.validate_policy(legacy)

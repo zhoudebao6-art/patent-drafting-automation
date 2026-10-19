@@ -272,7 +272,9 @@ def _load_manifest(path):
     if b.read(file_path(root / 'policy.snapshot.json', root)) != m['policy']:
         raise BatchError('Policy snapshot changed')
     rules = file_path(root / 'rules.snapshot.json', root)
-    if b.sha(rules) != m['rules_sha256'] or b.read(rules).get('version') != m['rule_version']:
+    rules_bytes = rules.read_bytes()
+    if (hashlib.sha256(rules_bytes).hexdigest() != m['rules_sha256']
+            or json.loads(rules_bytes.decode('utf-8-sig')).get('version') != m['rule_version']):
         raise BatchError('Rule snapshot changed')
     if m.get('skill_snapshot') or m['policy'].get('worker_preparation'):
         from stage_bundle import verify

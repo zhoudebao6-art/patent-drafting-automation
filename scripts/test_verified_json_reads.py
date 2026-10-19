@@ -11,7 +11,10 @@ from unittest.mock import patch
 import inspect_docx as inspector
 import prepare_handoff as handoff
 import stage_bundle as bundle
+import batch_tool as batch
+import parallel_batch as queue
 from test_batch_tool import docx
+from test_parallel_batch import POLICY
 
 
 class VerifiedJsonReadTests(unittest.TestCase):
@@ -174,6 +177,74 @@ class VerifiedJsonReadTests(unittest.TestCase):
         for name in ('_case_each_snapshot_check_still_verifies_runtime_and_identity', '_case_foreign_handoff_path_and_resigned_context_are_rejected', '_case_resigned_foreign_report_and_changed_cache_metadata_are_rejected'):
             with self.subTest(case=name):
                 getattr(self, name)()
+
+
+class RuleSnapshotReadTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        source = self.root/'input'; source.mkdir()
+        docx(source/'case.docx', '规则快照读取测试。')
+        policy = self.root/'policy.json'; batch.atomic(policy, POLICY)
+        rules = self.root/'rules.json'; batch.atomic(rules, {'version': 4, 'rules': []})
+        with patch.object(queue, 'POLICY', policy), patch.object(queue, 'RULES', rules):
+            self.manifest = queue.init(source, self.root/'work',
+                {'projects': [{'title': '测试', 'source_files': ['case.docx'], 'primary_source': 'case.docx'}]},
+                self.root/'desktop')
+        self.rules = self.manifest.parent/'rules.snapshot.json'
+
+    def test_rule_hash_and_version_share_one_read_without_cross_call_cache(self):
+        raw = Path.read_bytes
+        shared = batch.shared_reader
+        hash_file = batch.sha
+        reads = []
+        def read_bytes(path):
+            if path == self.rules: reads.append('bytes')
+            return raw(path)
+        def shared_reader(path):
+            if Path(path) == self.rules: reads.append('shared')
+            return shared(path)
+        def file_sha(path):
+            if Path(path) == self.rules: reads.append('sha')
+            return hash_file(path)
+        with patch.object(Path, 'read_bytes', read_bytes), patch.object(batch, 'shared_reader', shared_reader), \
+                patch.object(batch, 'sha', file_sha):
+            for call in range(1, 3):
+                self.assertEqual(queue.load_manifest(self.manifest)['rule_version'], 4)
+                self.assertEqual(len(reads), call)
+
+    def test_rule_parse_uses_hashed_bytes_and_next_call_rejects_replacement(self):
+        original = Path.read_bytes
+        replaced = []
+        def read_then_replace(path):
+            data = original(path)
+            if path == self.rules and not replaced:
+                batch.atomic(self.rules, {'version': 999, 'rules': []})
+                replaced.append(True)
+            return data
+        with patch.object(Path, 'read_bytes', read_then_replace):
+            self.assertEqual(queue.load_manifest(self.manifest)['rule_version'], 4)
+        self.assertTrue(replaced)
+        with self.assertRaisesRegex(batch.BatchError, 'Rule snapshot changed'):
+            queue.load_manifest(self.manifest)
+
+    def test_rule_bom_version_and_hash_guards_are_preserved(self):
+        for label, raw, resign, error in [
+            ('bom', b'\xef\xbb\xbf'+b'{"version":4,"rules":[]}', True, None),
+            ('version', b'{"version":5,"rules":[]}', True, batch.BatchError),
+            ('hash_before_decode', b'\xff', False, batch.BatchError),
+            ('invalid_json', b'{', True, json.JSONDecodeError),
+        ]:
+            with self.subTest(case=label):
+                self.rules.write_bytes(raw)
+                manifest = batch.read(self.manifest)
+                if resign: manifest['rules_sha256'] = hashlib.sha256(raw).hexdigest()
+                batch.atomic(self.manifest, manifest)
+                if error:
+                    with self.assertRaises(error): queue.load_manifest(self.manifest)
+                else:
+                    self.assertEqual(queue.load_manifest(self.manifest)['rule_version'], 4)
 
 
 if __name__ == '__main__':

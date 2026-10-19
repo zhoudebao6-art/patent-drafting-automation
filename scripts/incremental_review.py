@@ -398,7 +398,6 @@ def validate(m, case, attempt, receipt, *, controller=True):
                     'independent dependency-impact explanation required')
         if full_pass:
             require(passed | inherited == universe, 'passed category has uncovered or failed scope')
-    previous_receipt(plan)  # Verify inherited bytes even if the worker chose a full fresh review.
     pages = coverage.get('pages')
     require(isinstance(pages, list), 'page coverage list required')
     require(all(isinstance(row, dict) and type(row.get('page')) is int and row['page'] > 0
@@ -429,6 +428,10 @@ def validate(m, case, attempt, receipt, *, controller=True):
         if page_pass or receipt.get('verdict') == 'pass':
             require({row['page'] for row in pages if row['status'] == 'passed'} == set(range(1, mapping['page_count'] + 1)),
                     'final page coverage incomplete')
+    else:
+        # page_map verifies this same chain for page-bearing receipts. Without
+        # pages, still verify it once, including when every scope was freshly read.
+        previous_receipt(plan)
     if controller:
         return {'schema_version': 1, 'plan_sha256': pointer['plan_sha256'],
                 'coverage_sha256': digest(coverage), 'input_sha256': attempt['input_artifact_sha256']}
