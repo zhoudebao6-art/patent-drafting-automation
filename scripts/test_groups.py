@@ -106,7 +106,7 @@ def select(groups=(), changed=(), all_tests=False):
               or rel.startswith('references/rule-backups/') and path.suffix == '.json'):
             names.update(PACKET_CHECKS)
             reasons.append('Reference/rule text: packet coverage only; independently review changed semantics and exceptions.')
-        elif rel in {'README.md', 'SKILL.md', 'agents/openai.yaml'}:
+        elif rel in {'README.md', 'CHANGELOG.md', 'SKILL.md', 'agents/openai.yaml'}:
             reasons.append('Entry/documentation only: validate skill, links and semantic routing; no runtime suite by default.')
         else:
             selected.update(GROUPS)

@@ -117,12 +117,48 @@ class CliPoolTests(unittest.TestCase):
         self.assertEqual(p.load_manifest(self.manifest)['projects'][0]['status'], 'failed')
 
     def test_completed_unbound_worker_is_collected_without_relaunch(self):
-        self.enable_cli(); r = p.reserve(self.manifest, 4, transport='codex_cli')
-        self.fixture_cli(r, bind=False)
-        with patch.object(ce, 'process_identity', return_value=None), patch.object(pool, 'start_supervisor', side_effect=AssertionError('No replay')):
-            changed, halted = pool.collect(self.manifest, 'controller')
-        self.assertTrue(changed); self.assertFalse(halted)
-        self.assertEqual(p.load_manifest(self.manifest)['projects'][0]['status'], 'drafted')
+        # One contract covers legacy mutation and independent case-lock merging.
+        from test_nonblocking_pools import NonblockingBehaviorTests
+        self.enable_cli()
+        for nonblocking in (False, True):
+            with self.subTest(nonblocking=nonblocking):
+                fixture = self
+                if nonblocking:
+                    fixture = NonblockingBehaviorTests(); fixture.setUp()
+                    self.addCleanup(fixture.doCleanups)
+                r = p.reserve(fixture.manifest, 4, transport='codex_cli')
+                fixture.fixture_cli(r, bind=False)
+                phase = ['collect']; record_loads = []
+                real_load, real_bind, real_record = p.load_manifest, p.bind, p.record
+                def load(*args, **kwargs):
+                    self.assertNotEqual(phase[0], 'bound', 'Do not reload after bind returns its committed attempt')
+                    if phase[0] == 'record': record_loads.append(args[0])
+                    return real_load(*args, **kwargs)
+                def bind(*args, **kwargs):
+                    result = real_bind(*args, **kwargs)
+                    committed = p.attempt_by_id(p.case_by_id(b.read(fixture.manifest), r['case_id']), r['attempt']['id'])
+                    self.assertEqual(result, committed)
+                    self.assertEqual(result['state'], 'bound')
+                    self.assertEqual(result['stage'], 'draft')
+                    self.assertEqual(result['agent_id'], 'cli:' + r['attempt']['id'])
+                    self.assertEqual('prepared_handoff' in result, nonblocking)
+                    phase[0] = 'bound'
+                    return result
+                def record(*args, **kwargs):
+                    self.assertEqual(phase[0], 'bound')
+                    phase[0] = 'record'
+                    return real_record(*args, **kwargs)
+                with patch.object(ce, 'process_identity', return_value=None), \
+                     patch.object(pool, 'start_supervisor', side_effect=AssertionError('No replay')), \
+                     patch.object(p, 'load_manifest', side_effect=load), \
+                     patch.object(p, 'bind', side_effect=bind), patch.object(p, 'record', side_effect=record) as recorded, \
+                     patch.object(ce, 'verify_completion', wraps=ce.verify_completion) as verified, patch.object(pool, 'emit'):
+                    changed, halted = pool.collect(fixture.manifest, 'controller')
+                self.assertTrue(changed); self.assertFalse(halted)
+                self.assertEqual(recorded.call_count, 1)
+                self.assertTrue(record_loads, 'record must independently reload and validate the current manifest')
+                self.assertEqual(verified.call_count, 2)  # Separate bind and record evidence gates.
+                self.assertEqual(p.case_by_id(p.load_manifest(fixture.manifest), r['case_id'])['status'], 'drafted')
 
     def test_bound_worker_has_one_full_completion_gate_when_collected(self):
         self.enable_cli(); r=p.reserve(self.manifest,4,transport='codex_cli')

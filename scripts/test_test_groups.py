@@ -20,9 +20,11 @@ class GroupSelectionTests(unittest.TestCase):
         changed_test = groups.select(changed=['scripts/test_verified_json_reads.py'])
         self.assertTrue(changed_test['test_ids'])
         self.assertTrue(all(name.startswith('test_verified_json_reads.') for name in changed_test['test_ids']))
-        docs = groups.run_plan(groups.select(changed=['README.md']))
-        self.assertEqual(docs['status'], 'no_runtime_tests_required')
-        self.assertIsNone(docs['passed'])
+        for changed in ('README.md', 'CHANGELOG.md', 'SKILL.md', 'agents/openai.yaml'):
+            with self.subTest(documentation_change=changed):
+                docs = groups.run_plan(groups.select(changed=[changed]))
+                self.assertEqual(docs['status'], 'no_runtime_tests_required')
+                self.assertIsNone(docs['passed'])
         expected_render = groups.select(['pages', 'workflow'])['test_ids']
         for changed in ('scripts/wps_render_backend.py', 'scripts/wps_readonly_pdf.ps1',
                         'references/runtime.json'):

@@ -316,7 +316,7 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False, drain=
                 completion_scope.enter_context(evidence.completion_scope(a, ev))
             if a['state'] == 'reserved' and (observe_identity(ev['result']) or completed.exists()):
                 try:
-                    queue.bind(manifest, c['id'], a['id'], dispatch, controller)
+                    a = queue.bind(manifest, c['id'], a['id'], dispatch, controller)
                 except (ValueError, OSError, KeyError, TypeError, queue.BatchError) as exc:
                     reason = 'CLI dispatch was not accepted: '+str(exc)
                     stop_launching = True
@@ -330,7 +330,7 @@ def collect(manifest, controller, *, state=None, suppress_delivery=False, drain=
                         write_new(root/'cli-bind-error.json', {'reason': reason})
                         event(manifest, 'waiting_for_failed_worker_exit', case_id=c['id'], reason=reason)
                     continue  # Continue draining other workers; do not accept or replay this one.
-                a = queue.attempt_by_id(queue.case_by_id(queue.load_manifest(manifest), c['id']), a['id'])
+                # bind returns the sealed attempt; record revalidates current state.
                 event(manifest, 'bound', case_id=c['id'], attempt=a['id'], model=ev['arguments']['model'])
                 changed = True
             if not exited.exists() or observe_identity(ev['result']):
