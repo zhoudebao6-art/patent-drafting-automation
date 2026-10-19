@@ -16,7 +16,7 @@
 
 `batch-policy.json.worker_preparation=frozen_stage_packet_v1`启用本模式。`parallel_batch.py init`建立`skill-snapshot`，复制当前规则、引用规范、运行脚本和必要资产，保存文件SHA及规则/策略身份。历史规则备份、测试脚本不随每批复制。来源技术正文仍分案管理。
 
-在快照根生成`worker-draft.md`、`worker-review.md`、`worker-revise.md`；lean新批次的`worker-math.md`只作公式/附图详细规范的场景索引，原文直接读取一次，不再复制成一个混合大包。非lean兼容路径保留原全文包。v5.7新批次还启用`execution_optimization=lean_execution_v24`：worker适用规则的instruction、check、exceptions、scope、section、level及origin原样进入阶段清单；已知纯主控global规则原文另放`worker-controller.md`。未知和project范围规则始终保留在worker清单，不靠关键词过滤。完整active集合另冻结为一份rules.active.json，完整evidence仍在rules.json；覆盖清单记录全部ID、路由和字段摘要哈希。
+同次freeze只编译一次公共规则、规范和证据契约，再组合各阶段模型与职责；覆盖规范核验在该次编译内共用，不跨调用缓存。仍在快照根生成`worker-draft.md`、`worker-review.md`、`worker-revise.md`；lean新批次的`worker-math.md`只作公式/附图详细规范的场景索引，原文直接读取一次，不再复制成一个混合大包。非lean兼容路径保留原全文包。v5.7新批次还启用`execution_optimization=lean_execution_v24`：worker适用规则的instruction、check、exceptions、scope、section、level及origin原样进入阶段清单；已知纯主控global规则原文另放`worker-controller.md`。未知和project范围规则始终保留在worker清单，不靠关键词过滤。完整active集合另冻结为一份rules.active.json，完整evidence仍在rules.json；覆盖清单记录全部ID、路由和字段摘要哈希。
 
 人工规范使用经独立复核的`worker-standard.md`执行要点和条件原文索引；触发索引条件必须读对应完整规范，不以简版覆盖例外。`worker-standard-coverage.json`绑定简版及五份原始规范SHA，任一改变后先维护覆盖并复核，编译不接受过期覆盖。项目证据契约仍完整提供。没有lean标志的旧批次继续把全部active规则及五份原始规范放入阶段清单。
 

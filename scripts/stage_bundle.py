@@ -95,15 +95,7 @@ def rule_block(rule):
     return '\n\n'.join(lines)
 
 
-def build_packet(snapshot, rules, stage):
-    if stage not in STAGES:
-        raise ValueError('Unknown worker stage')
-    snapshot = Path(snapshot)
-    active = [r for r in rules['rules'] if r['status'] == 'active']
-    if len({r['id'] for r in active}) != len(active):
-        raise ValueError('Duplicate active rule ID')
-    policy = json.loads((snapshot/'references/batch-policy.json').read_text(encoding='utf-8-sig'))
-    lean = policy.get('execution_optimization') == LEAN
+def _stage_header(policy, rule_version, stage):
     config = policy['models'][stage]
     identity = config['model']+'/'+str(config['reasoning_effort'])
     stage_text = {
@@ -122,14 +114,28 @@ def build_packet(snapshot, rules, stage):
                       '可验证且未受影响的已通过范围沿用，不再次整篇读源、重查所有公式/所述或重复看相同页。'
                       '当前稿六项和全部页面由本轮实查加有效继承完整覆盖才pass，修改者不能自验。'
                       '在原回执附review_coverage；具体字段及page-map调用见references/worker-receipt.md。')
-    sections = [f'# 本批{stage}执行清单（规则v{rules["version"]}）', f'本阶段模型/强度：{identity}。'+stage_text,
-                '本清单包含全部active规则的原文指令、检查及例外，以及必需写作规范。正常阶段读一次本清单，不再重复读取rules.active.json、整个SKILL或其已包含的参考文件。疑点按索引查询；不能用此安排跳过宿主要求或本案来源。',
+    return (f'# 本批{stage}执行清单（规则v{rule_version}）\n\n'
+            f'本阶段模型/强度：{identity}。'+stage_text)
+
+
+def _build_packets(snapshot, rules, stages):
+    """Compile shared content once per call; keep stage roles and outputs separate."""
+    if any(stage not in STAGES for stage in stages):
+        raise ValueError('Unknown worker stage')
+    snapshot = Path(snapshot)
+    active = [r for r in rules['rules'] if r['status'] == 'active']
+    if len({r['id'] for r in active}) != len(active):
+        raise ValueError('Duplicate active rule ID')
+    policy = json.loads((snapshot/'references/batch-policy.json').read_text(encoding='utf-8-sig'))
+    lean = policy.get('execution_optimization') == LEAN
+    reuse = policy.get('review_reuse') == 'verified_scope_v1'
+    sections = ['本清单包含全部active规则的原文指令、检查及例外，以及必需写作规范。正常阶段读一次本清单，不再重复读取rules.active.json、整个SKILL或其已包含的参考文件。疑点按索引查询；不能用此安排跳过宿主要求或本案来源。',
                 '## 原文规则（含适用范围）']
     routed = [r for r in active if lean and r['id'] in CONTROLLER_RULES and r['scope']=='global'
               and r['section'] in {'batch', 'delivery', 'update'}]
     included = [r for r in active if r not in routed]
     if lean:
-        sections[2] = ('本清单保留全部适用worker规则的原文、检查与例外。控制器专用规则原文见worker-controller.md；'
+        sections[0] = ('本清单保留全部适用worker规则的原文、检查与例外。控制器专用规则原文见worker-controller.md；'
                        '只写本attempt，来源/其他案/规则只读，派发/状态/交付由总控执行。'
                        '按prepared.pipeline.stage_read_parts顺序完整读取各块一次，不先整读再重读分块。'
                        '原文规范仍在冻结references中，worker-standard末表指定复杂情形必须读取的原节；不能跳过宿主技能或来源。')
@@ -161,7 +167,7 @@ def build_packet(snapshot, rules, stage):
                  '来源content/index、完整数学对象及当前稿的实际路径见本attempt的prepared/handoff.json。只写本attempt，其他文件只读。'+('只允许prepared.review_reuse绑定的真实已通过范围继承；数据缓存本身不证明通过。' if reuse else '复用缓存数据不继承任何通过结论。'),
                  '最后依据实际工作填写回执模板；自动生成的哈希/索引不是检查通过证据。未做检查写not_run，未解决问题不得交付。']
     output = '\n\n'.join(sections).rstrip()+'\n'
-    coverage = {'stage': stage, 'active_rule_ids': [r['id'] for r in active],
+    coverage = {'active_rule_ids': [r['id'] for r in active],
                 'rule_payload_sha256': hashlib.sha256(canonical(active).encode('utf-8')).hexdigest(),
                 'normative_sections': spans, 'semantic_approval': False}
     if lean:
@@ -170,7 +176,13 @@ def build_packet(snapshot, rules, stage):
                         reference_coverage=guard,
                         reading_mode='nonoverlapping_parts',
                         scope='Applicable rule text is verbatim; detailed standards remain frozen and conditionally required')
-    return output, coverage
+    return {stage: (_stage_header(policy, rules['version'], stage)+'\n\n'+output,
+                    {'stage': stage, **coverage}) for stage in stages}
+
+
+def build_packet(snapshot, rules, stage):
+    """Compatibility entry point for compiling a single stage."""
+    return _build_packets(snapshot, rules, (stage,))[stage]
 
 
 def write_parts(root, stage, text, limit=7000):
@@ -213,8 +225,9 @@ def freeze(skill, batch, rules_bytes, policy):
     (root/'references/batch-policy.json').write_text(json.dumps(policy, ensure_ascii=False, indent=2), encoding='utf-8')
     rules = json.loads(rules_bytes.decode('utf-8-sig'))
     coverage = {}
+    packets = _build_packets(root, rules, STAGES)
     for stage in STAGES:
-        text, coverage[stage] = build_packet(root, rules, stage)
+        text, coverage[stage] = packets[stage]
         (root/f'worker-{stage}.md').write_text(text, encoding='utf-8', newline='')
         if policy.get('execution_optimization') == LEAN:
             coverage[stage]['read_parts'] = write_parts(root, stage, text)

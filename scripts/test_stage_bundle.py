@@ -49,6 +49,70 @@ class BundleTests(unittest.TestCase):
                 if rule['exceptions']: self.assertIn(s.canonical(rule['exceptions']), packet)
             self.assertFalse(coverage[stage]['semantic_approval'])
 
+    def test_freeze_compiles_shared_content_once_with_distinct_stages_and_no_cross_call_trust(self):
+        for name in ('worker-standard.md', 'worker-standard-coverage.json'):
+            shutil.copyfile(self.actual/'references'/name, self.skill/'references'/name)
+        for lean in (False, True):
+            with self.subTest(lean=lean):
+                policy = dict(self.policy, review_reuse='verified_scope_v1')
+                if lean:
+                    policy['execution_optimization'] = s.LEAN
+                b.atomic(self.skill/'references/batch-policy.json', policy)
+                expected = {stage: s.build_packet(self.skill, self.rules, stage) for stage in s.STAGES}
+                reads, hashes, blocks = [], [], []
+                read_text, file_sha, rule_block, compile_packets = Path.read_text, s.sha, s.rule_block, s._build_packets
+
+                def tracked_read(path, *args, **kwargs):
+                    reads.append(path.name)
+                    return read_text(path, *args, **kwargs)
+
+                def tracked_sha(path):
+                    hashes.append(Path(path).name)
+                    return file_sha(path)
+
+                def tracked_rule(rule):
+                    blocks.append(rule['id'])
+                    return rule_block(rule)
+
+                def compile_once(*args):
+                    with patch.object(Path, 'read_text', tracked_read), patch.object(s, 'sha', tracked_sha), \
+                         patch.object(s, 'rule_block', tracked_rule):
+                        return compile_packets(*args)
+
+                target = self.root/('shared-lean' if lean else 'shared-full'); target.mkdir()
+                with patch.object(s, '_build_packets', side_effect=compile_once) as compiler:
+                    record = s.freeze(self.skill, target, self.rules_bytes, policy)
+                compiler.assert_called_once()
+                self.assertEqual(reads.count('batch-policy.json'), 1)
+                self.assertEqual(reads.count('data-contracts.md'), 1)
+                self.assertEqual(reads.count('worker-standard-coverage.json'), int(lean))
+                self.assertEqual(len(blocks), len(set(blocks)))
+                for name in s.CORE:
+                    self.assertEqual(hashes.count(name), 1)
+                self.assertEqual(hashes.count('worker-standard.md'), 2 if lean else 0)
+                manifest = dict(self.m, batch_dir=str(target), policy=policy, skill_snapshot=record)
+                root = s.verify(manifest); coverage = b.read(root/'packet-coverage.json')
+                for stage in s.STAGES:
+                    text, data = expected[stage]
+                    self.assertEqual((root/f'worker-{stage}.md').read_bytes(), text.encode('utf-8'))
+                    self.assertIn(f"本阶段模型/强度：{policy['models'][stage]['model']}/{policy['models'][stage]['reasoning_effort']}", text)
+                    if stage == 'review':
+                        self.assertIn('独立只读审查', text)
+                    actual = coverage[stage]
+                    parts = actual.pop('read_parts', None)
+                    self.assertEqual(actual, data)
+                    if lean:
+                        self.assertEqual(b''.join((root/part['file']).read_bytes() for part in parts), text.encode('utf-8'))
+                    else:
+                        self.assertIsNone(parts)
+                changed = root/'references/manual-format-and-wording.md'
+                changed.write_bytes(changed.read_bytes()+b'changed')
+                with self.assertRaisesRegex(ValueError, 'file changed'):
+                    s.verify(manifest)
+                if lean:
+                    with self.assertRaisesRegex(ValueError, 'reference changed'):
+                        s.build_packet(root, self.rules, 'draft')
+
     def test_live_reference_edits_do_not_change_frozen_stage(self):
         root = s.verify(self.m); before = (root/'worker-draft.md').read_bytes()
         (self.skill/'references/manual-format-and-wording.md').write_text('changed live rules', encoding='utf-8')

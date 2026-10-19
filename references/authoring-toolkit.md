@@ -199,7 +199,7 @@ v5.5的manual-v22-natural-flow-v3按角色控制分页：body的keepLines/keepNe
 
 ### 正文符号与来源绑定
 
-按已核定身份选择表示。生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通英文单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，为统一正体及正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。prose_example/prose_label仍保留每个原有数值、记号和顺序；source_text_occurrences与omml_occurrences分开报告，main_formula核算主式N。源中已有普通文字直接用text，不绕道OMML。
+按已核定身份选择表示。来源绑定符号的正文/数学角色、完整节点及显示副本处理，按[公式与解释符号一致](formula-detail-standard.md#版本43-公式与解释符号一致)执行；已读该节不重复读取。prose_example/prose_label仍保留每个原有数值、记号和顺序；source_text_occurrences与omml_occurrences分开报告，main_formula核算主式N。源中已有普通文字直接用text，不绕道OMML。
 
 普通符号示例：`{"type":"symbol_reference","text":"J","style":"reference_letter"}`。版本60中该参数为body兼容别名，输出正文宋体14pt正体；普通A–Z/a–z单字母不包OMML；希腊字母等其他单个公式符号及结构记号、有义字形均保留数学格式。正文/benefit开头式中，或式中：定向改为其中，或其中：，支持跨相邻text run，保留实施方式中/公式中的；其他回指由模型依原意改写。所有读回仍比对片段次序、精确文字、源树、字体和分号，最终视觉/语义不由manifest代签。
 

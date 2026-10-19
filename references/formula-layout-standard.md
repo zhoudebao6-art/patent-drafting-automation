@@ -66,7 +66,7 @@ Sol/xhigh在既有`formulas`检查中逐项保存来源位置、数组语义分�
 
 有首次符号解释的公式或紧密公式组，集中说明段起首写一次其中，或其中：，段内连续说明；同身份同义同域符号仅在首个出现公式后解释，后式只解释新符号，无新项不加空段或重复定义。完整解释、首次定位、原位补全及局部条件保留按formula-detail-standard.md；不同公式组有新项时才需说明起首。段首式中，/式中：及跨run同样改写；实施方式中、公式中的、普通回指不能子串替换。式中的某量这样的回指由模型保持语义改写，不强删其中的条件或引用。
 
-生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通英文单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，为统一正体及正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。已分类prose_example/prose_label仍为普通文字，主式N不变。独立式的分号及eqArr多行标点沿原规定，字号改变后仍核当前最终页面。
+来源绑定符号的正文/数学角色、完整节点及显示副本处理，按[公式与解释符号一致](formula-detail-standard.md#版本43-公式与解释符号一致)执行；已读该节不重复读取。已分类prose_example/prose_label仍为普通文字，主式N不变。独立式的分号及eqArr多行标点沿原规定，字号改变后仍核当前最终页面。
 
 同一次inspect_docx输出formula_prose_evidence，标明schema、当前DOCX SHA、提取完整性、引导语、独立式收尾与裸字母/ASCII标签/数字算例对象候选。候选不是自动技术分类；真正数学身份的例外须有FORMULA-05、classification=source_math_identity、status=closed、当前artifact_sha256、当前案source_sha256、part/paragraph及精确path或object_id、registry_id/source_locator/reason。不得用整段或全稿ignore关闭；未检查不记通过。未知分组/公式号进入保守复核。文字、图片、OLE公式继续原来源盘点及逐页检查，零OMML不等于零公式。新增检查并入既有formulas与rendered_pages，不另起模型阶段。
 
