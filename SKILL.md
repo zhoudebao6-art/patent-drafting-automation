@@ -35,7 +35,7 @@ description: 支持用户仅发送案件文件夹路径，递归识别技术项�
 2. 每批按[运行环境](references/runtime.md)预检一次，首次配置、依赖变动或新故障才做小样；已验证WPS后端直接走正式转换，避免因LO字形失真反复改正确公式。普通批次不跑技能回归、不检查GitHub、不通读历史案例或无关配置。init一次冻结工具和规范并编译清单，不逐案重编译。
 3. 默认使用[多CLI池](references/cli-workers.md)滚动补位：6个draft、3个review、3个revise为硬上限，总目标12，最多24案在制；必须显式传实际可用--workers，不能把配置数当作可用额度或实跑证明。没有CLI时使用实际可用子代理名额；不得降级模型或更改全局安全设置。手工通道直接reserve --prepare，不先重复plan。
 4. draft固定gpt-6.1-sol/high；review、revise及修改后独立重验固定gpt-6.1-sol/xhigh。每案最多一个活动attempt，阶段新会话隔离；三池准备/收稿与单写交付通道独立，初稿完成即排复查，待修稿即排修改，通过即交付，有对应池空位立即接手。慢I/O不占主清单长锁；详见[三池执行](references/three-stage-pools.md)。
-5. 最终source_support、antecedents、claims_alignment、formulas、figures、rendered_pages六项及全部最终页由本轮实查与有效继承完整覆盖且通过、身份和哈希一致后，立即将DOCX交付桌面唯一批次文件夹根目录。所有成稿同层追加，不按案件/阶段另建目录、不散放桌面、不等整批。工作证据留在工作区，详细规则见[唯一交付目录](references/batch-workflow.md#版本46唯一桌面交付目录)。
+5. 最终source_support、antecedents、claims_alignment、formulas、figures、rendered_pages六项及全部最终页由本轮实查与有效继承完整覆盖且通过、身份和哈希一致后，立即将DOCX交付桌面唯一批次文件夹根目录；新文件夹为“原始输入文件夹完整名称_终稿_冻结批次标识”，续跑沿用原目录。所有成稿同层追加，不按案件/阶段另建目录、不散放桌面、不等整批。工作证据留在工作区，详细规则见[唯一交付目录](references/batch-workflow.md#版本46唯一桌面交付目录)。
 6. 复检通过后只作一次机械收尾；未改稿不再派模型、重新渲染或重建台账。新成稿发布前完整验一次，已有交付逐次验归属/身份/SHA，恢复与收尾完整审计。保留各次派发、收稿和交付的完整性边界，机械完整性核验不跨事务缓存通过；review_coverage仅按增量契约继承已审范围；同次JSON核验只读一份字节计算SHA并解析。执行细节见[快速执行](references/fast-execution.md)和[提效流程](references/efficiency.md)。
 
 总控独占状态写入；CLI锁、唯一启动意图及PID/创建时间/程序身份保留。中断先收已有结果，不重复收费重放，取消前确认原worker停止。明确单案结构/准备错误按既有范围隔离；未知身份、哈希和完整性异常停止新派发并保全证据。已确认的内部工具缺陷直接修复、定向验证并接续已授权任务，不新增人工确认关卡；按[工具故障接续](references/tool-fault-recovery.md)保护旧快照、失败记录及有效初稿，不继承pass。

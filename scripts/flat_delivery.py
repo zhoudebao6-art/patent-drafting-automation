@@ -11,6 +11,7 @@ import copy
 import ctypes
 import json
 import os
+import re
 import shutil
 import tempfile
 import unicodedata
@@ -55,9 +56,31 @@ def names(m):
     return result
 
 
+def folder_name(m):
+    """Use the frozen input root, never a case title or internal source snapshot."""
+    policy = m['policy']['delivery']
+    if policy.get('name_source') != 'input_folder':
+        return policy['folder_prefix'] + '_' + m['batch_id']
+    source_name = Path(m['input']).name
+    if not source_name:
+        raise b.BatchError('Input directory has no basename; select a named input folder for delivery')
+    if (source_name in {'.', '..'} or source_name.endswith((' ', '.'))
+            or re.search(r'[<>:"/\\|?*\x00-\x1f]', source_name)
+            or re.fullmatch(r'(?i)(CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9¹²³]|LPT[1-9¹²³])', source_name.split('.')[0].rstrip(' '))):
+        raise b.BatchError('Input folder name is not a valid Windows directory name; it will not be renamed or sanitized')
+    name = source_name + '_' + policy['folder_suffix'] + '_' + m['batch_id']
+    try:
+        units = len(name.encode('utf-16-le')) // 2
+    except UnicodeEncodeError as exc:
+        raise b.BatchError('Input folder name contains invalid Unicode; it will not be renamed') from exc
+    if units > 255:
+        raise b.BatchError('Input folder name plus delivery suffix exceeds 255 UTF-16 units; choose a shorter input folder name before drafting')
+    return name
+
+
 def destination(m):
     desk = b.root_path(m['desktop'])
-    dest = b.clean_path(desk / (m['policy']['delivery']['folder_prefix'] + '_' + m['batch_id']), desk)
+    dest = b.clean_path(desk / folder_name(m), desk)
     if b.inside(dest, m['input']): raise b.BatchError('Delivery cannot be inside input')
     return dest
 

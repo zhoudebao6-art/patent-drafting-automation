@@ -51,6 +51,10 @@ def validate_policy(p):
         raise BatchError('Parallel entry requires schema 2 rolling_parallel policy; serial batches use batch_tool.py')
     legacy = dict(p, schema_version=1, execution='serial_per_project')
     b.validate_policy(legacy)
+    if p['delivery'].get('name_source') == 'input_folder' and p['delivery'] != {
+            'name_source': 'input_folder', 'folder_suffix': '终稿',
+            'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}:
+        raise BatchError('Input-folder naming requires the exact immediate flat delivery policy')
     if not isinstance(p.get('review_mode', 'review_only'), str) or p.get('review_mode', 'review_only') not in {'review_only', 'review_fix_then_recheck'}:
         raise BatchError('Invalid review_mode policy')
     c = p.get('concurrency', {})
@@ -179,11 +183,15 @@ def locked(path, timeout=10):
 def init(root, work, selection, desktop=None, controller='controller'):
     root, work = b.root_path(root, required=True), b.root_path(work)
     desk = b.root_path(desktop if desktop else b.desktop_folder())
-    if b.inside(work, root) or b.inside(desk, root):
-        raise BatchError('Working and delivery roots must be outside input')
     if not isinstance(controller, str) or not controller.strip():
         raise BatchError('Controller identity required')
     policy = b.read(POLICY); validate_policy(policy)
+    batch_id = time.strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:10]
+    if policy['delivery'].get('name_source') == 'input_folder':
+        import flat_delivery
+        flat_delivery.destination({'policy': policy, 'input': str(root), 'desktop': str(desk), 'batch_id': batch_id})
+    if b.inside(work, root) or b.inside(desk, root):
+        raise BatchError('Working and delivery roots must be outside input')
     rules_bytes = RULES.read_bytes(); rules = json.loads(rules_bytes.decode('utf-8-sig'))
     if type(rules.get('version')) is not int or not isinstance(rules.get('rules'), list):
         raise BatchError('Invalid rule snapshot')
@@ -214,7 +222,6 @@ def init(root, work, selection, desktop=None, controller='controller'):
     if policy.get('output_contract'):
         import flat_delivery
         flat_delivery.names({'policy':policy,'projects':rows})
-    batch_id = time.strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:10]
     batch = work / batch_id; batch.mkdir(parents=True, exist_ok=False)
     (batch / 'rules.snapshot.json').write_bytes(rules_bytes)
     b.atomic(batch / 'policy.snapshot.json', policy)

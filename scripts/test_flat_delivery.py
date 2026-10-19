@@ -13,7 +13,8 @@ import incremental_delivery as inc
 import test_batch_tool as serial
 import test_parallel_batch as parallel
 
-DELIVERY = {'folder_prefix': '专利撰写完成', 'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}
+LEGACY_DELIVERY = {'folder_prefix': '专利撰写完成', 'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}
+DELIVERY = {'name_source': 'input_folder', 'folder_suffix': '终稿', 'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}
 
 
 def use_flat(test):
@@ -40,12 +41,78 @@ class SerialFlatTests(unittest.TestCase):
     def test_policy_exact_new_shape_and_legacy_remain_valid(self):
         b.validate_policy(serial.POLICY)
         m = b.read(self.manifest); b.validate_policy(m['policy'])
-        for extra in ({'accepted_subdir': '已完成'}, {'layout': 'other'}, {'timing': None}):
+        legacy = copy.deepcopy(m); legacy['policy']['delivery'] = copy.deepcopy(LEGACY_DELIVERY)
+        b.validate_policy(legacy['policy'])
+        self.assertEqual(flat.destination(legacy).name, '专利撰写完成_' + m['batch_id'])
+        self.assertEqual(flat.destination(m).name, self.src.name + '_终稿_' + m['batch_id'])
+        self.assertEqual(m['policy']['models'], serial.POLICY['models'])
+        for extra in ({'accepted_subdir': '已完成'}, {'layout': 'other'}, {'timing': None},
+                      {'folder_prefix': '专利撰写完成'}, {'name_source': 'case_title'}, {'folder_suffix': '其他'}):
             value = copy.deepcopy(m['policy']); value['delivery'].update(extra)
             with self.assertRaises(b.BatchError): b.validate_policy(value)
 
+    def test_full_input_name_preserved_independent_of_titles_and_internal_sources(self):
+        m = b.read(self.manifest)
+        original = '1014周丽2-20261014 SPN项目 ' + '完整名称' * 25
+        m['input'] = str(self.root / original)
+        expected = original + '_终稿_' + m['batch_id']
+        self.assertEqual(flat.folder_name(m), expected)
+        m['projects'].reverse()
+        m['projects'][0]['title'] = '案件名称不用于目录'
+        m['projects'][0]['primary_source'] = str(self.batch / 'cases' / '001' / 'sources' / 'internal.docx')
+        self.assertEqual(flat.folder_name(m), expected)
+        self.assertNotEqual(flat.folder_name(dict(m, batch_id=m['batch_id'] + 'a')), expected)
+
+    def test_invalid_input_basename_fails_without_sanitization(self):
+        m = b.read(self.manifest)
+        for name in ('', '坏?', '坏*', '结尾.', '结尾 ', 'NUL', 'con.txt', 'CON .txt', 'CONIN$', 'COM¹', 'LPT9'):
+            with self.subTest(name=name), self.assertRaisesRegex(b.BatchError, 'basename|Windows'):
+                flat.folder_name(dict(m, input=str(self.root / name) if name else self.root.anchor))
+
+    def test_utf16_name_limit_is_checked_with_suffix_and_surrogate_pair(self):
+        m = b.read(self.manifest)
+        suffix_units = len(('_终稿_' + m['batch_id']).encode('utf-16-le')) // 2
+        source_name = '中' * (255 - suffix_units - 2) + '😀'
+        exact = dict(m, input=str(self.root / source_name))
+        self.assertEqual(len(flat.folder_name(exact).encode('utf-16-le')) // 2, 255)
+        with self.assertRaisesRegex(b.BatchError, '255 UTF-16'):
+            flat.folder_name(dict(m, input=str(self.root / (source_name + '中'))))
+
+    def test_serial_and_parallel_init_validate_name_before_creating_batch(self):
+        # Virtual roots isolate preflight ordering from host path-length settings.
+        original_root_path = b.root_path
+        for module, base in ((b, serial.POLICY), (p, parallel.POLICY)):
+            policy = copy.deepcopy(base); policy['delivery'] = copy.deepcopy(DELIVERY)
+            policy_file = self.root / ('init-policy-' + module.__name__ + '.json')
+            b.atomic(policy_file, policy)
+            for invalid in (self.root.anchor, str(self.root / ('长' * 240))):
+                work = self.root / ('not-created-' + module.__name__)
+                def root_path(path, required=False):
+                    return Path(invalid) if str(path) == str(self.src) else original_root_path(path, required)
+                with self.subTest(module=module.__name__, invalid=invalid), \
+                        patch.object(module, 'POLICY', policy_file), patch.object(b, 'root_path', side_effect=root_path):
+                    with self.assertRaisesRegex(b.BatchError, 'basename|255 UTF-16'):
+                        module.init(self.src, work, {'projects': []}, self.root / 'desktop')
+                self.assertFalse(work.exists())
+
+    def test_new_init_freezes_original_named_root_without_extra_manifest_field(self):
+        source = self.root / '1014周丽2-20261014 SPN项目'; source.mkdir()
+        nested = source / '解压材料'; nested.mkdir(); serial.docx(nested / 'a.docx', 'fixture')
+        selection = {'projects': [{'title': '另一个案件标题', 'source_files': ['解压材料/a.docx'], 'primary_source': '解压材料/a.docx'}]}
+        for module, base in ((b, serial.POLICY), (p, parallel.POLICY)):
+            policy = copy.deepcopy(base); policy['delivery'] = copy.deepcopy(DELIVERY)
+            policy_file = self.root / ('named-policy-' + module.__name__ + '.json'); b.atomic(policy_file, policy)
+            with patch.object(module, 'POLICY', policy_file), patch.object(module, 'RULES', b.RULES):
+                manifest = module.init(source, self.root / ('named-work-' + module.__name__), selection, self.root / 'desktop')
+            m = b.read(manifest)
+            self.assertEqual(m['input'], str(source.resolve()))
+            self.assertEqual(flat.destination(m).name, source.name + '_终稿_' + m['batch_id'])
+            self.assertEqual(m['policy']['models'], base['models'])
+            self.assertEqual(m['policy']['delivery']['timing'], 'after_each_acceptance')
+
     def test_partial_append_same_root_stable_names_and_idempotent(self):
         self.complete('001'); dest = Path(b.deliver(self.manifest))
+        self.assertEqual(dest.name, self.src.name + '_终稿_' + b.read(self.manifest)['batch_id'])
         one = dest / '同名_001.docx'; before = (one.read_bytes(), one.stat().st_mtime_ns)
         assert_flat(self, dest, 1)
         self.assertFalse(b.read(self.manifest)['delivery_closed'])
@@ -252,6 +319,8 @@ class ParallelFlatTests(unittest.TestCase):
         self.assertTrue((dest / '同名_001.docx').exists())
         self.assertEqual((second.read_bytes(), second.stat().st_mtime_ns), before_file)
         self.assertEqual(self.reserve()['attempt']['stage'], 'draft')
+        self.assertEqual(dest.name, self.src.name + '_终稿_' + b.read(self.manifest)['batch_id'])
+        self.assertEqual([item for item in dest.parent.iterdir() if item.is_dir() and not item.name.startswith('.')], [dest])
 
     def test_all_terminal_first_delivery_uses_flat_and_no_pending_files(self):
         self.record(self.reserve(1)); self.record(self.reserve(1))

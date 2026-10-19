@@ -164,7 +164,8 @@ def validate_policy(p, *, legacy_snapshot=False):
     delivery = p.get('delivery')
     expected_delivery = {'folder_prefix': '专利撰写完成', 'accepted_subdir': '已完成', 'pending_subdir': '待处理'}
     flat_delivery = {'folder_prefix': '专利撰写完成', 'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}
-    if not isinstance(delivery, dict) or delivery not in (expected_delivery, dict(expected_delivery, timing='after_each_acceptance'), flat_delivery):
+    input_folder_delivery = {'name_source': 'input_folder', 'folder_suffix': '终稿', 'layout': 'flat_final_files', 'timing': 'after_each_acceptance'}
+    if not isinstance(delivery, dict) or delivery not in (expected_delivery, dict(expected_delivery, timing='after_each_acceptance'), flat_delivery, input_folder_delivery):
         raise BatchError('Invalid delivery policy')
 def model_label(policy, stage):
     """Describe the frozen stage policy, including historical unspecified effort."""
@@ -176,11 +177,15 @@ def model_label(policy, stage):
 def init(root, work, selection, desktop=None):
     root, work = root_path(root, required=True), root_path(work)
     desk = root_path(desktop if desktop else desktop_folder())
-    if inside(work, root) or inside(desk, root): raise BatchError('Working and delivery roots must be outside input')
     policy = read(POLICY)
     if isinstance(policy, dict) and policy.get('execution') == 'rolling_parallel':
         raise BatchError('New rolling_parallel batches must use parallel_batch.py init; existing serial manifests remain supported here')
     validate_policy(policy)
+    batch_id = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:10]
+    if policy['delivery'].get('name_source') == 'input_folder':
+        import flat_delivery
+        flat_delivery.destination({'policy': policy, 'input': str(root), 'desktop': str(desk), 'batch_id': batch_id})
+    if inside(work, root) or inside(desk, root): raise BatchError('Working and delivery roots must be outside input')
     rules_bytes = RULES.read_bytes(); rules = json.loads(rules_bytes.decode('utf-8-sig'))
     if not isinstance(rules.get('version'), int) or not isinstance(rules.get('rules'), list): raise BatchError('Invalid rule snapshot')
     projects = selection.get('projects')
@@ -202,7 +207,6 @@ def init(root, work, selection, desktop=None):
         if key in primaries: raise BatchError('Duplicate primary')
         primaries.add(key)
         rows.append({'id': f'{i:03d}', 'title': title, 'primary_source': str(primary), 'sources': sources, 'status': 'pending', 'receipts': []})
-    batch_id = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:10]
     batch = work/batch_id; batch.mkdir(parents=True, exist_ok=False)
     (batch/'rules.snapshot.json').write_bytes(rules_bytes)
     m = {'schema_version': 1, 'batch_id': batch_id, 'batch_dir': str(batch), 'input': str(root), 'desktop': str(desk), 'policy': policy, 'rule_version': rules['version'], 'rules_sha256': hashlib.sha256(rules_bytes).hexdigest(), 'evidence_limit': 'Controller-captured dispatch record; not independent proof of model execution or server attestation', 'projects': rows}
@@ -389,6 +393,9 @@ def retry(path, case_id, reason, work=None, desktop=None):
     if inside(work, m['input']) or inside(desk, m['input']): raise BatchError('Working and delivery roots must be outside input')
     if any(inside(p, r) for p in (work, desk) for r in (m['batch_dir'], m['delivery_path'])): raise BatchError('Retry cannot modify source batch or delivery')
     batch_id = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:10]
+    if m['policy']['delivery'].get('name_source') == 'input_folder':
+        import flat_delivery
+        flat_delivery.destination(dict(m, batch_id=batch_id, desktop=str(desk)))
     batch = work/batch_id
     # Publish manifest last. An interrupted copy leaves no runnable partial batch.
     batch.mkdir(parents=True, exist_ok=False)
