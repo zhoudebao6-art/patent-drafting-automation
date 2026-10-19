@@ -39,7 +39,7 @@ def claim_head(text):
     match=re.match(r'^([1-9][0-9]*)[.．、]',text)
     if not match:raise ValueError('Claim requires an explicit numbered first paragraph')
     body=text[match.end():]
-    markers=list(re.finditer('，其特征在于[，：]',body))
+    markers=list(re.finditer('，其特征在于，',body))
     if len(markers)!=1:raise ValueError('Claim header boundary requires located review')
     marker=markers[0];head=body[:marker.start()];tail=body[marker.end():]
     if not head or not tail:raise ValueError('Claim header or technical content is empty')
@@ -62,6 +62,23 @@ def block_text(block):
 
 def expand(spec):
     """Opt-in automatic generation from the current claims, before validation."""
+    # This wording applies to claims even when automatic mirroring is disabled.
+    # Join adjacent text runs only: never flatten a formula or another object.
+    for section in spec.get('sections',[]):
+        if not isinstance(section,dict) or section.get('kind')!='claims':continue
+        for block in section.get('blocks',[]):
+            if not isinstance(block,dict) or block.get('type')!='paragraph':continue
+            segments=[block['text']] if isinstance(block.get('text'),str) else []
+            if not segments:
+                pending=''
+                for run in block.get('runs',[]):
+                    if isinstance(run,dict) and run.get('type')=='text' and isinstance(run.get('text'),str):
+                        pending+=run['text']
+                    else:
+                        segments.append(pending);pending=''
+                segments.append(pending)
+            if any(re.search('其特征在于(?!，)',text) for text in segments):
+                raise ValueError('Claim introduction must use 其特征在于， with a Chinese comma')
     if 'invention_from_claims' not in spec:return
     if spec.pop('invention_from_claims') is not True:
         raise ValueError('invention_from_claims must be true or omitted')
@@ -95,11 +112,11 @@ def expand(spec):
             if re.match(r'^[1-9][0-9]*[.．、]',text):
                 _,kind,_=claim_head(text)
                 if kind=='dependent':
-                    old_end=re.search('，其特征在于[，：]',text).end()
+                    old_end=re.search('，其特征在于，',text).end()
                     prefix='优选的，';cut_ranges=[(0,old_end)]
                 else:
                     num=re.match(r'^[1-9][0-9]*[.．、]',text).end()
-                    marker=re.search('其特征在于[，：]',text)
+                    marker=re.search('其特征在于，',text)
                     cut_ranges=[(0,num),(marker.start(),marker.end())]
                 offset=0;new_runs=[]
                 if prefix:new_runs.append(dict(type='text',text=prefix))
@@ -156,6 +173,8 @@ def evidence(report,body,claims,title):
         except ValueError as exc:issue('claim_head_unresolved',rows[0]['p'],reason=str(exc));continue
         numbers.append(number)
         for i,p in enumerate(rows):
+            for marker in re.finditer('其特征在于(?!，)',p['text']):
+                issue('claim_intro_punctuation',p['p'],claim=number,offset=marker.start(),expected='其特征在于，')
             text=first if i==0 else p['text']
             source_rows.append(p);expected.append(text);owners.append(number)
             if '权利要求' in text or '特征在于' in text:unsupported[len(expected)-1]='technical_claim_reference'

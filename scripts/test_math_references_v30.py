@@ -84,7 +84,7 @@ class ReferenceTests(unittest.TestCase):
         before=t.sha(self.root/'source.docx')
         context,target,result,doc=self.create()
         main,ref=doc.findall('.//m:oMath',t.NS)
-        self.assertEqual(t.tree_signature(main),t.tree_signature(ET.fromstring(OPERATOR)))
+        self.assertEqual(t.tree_signature(main),t.tree_signature(t.upright_math_display(ET.fromstring(OPERATOR))))
         self.assertEqual(''.join(ref.xpath('.//m:t/text()',namespaces=t.NS)),'sg·')
         self.assertIsNotNone(ref.find('m:d/m:e/m:r/m:t',t.NS))
         self.assertEqual(result['source_objects'][-1]['source_transform'],'operator_argument_placeholder')
@@ -136,7 +136,7 @@ class ReferenceTests(unittest.TestCase):
         nodes=doc.findall('.//m:oMath',t.NS)
         self.assertEqual(len(nodes),2)
         for node,source in zip(nodes,sources):
-            self.assertEqual(t.tree_signature(node),t.tree_signature(ET.fromstring(source)))
+            self.assertEqual(t.tree_signature(node),t.tree_signature(t.upright_math_display(ET.fromstring(source))))
         self.assertEqual(t.word_text(nodes[0].getparent()),'按计算，当时继续。')
         self.assertEqual(result['counts']['main_formula_occurrences'],2)
 

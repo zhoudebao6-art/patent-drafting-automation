@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.34 independently reviewed compact worker interface. All 65 active rules at rule version 63 remain verbatim with scopes, checks and exceptions. The five original CORE standards are unchanged. Worker-standard retains content organization and exact manual Word parameters; repeated rule explanations route to the original applicable sections. Full formula correctness, unique formula identity, complete symbol explanation, source-preserving corrections, wording/antecedent rules, figure scope and caption/flow requirements remain binding. Draft evidence is not independent acceptance; stages, six checks, complete current-page coverage, verified-scope inheritance and immediate delivery remain unchanged. The math/figure index routes to complete frozen originals without loading irrelevant formula details for figure-only cases. Source changes require a new coverage review before updating hashes.",
+  "description": "v6.37 independently reviewed compact worker interface, 65 active rules at version 66. FORMULA-03 requires all formula and explanation displays upright while preserving complete symbols, semantic bold and alphabet families; source trees and hashes remain immutable. STYLE-01 fixes the claim introduction to a Chinese comma, including cross-run and continuation cases; normal includes-colon syntax stays intact. Four CORE/worker sources were synchronized with these constraints. Other rules, source boundaries, independent stages, six checks, current-page coverage, verified-scope reuse and immediate delivery remain unchanged. Semantic coverage review is required before changing hashes.",
   "files": {
-    "writing-standard.md": "50e502e486b264969f5ac8dd162259944cb823ee21084dca70c5c4027d95beb7",
+    "writing-standard.md": "0ed8ac1e393c273e6cc4f509143c55a5c7880217d432fb6a1e7eb88afbe8f3c1",
     "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "81498d55784d15d0de706d899b4fa77a718be9b7def150b8dae73516a4e8589d",
+    "terminology-and-formula.md": "af9797d34bb11d6e4b9cd7e830992b4ed4e297abef9079c764f4b1e4b9619932",
     "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
-    "manual-format-and-wording.md": "1d5163095fb8f5da546b0ef96860540aac46b3fc6891243d6cc9aad3a1398181",
-    "worker-standard.md": "c273dd7a147eb46d9b3bb4de9c4e1bcdb422c327dff5d1059d4572a089a6d433"
+    "manual-format-and-wording.md": "d6186581e64837be21730939acc5cbf5296cd2077d8dfbb146c3a6ea8e0dc755",
+    "worker-standard.md": "eb98f1a4d7991a607f4f3fdb7d4b0b8720b3901a483b6d4e32e801784e9ddb5a"
   }
 }

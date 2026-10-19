@@ -36,16 +36,16 @@ class SymbolIdentity(unittest.TestCase):
         refs=doc.findall('.//m:oMath',t.NS)
         self.assertEqual(len(refs),3)
         original=ET.fromstring(source)
-        self.assertEqual(t.tree_signature(refs[0]),t.tree_signature(original))
+        self.assertEqual(t.tree_signature(refs[0]),t.tree_signature(t.upright_math_display(original)))
         for ref in refs[1:]:
             self.assertEqual(''.join(ref.xpath('.//m:t/text()',namespaces=t.NS)),'ℓ')
-            self.assertEqual(ref.find('m:r/m:rPr/m:sty',t.NS).get(t.qn('m:val')),'i')
+            self.assertEqual(ref.find('m:r/m:rPr/m:sty',t.NS).get(t.qn('m:val')),'p')
         plain=[row for row in result['source_objects'] if row['kind']=='source_text']
         self.assertEqual([row['text'] for row in plain],['I','I','l','l','i','i'])
         self.assertEqual(result['counts']['source_text_occurrences'],6)
         self.assertTrue(all(row['source_tree_sha256']==t.tree_signature(original) for row in plain))
         def change_style(root):
-            root.findall('.//m:oMath',t.NS)[-1].find('m:r/m:rPr/m:sty',t.NS).set(t.qn('m:val'),'p')
+            root.findall('.//m:oMath',t.NS)[-1].find('m:r/m:rPr/m:sty',t.NS).set(t.qn('m:val'),'i')
         self.mutate(target,change_style)
         with self.assertRaises(t.AuthoringError):t.verify_document(ctx,target)
 
@@ -137,10 +137,10 @@ class SymbolIdentity(unittest.TestCase):
         main,ref=doc.findall('.//m:oMath',t.NS)
         self.assertEqual(set(main.xpath('.//w:sz/@w:val',namespaces=t.NS)),{'23'})
         self.assertEqual(set(ref.xpath('.//w:sz/@w:val',namespaces=t.NS)),{'28'})
-        self.assertEqual(t.tree_signature(main),t.tree_signature(ET.fromstring(source)))
+        self.assertEqual(t.tree_signature(main),t.tree_signature(t.upright_math_display(ET.fromstring(source))))
         self.assertEqual([ET.QName(n).localname for n in ref],['sSubSup'])
         self.assertEqual(''.join(ref.xpath('.//m:t/text()',namespaces=t.NS)),'Wk,mnew')
-        self.assertEqual(ref.xpath('.//m:sty/@m:val',namespaces=t.NS),['i','i','i'])
+        self.assertEqual(ref.xpath('.//m:sty/@m:val',namespaces=t.NS),['p','p','p'])
         row=result['source_objects'][-1]
         self.assertNotEqual(row['tree_sha256'],row['display_tree_sha256'])
         self.assertEqual(row['source_tree_sha256'],self.spec['formulas'][0]['tree_sha256'])
@@ -148,7 +148,7 @@ class SymbolIdentity(unittest.TestCase):
         self.assertEqual(t.sha(self.root/'source.docx'),source_sha)
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
         def change(root):
-            root.findall('.//m:oMath',t.NS)[1].find('.//m:r/m:rPr/m:sty',t.NS).set(t.qn('m:val'),'p')
+            root.findall('.//m:oMath',t.NS)[1].find('.//m:r/m:rPr/m:sty',t.NS).set(t.qn('m:val'),'i')
         self.mutate(target,change)
         with self.assertRaisesRegex(t.AuthoringError,'content/structure changed'):t.verify_document(ctx,target)
         self.spec['formulas'][0]['tree_sha256']='0'*64

@@ -150,6 +150,43 @@ class InventionTests(unittest.TestCase):
         changed=t.validate(self.root,spec)
         self.assertTrue(any(p.endswith('保留原时间。') for key,p in changed['block_texts'].items() if key.startswith('iv_')))
 
+    def test_claim_intro_requires_chinese_comma_with_or_without_mirroring(self):
+        for mirror,punctuation in ((True,'：'),(False,':'),(False,','),(True,'；')):
+            with self.subTest(mirror=mirror,punctuation=punctuation):
+                spec=self.spec()
+                if not mirror:spec.pop('invention_from_claims')
+                block=spec['sections'][2]['blocks'][0]
+                text=block.pop('text').replace('其特征在于，','其特征在于'+punctuation)
+                block['runs']=[{'type':'text','text':c} for c in text]
+                original=deepcopy(spec)
+                with self.assertRaisesRegex(t.AuthoringError,'Chinese comma'):
+                    t.validate(self.root,spec)
+                self.assertEqual(spec,original)
+
+        spec=self.spec();context=t.validate(self.root,spec)
+        self.assertIn('其特征在于，包括：',context['block_texts']['claim0'])
+
+    def test_manual_colon_claim_is_rejected_by_existing_final_gate(self):
+        doc=self.doc()
+        for p in doc.paragraphs:
+            if p.text==CLAIMS[0]:
+                p.text=p.text.replace('其特征在于，','其特征在于：')
+        report=self.report(doc)
+        self.assertTrue(any(i['code']=='claim_head_unresolved' for i in report['invention_evidence']['issues']))
+        with self.assertRaises(batch.BatchError):self.accept(report)
+
+    def test_wrong_intro_in_continuation_cannot_use_mapping_waiver(self):
+        claims=list(CLAIMS)
+        claims[1]='其特征在于：'+claims[1]
+        report=self.report(self.doc(claims=claims))
+        evidence=report['invention_evidence']
+        self.assertTrue(any(i['code']=='claim_intro_punctuation' for i in evidence['issues']))
+        findings=[dict(row,rule_id='STYLE-02',classification='claim_solution_mapping',status='closed',
+                       artifact_sha256=report['sha256'],reason='Located technical correspondence')
+                  for row in evidence['review_candidates']]
+        with self.assertRaisesRegex(ValueError,'claim_intro_punctuation'):
+            inv.validate_evidence(report,findings)
+
     def test_cross_run_headers_and_multiple_independent_categories(self):
         spec=self.spec()
         for b in spec['sections'][2]['blocks']:

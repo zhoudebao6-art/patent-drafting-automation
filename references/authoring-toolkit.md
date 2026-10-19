@@ -6,6 +6,10 @@
 
 版本31名称校验：project_title须使用本案核定名称原文，不能默认拼接一种。名称槽中与其仅一种前缀增删或重复不同的写法，会触发NAME-01/title_reference_prefix；先按来源修正权项与完整名称引用，再生成方案。原标题自带一种保留，其他类别专属名称另按来源核定，普通一种用法和公式不自动替换。详见[名称原样引用](invention-content-standard.md#版本31-名称原样引用)。
 
+摘要正文提交前按[摘要固定话术](writing-standard.md#摘要固定话术)写成“本发明涉及【领域】，公开了【完整名称】。该【客体】包括……”，同时准备技术领域的完整首句。工具保留已核定内容，不自动猜测领域或客体；技术句式和来源仍在原独立复查中核定。
+
+权项引导语固定“其特征在于，”；生成输入即检查普通文本及跨text run，错误标点须改正后再生成，现有最终权项映射检查同时拦截。后续“包括：”不改。正体化不支持的Unicode数学斜体字母、未知字体继承及图片/OLE走既有来源保真处理并查看最终页，不以工具成功代替视觉核定。
+
 ## 三个命令
 
 版本63先执行[初稿公式正确性校核](technical-review.md#公式)，再提交已核定的内容JSON；生成器只证明受支持结构及映射，不能证明源式数学正确。唯一有据修正保留原/改式和来源，不支持的结构按既有保真路径处理；未知保留formula_registry的unresolved并按needs_input交接，不把工具成功当初稿语义通过。不新增生成前脚本或独立校核模型。
@@ -134,7 +138,7 @@ v5.9的manual-v26-complete-symbols-no-spaces-v5提前拒绝可见文字与源数
 2. `category`为`main_formula`、`source_example`、`symbol_reference`、`prose_example`、`prose_label`。后两类仅用于来源已有、经语义核定的普通数字算例或平面标签，不计主公式。每个来源中的每个OMML仍须恰好登记一次；不可漏掉、用两个ID伪装同一源对象。版本62确认重复的main_formula/source_example项可增加duplicate_of（唯一非别名主项ID）及duplicate_reason（核定同一身份、含义和作用域的依据），所有源位置保留但该别名不能输出；同类别、equation_count及完整关系指纹须一致，别名链/环、无理由、异式或仍输出别名均拒绝。不支持的跨表示/复杂等价归并走原来源保真路线，不猜删式。其余主公式/来源算例及普通算例/标签各对应一个目标出现；符号引用可复用至少一次，完整等式不能冒充symbol_reference。目标表示可以是源数学对象或按核定身份输出的普通字符，不用OMML数核算主式N。
 3. `formula_policy.source_main_count`须与已核定的非duplicate_of主项中各`main_formula`的`equation_count`合计相等，未指定时每项为1，成稿按分类保持N→N。`oMath`不是天然的完整主公式单位：同一对象含多条完整公式时明确计数；具备安全顶层边界时可使用`display_breaks`，原有合法`eqArr`可直接保留。仅计数无法核定或工具不支持的结构走原有手工保真路线，不能报成一个主式凑计数。
 4. `source_inventory_complete:true`是上游的明确声明，工具不代替模型检查文本、图像、OLE或上下文公式。`non_omml_formulas`当前只接受`none`；确有非OMML公式时禁止假报none，按原有手工路线处理。无公式须提供非空`no_formula_reason`。
-5. 对真正公式和结构记号深复制完整数学子树，保留字形、`m:scr/m:sty`、上下标、数组和运算顺序；字面空格须按版本26先核定并修正，不能盲删。不设置全局`m:sty=p`，不把ℬ改成B；版本34仅允许显式single_line移除已核定的纯外层显示续行eqArr壳，嵌套数学结构不展开。独立显示在居中无首缩进段内，单式在对象外补普通中文分号，eqArr多行组在末行补显示分号，另存显示树SHA并保留原数学节点。源末行最后run已带分号则不重复，内部括号/下标分号不视为段末。多来源的`mathPr`必须一致，原样带入。
+5. 对真正公式和结构记号深复制完整数学子树，保留有义字体族和粗体、上下标、数组和运算顺序；版本66在显示副本统一正体，`m:sty`的i→p、bi→b并关闭w:i/w:iCs，原树和源SHA保持；字面空格须按版本26先核定并修正，不能盲删。不设置全局`m:sty=p`，不把ℬ改成B；版本34仅允许显式single_line移除已核定的纯外层显示续行eqArr壳，嵌套数学结构不展开。独立显示在居中无首缩进段内，单式在对象外补普通中文分号，eqArr多行组在末行补显示分号，另存显示树SHA并保留原数学节点。源末行最后run已带分号则不重复，内部括号/下标分号不视为段末。多来源的`mathPr`必须一致，原样带入。
 6. 观测到依赖外部字符样式、段落样式/段落字体、主题或关系ID、修订的OMML会明确失败，不悄悄丢掉依赖；源数学文字显式非黑色也拒绝，不静默改色或产出红色净稿。源对象未显式指定的字体/大小仍需结合来源继承与最终显示核对；该工具不声称完全复现任意源文档的字体解析环境。默认不改原OMML字号；明确single_line且核定source_base_pt后，才按比例缩放显式字号、补全局部字号。模板普通基准14pt，具体方法见下节，最终页面仍须核定。
 
 版本62结构回读另在同一结果的source_formula_aliases保留每个重复源项的原文件/SHA/位置/树SHA、duplicate_of、依据和唯一目标出现；原源文件不改，不用删除登记来降低N。工具的完整关系指纹只是保守支持范围，未命中不证明无重复；全文仍用源唯一清单逐条核查。
@@ -193,7 +197,7 @@ v5.9的manual-v26-complete-symbols-no-spaces-v5提前拒绝可见文字与源数
 v5.5的manual-v22-natural-flow-v3按角色控制分页：body的keepLines/keepNext/pageBreakBefore/widowControl为0，短标题与文末图片采用必要的keepNext，完整公式及图下号保持keepLines。分节直接附在本节最后内容段；空逻辑节才保留最小1pt结构载体。没有减少或拆分技术文字、重排公式节点，也没有改变页脚定位空段。摘要图的客观记录caption_locator/caption_text为null，文末图仍有图号定位。读回拒绝普通正文重新启用分页束缚、摘要多出图号、额外满行高分节载体；后续验收复用page_flow_evidence，实际页面仍须查看。
 
 
-按已核定身份选择表示。生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，仅为正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。prose_example/prose_label仍保留每个原有数值、记号和顺序；source_text_occurrences与omml_occurrences分开报告，main_formula核算主式N。源中已有普通文字直接用text，不绕道OMML。
+按已核定身份选择表示。生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，为统一正体及正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。prose_example/prose_label仍保留每个原有数值、记号和顺序；source_text_occurrences与omml_occurrences分开报告，main_formula核算主式N。源中已有普通文字直接用text，不绕道OMML。
 
 普通符号示例：`{"type":"symbol_reference","text":"J","style":"reference_letter"}`。版本60中该参数为body兼容别名，输出正文宋体14pt正体；普通Latin/Greek单字母不包OMML，结构记号和有义字形仍保留完整数学结构。正文/benefit开头式中，或式中：定向改为其中，或其中：，支持跨相邻text run，保留实施方式中/公式中的；其他回指由模型依原意改写。所有读回仍比对片段次序、精确文字、源树、字体和分号，最终视觉/语义不由manifest代签。
 
@@ -207,7 +211,7 @@ v6.3生成档案标识为`manual-v30-inline-formula-roles-v6`，继承原Word模
 
 `source_symbol`可用`node_paths`代替`node_path`，如`["./m:r[1]","./m:r[2]"]`复制组合量的连续完整节点；两字段只能给一个，不能越过运算符、乱序或截断脚标。版本40不再允许source_symbol后接普通文本`=−4`拼出等式；直接赋值及数字参数函数等式均用一个formula run导入来源完整关系，包括等号、符号、数值和运算部分。source_symbol仅用于完整符号引用，版本60的`auto`与`math`按同一角色处理：独立普通单字母均转正文w:r；复杂完整引用保留OMML并对齐正文基准字号，不能用显式math恢复已禁止的裸字母包装。文字源式按来源保真建立OMML走原有路径，工具不从文字猜上下标或补算式；主式数量不因表示转换增加。同次inspection的精确候选交原formulas复核并修正，不新增扫描或模型阶段。
 
-算子解释用`{"type":"source_operator","formula_id":"f1","name_path":"./m:r[2]","argument_path":"./m:d[1]"}`。路径必须指向原式中相邻的完整字母算子名与单参数圆括号结构；输出完整name(·)，版本43名称沿原式保留字符、字体正斜体与粗细，只把参数替成占位点，原真实参数调用不变。记录source_formula_id、source_tree_sha256、source_fragment_path列表与source_transform=operator_argument_placeholder。此引用不增加主式数量；不支持的函数结构走原有保真路径，不硬凑路径或新增公式。
+算子解释用`{"type":"source_operator","formula_id":"f1","name_path":"./m:r[2]","argument_path":"./m:d[1]"}`。路径必须指向原式中相邻的完整字母算子名与单参数圆括号结构；输出完整name(·)，名称保留原字符、字体族和有义粗细，按版本66与公式本体同步正体；参数替成占位点，原真实参数调用不变。记录source_formula_id、source_tree_sha256、source_fragment_path列表与source_transform=operator_argument_placeholder。此引用不增加主式数量；不支持的函数结构走原有保真路径，不硬凑路径或新增公式。
 
 ### v6.6 同一条长式放在一行
 
@@ -239,7 +243,7 @@ source_symbol可用node_path指向完整m:func，或用相邻node_paths同时选
 
 ### v6.15 来源绑定符号保真
 
-生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，仅为正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。
+生成器将source_symbol的auto/math、已注册symbol_reference的formula及带formula_id的同字符symbol_reference按同一角色处理：安全的独立普通单字母生成正文w:r，source_objects保留原源SHA、原树、片段定位与文字目标；显式math不能把该正文角色重新包成公式。复杂引用仍复制完整节点，为统一正体及正文基准字号生成显示副本，原树和显示树分别核验；不能用显示树冒充源树。reference_letter历史参数只作正文样式兼容别名，不再把解释缩成12pt。拒绝错字、大小写/形似字替换、截断上下标/函数实参和未解析样式依赖。source_operator仅替换参数占位，不改原算子名称身份；特殊字形、未知继承或不支持结构走原有保真路径，不能盲目展平。
 
 ### v6.16 转置与英文记号检查
 

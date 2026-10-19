@@ -134,6 +134,7 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(symbol.font.name, '宋体')
         self.assertEqual(symbol.font.size.pt, 14)
         self.assertFalse(symbol.italic)
+        self.assertFalse(symbol.font.cs_italic)
         self.assertFalse(symbol.bold)
         self.assertEqual(symbol._r.find('w:rPr/w:vertAlign', toolkit.NS).get(toolkit.qn('w:val')), 'baseline')
 
@@ -196,6 +197,116 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(math.find('m:sSup/m:sup/m:r/m:t', toolkit.NS).text, '2')
         p = math.getparent()
         self.assertEqual(p.find('w:pPr/w:ind', toolkit.NS).get(toolkit.qn('w:firstLineChars')), '0')
+
+    def test_upright_display_and_complete_reference_preserve_source_and_reject_slant_tamper(self):
+        source = self.add_math()
+        def source_styles(parts):
+            root = ET.fromstring(parts['word/document.xml'])
+            formula = root.find('.//m:oMath', toolkit.NS)
+            formula.find('.//m:sty', toolkit.NS).set(toolkit.qn('m:val'), 'bi')
+            parent_props = ET.Element(toolkit.qn('w:pPr'))
+            parent_run = ET.SubElement(parent_props, toolkit.qn('w:rPr'))
+            ET.SubElement(parent_run, toolkit.qn('w:i')).set(toolkit.qn('w:val'), '1')
+            formula.getparent().insert(0, parent_props)
+            for run in formula.xpath('.//m:r', namespaces=toolkit.NS):
+                props = run.find('w:rPr', toolkit.NS)
+                if props is None:
+                    props = ET.Element(toolkit.qn('w:rPr'))
+                    run.insert(1 if run.find('m:rPr', toolkit.NS) is not None else 0, props)
+                for name in ('i', 'iCs'):
+                    ET.SubElement(props, toolkit.qn('w:' + name)).set(toolkit.qn('w:val'), '1')
+            parts['word/document.xml'] = ET.tostring(root)
+        self.rewrite_docx(source, source_styles)
+        inv = toolkit.inventory(self.root, source.name)
+        self.spec['sources'][0] = inv['source']
+        self.spec['formulas'][0]['tree_sha256'] = inv['omml_objects'][0]['tree_sha256']
+        self.spec['sections'][3]['blocks'].append(dict(id='upright_ref', type='paragraph', role='body', runs=[
+            dict(type='text', text='其中，'),
+            dict(type='source_symbol', formula_id='f1', node_path='./m:sSub[1]'),
+            dict(type='text', text='表示原式中的完整花体量。')]))
+        before = source.read_bytes()
+        result = self.build()
+        context = toolkit.validate(self.root, self.spec)
+        path = self.root / 'v1' / 'draft.docx'
+        with zipfile.ZipFile(path) as archive:
+            root = ET.fromstring(archive.read('word/document.xml'))
+        math = root.findall('.//m:oMath', toolkit.NS)
+        self.assertEqual(len(math), 2)
+        for node, expected in zip(math, ('ℬg=x2', 'ℬg')):
+            self.assertEqual(''.join(node.xpath('.//m:t/text()', namespaces=toolkit.NS)), expected)
+            self.assertEqual(node.find('.//m:scr', toolkit.NS).get(toolkit.qn('m:val')), 'script')
+            self.assertEqual(node.find('.//m:sty', toolkit.NS).get(toolkit.qn('m:val')), 'b')
+            for run in node.xpath('.//m:r', namespaces=toolkit.NS):
+                self.assertIn(run.find('m:rPr/m:sty', toolkit.NS).get(toolkit.qn('m:val')), {'p', 'b'})
+                for name in ('i', 'iCs'):
+                    self.assertEqual(run.find('w:rPr/w:' + name, toolkit.NS).get(toolkit.qn('w:val')), '0')
+        self.assertEqual(source.read_bytes(), before)
+        self.assertEqual(toolkit.verify_bundle(self.root, 'v1')['source_objects'][0]['source_tree_sha256'],
+                         inv['omml_objects'][0]['tree_sha256'])
+        original = path.read_bytes()
+        for index in (0, 1):
+            for prop, value in (('m:sty', 'i'), ('m:sty', 'bi'), ('w:i', '1'), ('w:iCs', '1')):
+                with self.subTest(index=index, prop=prop, value=value):
+                    path.write_bytes(original)
+                    def corrupt(parts):
+                        doc = ET.fromstring(parts['word/document.xml'])
+                        node = doc.findall('.//m:oMath', toolkit.NS)[index]
+                        node.find('.//' + prop, toolkit.NS).set(toolkit.qn(prop[0] + ':val'), value)
+                        parts['word/document.xml'] = ET.tostring(doc)
+                    self.rewrite_docx(path, corrupt)
+                    with self.assertRaisesRegex(toolkit.AuthoringError, 'content/structure changed'):
+                        toolkit.verify_document(context, path)
+
+    def test_unicode_italic_and_dedicated_italic_font_require_reviewed_mapping(self):
+        for glyph in ('\U0001d44e', '\U0001d468', '\U0001d71c', '\U0001d656', '\u210e'):
+            source = ET.fromstring(MATH.replace('ℬ', glyph))
+            before = toolkit.tree_signature(source)
+            with self.subTest(glyph=glyph), self.assertRaisesRegex(toolkit.AuthoringError, 'Unicode italic'):
+                toolkit.upright_math_display(source)
+            self.assertEqual(toolkit.tree_signature(source), before)
+        source = ET.fromstring(MATH.replace('Cambria Math', 'Times New Roman Italic'))
+        with self.assertRaisesRegex(toolkit.AuthoringError, 'upright font mapping'):
+            toolkit.upright_math_display(source)
+        path = self.add_math()
+        def italic_math_font(parts):
+            settings = ET.fromstring(parts['word/settings.xml'])
+            props = settings.find('m:mathPr', toolkit.NS)
+            if props is None:
+                props = ET.SubElement(settings, toolkit.qn('m:mathPr'))
+            font = props.find('m:mathFont', toolkit.NS)
+            if font is None:
+                font = ET.SubElement(props, toolkit.qn('m:mathFont'))
+            font.set(toolkit.qn('m:val'), 'Example Math Oblique')
+            parts['word/settings.xml'] = ET.tostring(settings)
+        self.rewrite_docx(path, italic_math_font)
+        self.spec['sources'][0]['sha256'] = toolkit.sha(path)
+        with self.assertRaisesRegex(toolkit.AuthoringError, 'mathPr has a dedicated italic font'):
+            toolkit.validate(self.root, self.spec)
+
+    def test_upright_display_preserves_consistent_bold_and_rejects_conflicting_weight(self):
+        for math_style, word_style in [('p', '1'), ('i', '1'), ('b', '0'), ('bi', '0')]:
+            for prop in ('b', 'bCs'):
+                source = ET.fromstring(MATH)
+                source.find('.//m:sty', toolkit.NS).set(toolkit.qn('m:val'), math_style)
+                props = source.find('.//w:rPr', toolkit.NS)
+                ET.SubElement(props, toolkit.qn('w:' + prop)).set(toolkit.qn('w:val'), word_style)
+                before = toolkit.tree_signature(source)
+                with self.subTest(math_style=math_style, prop=prop, word_style=word_style):
+                    with self.assertRaisesRegex(toolkit.AuthoringError, 'reviewed weight resolution'):
+                        toolkit.upright_math_display(source)
+                    self.assertEqual(toolkit.tree_signature(source), before)
+        for math_style in (None, 'b', 'bi'):
+            source = ET.fromstring(MATH)
+            style = source.find('.//m:sty', toolkit.NS)
+            if math_style is None:
+                style.getparent().remove(style)
+            else:
+                style.set(toolkit.qn('m:val'), math_style)
+            ET.SubElement(source.find('.//w:rPr', toolkit.NS), toolkit.qn('w:b')).set(toolkit.qn('w:val'), '1')
+            result = toolkit.upright_math_display(source)
+            self.assertEqual(result.find('.//m:sty', toolkit.NS).get(toolkit.qn('m:val')), 'b')
+            self.assertEqual(result.find('.//w:b', toolkit.NS).get(toolkit.qn('w:val')), '1')
+            self.assertEqual(result.find('.//m:scr', toolkit.NS).get(toolkit.qn('m:val')), 'script')
 
     def test_figures_reference_caption_and_abstract_reuse(self):
         self.add_figure()

@@ -17,6 +17,7 @@ import re
 import shutil
 import sys
 import tempfile
+import unicodedata
 import zipfile
 
 from docx import Document
@@ -46,7 +47,7 @@ HEADERS = ('说明书摘要', '摘要附图', '权利要求书', '说明书', '�
 SHA = re.compile(r'^[0-9a-f]{64}$')
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,47}$')
 LIMIT = 64 * 1024 * 1024
-PROFILE = 'manual-v34-single-line-equation-v7'
+PROFILE = 'manual-v34-upright-equation-v8'
 
 
 def fail(message):
@@ -274,16 +275,17 @@ def plain_source_text(node, category, allow_greek=True):
 
 
 def symbol_display(formula):
-    """Size a complex inline reference for body prose without changing its source."""
+    """Create an upright display copy; source identity and hashes stay immutable."""
     # A derived fragment cannot inherit a display tree for its complete parent.
     formula.pop('display_node', None)
     formula.pop('display_tree_sha256', None)
-    if formula['category'] != 'symbol_reference' or formula['plain_text'] is not None:
+    if formula['plain_text'] is not None:
         return formula
-    node = deepcopy(formula['node'])
+    node = upright_math_display(formula['node'])
     # OMML scripts retain their structural scale relative to this 14pt base.
-    # Typography, glyphs, operators, source tree and source hashes stay intact.
-    for owner in node.xpath('.//m:r | .//m:ctrlPr', namespaces=NS):
+    # Bold/script identity, glyphs, operators and the source tree stay intact.
+    owners = node.xpath('.//m:r | .//m:ctrlPr', namespaces=NS) if formula['category'] == 'symbol_reference' else []
+    for owner in owners:
         props = owner.find('w:rPr', NS)
         if props is None:
             props = ET.Element(qn('w:rPr'))
@@ -297,6 +299,60 @@ def symbol_display(formula):
     formula['display_node'] = node
     formula['display_tree_sha256'] = tree_signature(node)
     return formula
+
+
+def upright_math_display(source):
+    """Remove only slant in a display copy, never mathematical alphabet identity.
+
+    Math uses italic by default even when Word's w:i is false. Both layers
+    must be explicit. Unicode italic alphabets and dedicated italic fonts
+    require a reviewed glyph mapping; toggling attributes cannot straighten
+    them, and NFKC would also destroy distinct script/bold/variant symbols.
+    """
+    for value in source.xpath('.//m:t/text() | .//w:t/text()', namespaces=NS):
+        if any(('MATHEMATICAL' in unicodedata.name(c, '') and 'ITALIC' in unicodedata.name(c, ''))
+               or c == '\u210e' for c in value):
+            fail('Unicode italic mathematical glyph requires a reviewed source-bound upright mapping; '
+                 'manual source-preserving route required')
+    for fonts in source.xpath('.//w:rFonts', namespaces=NS):
+        if any(re.search(r'italic|oblique|slanted', value, re.I) for value in fonts.attrib.values()):
+            fail('Dedicated italic mathematical font requires a reviewed upright font mapping; '
+                 'manual source-preserving route required')
+    node = deepcopy(source)
+    for owner in node.xpath('.//m:r', namespaces=NS):
+        props = owner.find('m:rPr', NS)
+        if props is None:
+            props = ET.Element(qn('m:rPr'))
+            owner.insert(0, props)
+        styles = props.findall('m:sty', NS)
+        if len(styles) > 1 or (styles and styles[0].get(qn('m:val')) not in {'p', 'i', 'b', 'bi'}):
+            fail('Unknown mathematical style; manual source-preserving route required')
+        bold = owner.xpath('./w:rPr/w:b | ./w:rPr/w:bCs', namespaces=NS)
+        word_bold = {p.get(qn('w:val'), '1') not in {'0', 'false', 'off'} for p in bold}
+        math_bold = styles[0].get(qn('m:val')) in {'b', 'bi'} if styles else None
+        if len(word_bold) > 1 or (styles and any(value != math_bold for value in word_bold)):
+            fail('Conflicting mathematical and Word bold hints require reviewed weight resolution; '
+                 'manual source-preserving route required')
+        if styles:
+            style = styles[0]
+            value = 'b' if math_bold else 'p'
+        else:
+            style = ET.SubElement(props, qn('m:sty'))
+            value = 'b' if True in word_bold else 'p'
+        style.set(qn('m:val'), value)
+    for owner in node.xpath('.//m:r | .//m:ctrlPr', namespaces=NS):
+        props = owner.find('w:rPr', NS)
+        if props is None:
+            props = ET.Element(qn('w:rPr'))
+            owner.insert(1 if owner.find('m:rPr', NS) is not None else 0, props)
+    for props in node.xpath('.//w:rPr', namespaces=NS):
+        for name in ('i', 'iCs'):
+            matches = props.findall('w:' + name, NS)
+            if not matches:
+                matches = [ET.SubElement(props, qn('w:' + name))]
+            for prop in matches:
+                prop.set(qn('w:val'), '0')
+    return node
 
 
 def explanation_intro(block):
@@ -394,7 +450,7 @@ def source_formula(row, sources):
     if paragraph is not None:
         # A cloned subtree cannot carry paragraph/character style definitions.
         # Fail on observed inherited semantic dependencies rather than guessing.
-        inherited = paragraph.xpath('./w:pPr/w:pStyle | ./w:pPr/w:rPr/w:b | ./w:pPr/w:rPr/w:i | '
+        inherited = paragraph.xpath('./w:pPr/w:pStyle | ./w:pPr/w:rPr/w:b | '
                                     './w:pPr/w:rPr/w:rFonts | ./w:pPr/w:rPr/w:vertAlign', namespaces=NS)
         if inherited:
             fail('OMML has a paragraph-style/font dependency; manual source-preserving route required: ' + row['id'])
@@ -489,6 +545,9 @@ def validate(case_root, spec):
         if source['math']:
             settings = source['parts'].get('word/settings.xml')
             node = xml(settings, 'word/settings.xml').find('m:mathPr', NS) if settings else None
+            if node is not None and any(re.search(r'italic|oblique|slanted', font.get(qn('m:val'), ''), re.I)
+                                        for font in node.findall('m:mathFont', NS)):
+                fail('Source mathPr has a dedicated italic font; manual source-preserving route required')
             math_pr.append(node)
     fingerprints = {tree_signature(node) if node is not None else None for node in math_pr}
     if len(fingerprints) > 1:
@@ -702,8 +761,11 @@ def validate(case_root, spec):
                     ET.SubElement(props,qn('m:sty')).set(qn('m:val'),'p')
                     ET.SubElement(mark,qn('m:t')).text=string
                     string=''
-                if display_node is not formula['node']:
-                    block['display_node']=display_node
+                if display_node is formula['node']:
+                    block['display_node']=formula['display_node']
+                    block['display_tree_sha256']=formula['display_tree_sha256']
+                else:
+                    block['display_node']=upright_math_display(display_node)
                     block['display_tree_sha256']=tree_signature(block['display_node'])
                 formula_uses[block['formula_id']] += 1
             elif btype in {'figure', 'figure_description'}:
@@ -779,6 +841,7 @@ def font(run, name='宋体', size=14, bold=False, spacing=0):
     run.font.size = Pt(size)
     run.font.bold = bold
     run.font.italic = False
+    run.font.cs_italic = False
     run.font.color.rgb = RGBColor(0, 0, 0)
     props = run._r.get_or_add_rPr()
     fonts = props.find(qn('w:rFonts'))
@@ -1363,6 +1426,7 @@ def verify_document(context, path):
                 require(attributes(props.find('w:szCs', NS)).get('val') == scaled_math_suffix_sizes.get(run,'28'),
                         'ordinary body complex-script text size changed')
                 require(attributes(props.find('w:i', NS)).get('val') == '0', 'ordinary text italic changed')
+                require(attributes(props.find('w:iCs', NS)).get('val') == '0', 'ordinary text complex-script italic changed')
                 require(attributes(props.find('w:vertAlign', NS)).get('val') == 'baseline', 'ordinary symbol vertical alignment changed')
                 require(attributes(props.find('w:position', NS)).get('val', '0') == '0',
                         'ordinary symbol baseline position changed')

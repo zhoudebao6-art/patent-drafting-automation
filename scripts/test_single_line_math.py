@@ -87,7 +87,7 @@ class SingleLineMathTests(unittest.TestCase):
         self.formula()
         before_spec = deepcopy(self.spec)
         source_sha = t.sha(self.root / 'source.docx')
-        source = ET.fromstring(three_rows())
+        source = t.upright_math_display(ET.fromstring(three_rows()))
         _, _, result, document = self.create()
         display = document.find('.//m:oMath', t.NS)
         source_children = [child for row in source.findall('m:eqArr/m:e', t.NS) for child in row]

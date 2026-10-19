@@ -120,12 +120,13 @@ class FormulaProseTests(unittest.TestCase):
         self.assertEqual([r['text'] for r in result['source_objects']],['seen','threshold2'])
         self.assertIsNone(t.plain_source_text(ET.fromstring(MATH),'prose_label'))
 
-    def test_display_equation_gets_external_semicolon_without_tree_change(self):
+    def test_display_equation_gets_external_semicolon_and_upright_display_only(self):
         fid=self.source([MATH],['main_formula'])[0]
         self.spec['sections'][3]['blocks'].append(dict(id='eq',type='formula',formula_id=fid))
         _, _, result, doc=self.create()
         node=doc.find('.//m:oMath',t.NS)
-        self.assertEqual(t.tree_signature(node),self.spec['formulas'][0]['tree_sha256'])
+        self.assertEqual(t.tree_signature(node),t.tree_signature(t.upright_math_display(ET.fromstring(MATH))))
+        self.assertEqual(result['source_objects'][0]['tree_sha256'],self.spec['formulas'][0]['tree_sha256'])
         self.assertEqual(t.word_text(node.getparent()),'；')
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
 

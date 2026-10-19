@@ -37,6 +37,7 @@ description: 从指定案件文件夹递归识别技术项目优化书，滚动�
 
 |问题|规范|
 |---|---|
+|摘要固定话术、技术领域首句同步|[章节话术](references/writing-standard.md#摘要固定话术)|
 |所述、完整名词与前置链|[所述与公式](references/terminology-and-formula.md)|
 |完整名称、目的话术、权项同步方案|[发明内容](references/invention-content-standard.md)|
 |保护类别与效果编号|[类别和效果](references/claim-families-and-benefits.md)|
