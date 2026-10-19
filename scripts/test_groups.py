@@ -58,6 +58,7 @@ SCRIPT_GROUPS = {
     'stage_pool_runner.py': ['workflow'], 'worker_receipt.py': ['workflow'],
     'incremental_review.py': ['source', 'pages', 'workflow'],
     'batch_throughput.py': ['workflow'],
+    'formula_uniqueness.py': ['formulas', 'pages', 'source', 'claims'],
     'flat_delivery.py': ['claims', 'workflow', 'maintenance'], 'recover_cli_batch.py': ['workflow'],
     'rules_tool.py': ['maintenance'],
 }

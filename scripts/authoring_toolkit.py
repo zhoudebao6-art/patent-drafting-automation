@@ -32,6 +32,7 @@ import math_fragments
 import invention_contract
 import figure_description_contract
 import single_line_math
+import formula_uniqueness
 
 
 class AuthoringError(ValueError):
@@ -343,7 +344,8 @@ def formula_suffix(formula):
 
 
 def source_formula(row, sources):
-    fields(row, ('id', 'source_id', 'locator', 'tree_sha256', 'category'), ('equation_count',), where='formula')
+    fields(row, ('id', 'source_id', 'locator', 'tree_sha256', 'category'),
+           ('equation_count', 'duplicate_of', 'duplicate_reason'), where='formula')
     identifier(row['id'], 'formula.id')
     if row['source_id'] not in sources:
         fail('Unknown formula source: ' + str(row['source_id']))
@@ -368,6 +370,13 @@ def source_formula(row, sources):
         integer(row['equation_count'],'equation_count',1)
         if row['category'] not in {'main_formula','source_example'}:
             fail('Only actual complete source equations have equation_count')
+    if 'duplicate_of' in row:
+        identifier(row['duplicate_of'], 'formula.duplicate_of')
+        text_value(row.get('duplicate_reason'), 'formula.duplicate_reason')
+        if row['category'] not in {'main_formula', 'source_example'}:
+            fail('Only complete source equations can declare duplicate_of')
+    elif 'duplicate_reason' in row:
+        fail('duplicate_reason requires duplicate_of')
     if any(h['reason']=='math_cjk_requires_english_symbol' for h in inspect_docx.math_notation_candidates(node)):
         fail('Chinese mathematical text needs a reviewed source-bound English symbol mapping before import; preserve raw evidence and use the manual normalization route: '+row['id'])
     for text in node.xpath('.//m:t/text() | .//w:t/text()',namespaces=NS):
@@ -450,7 +459,27 @@ def validate(case_root, spec):
     expected_keys = [(s['id'], i) for s in sources.values() for i in range(1, len(s['math']) + 1)]
     if Counter(source_keys) != Counter(expected_keys):
         fail('Every source oMath must have exactly one registry entry; do not silently drop or alias it')
-    main_count = sum(f.get('equation_count',1) for f in formulas.values() if f['category']=='main_formula')
+    identities = {}
+    for formula_id, formula in formulas.items():
+        fingerprint = formula_uniqueness.equation_fingerprint(formula['node'])
+        if formula['category'] == 'symbol_reference' and fingerprint is not None:
+            fail('A complete equation cannot be classified as symbol_reference: ' + formula_id)
+        alias = formula.get('duplicate_of')
+        if alias is not None:
+            canonical = formulas.get(alias)
+            if (canonical is None or alias == formula_id or canonical.get('duplicate_of') is not None
+                    or canonical['category'] != formula['category']
+                    or canonical.get('equation_count', 1) != formula.get('equation_count', 1)
+                    or fingerprint is None
+                    or fingerprint != formula_uniqueness.equation_fingerprint(canonical['node'])):
+                fail('duplicate_of must name one matching complete canonical source equation; unsupported identities need source review: ' + formula_id)
+        elif formula['category'] in {'main_formula', 'source_example'} and fingerprint is not None:
+            if fingerprint in identities:
+                fail('Repeated complete source equation needs a reviewed duplicate_of mapping, not another target: '
+                     + identities[fingerprint] + ', ' + formula_id)
+            identities[fingerprint] = formula_id
+    main_count = sum(f.get('equation_count',1) for f in formulas.values()
+                     if f['category']=='main_formula' and not f.get('duplicate_of'))
     if main_count != policy['source_main_count']:
         fail('source_main_count differs from explicit main_formula classification')
     if not formulas:
@@ -706,6 +735,10 @@ def validate(case_root, spec):
             fail('NAME-01 title_reference_prefix: use the official name unchanged in '+block_id)
     for formula_id, formula in formulas.items():
         count = formula_uses[formula_id]
+        if formula.get('duplicate_of') and formula['category'] in {'main_formula', 'source_example'}:
+            if count:
+                fail('A duplicate source occurrence must not appear again in the target: ' + formula_id)
+            continue
         if count < 1 or (formula['category'] in {'main_formula', 'source_example', 'prose_example', 'prose_label'} and count != 1):
             fail('Main/example formulas require one target; symbol references at least one: ' + formula_id)
     if figure_uses != Counter({f: 1 for f in figures}):
@@ -1335,6 +1368,15 @@ def verify_document(context, path):
                         'ordinary symbol baseline position changed')
     return {'verification': 'structural_readback_passed', 'profile': PROFILE, 'sections': section_evidence,
             'blocks': block_rows, 'source_objects': object_rows,
+            'source_formula_aliases': [
+                {'id': f['id'], 'source_file': context['sources'][f['source_id']]['file'],
+                 'source_sha256': context['sources'][f['source_id']]['sha256'],
+                 'source_locator': f['locator'], 'source_tree_sha256': f['tree_sha256'],
+                 'duplicate_of': f['duplicate_of'], 'reason': f['duplicate_reason'],
+                 'target_occurrences': [r['target_locator'] for r in object_rows
+                                        if r.get('id') == f['duplicate_of']]}
+                for f in context['formulas'].values()
+                if f.get('duplicate_of') and f['category'] in {'main_formula', 'source_example'}],
             'counts': {'sections': 5, 'blocks': len(block_rows), 'omml_occurrences': expected_math_count,
                        'source_text_occurrences': sum(r['kind'] == 'source_text' for r in object_rows),
                        'main_formula_occurrences': sum(r.get('equation_count',1) for r in object_rows if r.get('category')=='main_formula'),

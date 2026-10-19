@@ -129,11 +129,13 @@ v5.9的manual-v26-complete-symbols-no-spaces-v5提前拒绝可见文字与源数
 ```
 
 1. 源SHA和OMML树SHA都匹配才导入。序号是`word/document.xml`内全部`m:oMath`的1起序号，不是页面、正文段号或主公式编号。源输入发生变化须重新提取与核对，不能只改哈希绕过。
-2. `category`为`main_formula`、`source_example`、`symbol_reference`、`prose_example`、`prose_label`。后两类仅用于来源已有、经语义核定的普通数字算例或平面标签，不计主公式。每个来源中的每个OMML必须恰好登记一次；不可漏掉、用两个ID伪装同一源对象。主公式/来源算例及普通算例/标签各对应一个目标出现；符号引用可复用至少一次。目标表示可以是源数学对象或按核定身份输出的普通字符，不用OMML数核算主式N。
-3. `formula_policy.source_main_count`须与已核定各`main_formula`的`equation_count`合计相等，未指定时每项为1，成稿按分类保持N→N。`oMath`不是天然的完整主公式单位：同一对象含多条完整公式时明确计数；具备安全顶层边界时可使用`display_breaks`，原有合法`eqArr`可直接保留。仅计数无法核定或工具不支持的结构走原有手工保真路线，不能报成一个主式凑计数。
+2. `category`为`main_formula`、`source_example`、`symbol_reference`、`prose_example`、`prose_label`。后两类仅用于来源已有、经语义核定的普通数字算例或平面标签，不计主公式。每个来源中的每个OMML仍须恰好登记一次；不可漏掉、用两个ID伪装同一源对象。版本62确认重复的main_formula/source_example项可增加duplicate_of（唯一非别名主项ID）及duplicate_reason（核定同一身份、含义和作用域的依据），所有源位置保留但该别名不能输出；同类别、equation_count及完整关系指纹须一致，别名链/环、无理由、异式或仍输出别名均拒绝。不支持的跨表示/复杂等价归并走原来源保真路线，不猜删式。其余主公式/来源算例及普通算例/标签各对应一个目标出现；符号引用可复用至少一次，完整等式不能冒充symbol_reference。目标表示可以是源数学对象或按核定身份输出的普通字符，不用OMML数核算主式N。
+3. `formula_policy.source_main_count`须与已核定的非duplicate_of主项中各`main_formula`的`equation_count`合计相等，未指定时每项为1，成稿按分类保持N→N。`oMath`不是天然的完整主公式单位：同一对象含多条完整公式时明确计数；具备安全顶层边界时可使用`display_breaks`，原有合法`eqArr`可直接保留。仅计数无法核定或工具不支持的结构走原有手工保真路线，不能报成一个主式凑计数。
 4. `source_inventory_complete:true`是上游的明确声明，工具不代替模型检查文本、图像、OLE或上下文公式。`non_omml_formulas`当前只接受`none`；确有非OMML公式时禁止假报none，按原有手工路线处理。无公式须提供非空`no_formula_reason`。
 5. 对真正公式和结构记号深复制完整数学子树，保留字形、`m:scr/m:sty`、上下标、数组和运算顺序；字面空格须按版本26先核定并修正，不能盲删。不设置全局`m:sty=p`，不把ℬ改成B；版本34仅允许显式single_line移除已核定的纯外层显示续行eqArr壳，嵌套数学结构不展开。独立显示在居中无首缩进段内，单式在对象外补普通中文分号，eqArr多行组在末行补显示分号，另存显示树SHA并保留原数学节点。源末行最后run已带分号则不重复，内部括号/下标分号不视为段末。多来源的`mathPr`必须一致，原样带入。
 6. 观测到依赖外部字符样式、段落样式/段落字体、主题或关系ID、修订的OMML会明确失败，不悄悄丢掉依赖；源数学文字显式非黑色也拒绝，不静默改色或产出红色净稿。源对象未显式指定的字体/大小仍需结合来源继承与最终显示核对；该工具不声称完全复现任意源文档的字体解析环境。默认不改原OMML字号；明确single_line且核定source_base_pt后，才按比例缩放显式字号、补全局部字号。模板普通基准14pt，具体方法见下节，最终页面仍须核定。
+
+版本62结构回读另在同一结果的source_formula_aliases保留每个重复源项的原文件/SHA/位置/树SHA、duplicate_of、依据和唯一目标出现；原源文件不改，不用删除登记来降低N。工具的完整关系指纹只是保守支持范围，未命中不证明无重复；全文仍用源唯一清单逐条核查。
 
 主式、符号、类别及正文解释仍按`formula_registry`要求语义复核。树SHA是忽略XML前缀/属性次序及元素间缩进空白的结构哈希；保留数学文本（包括字面空白）、每个属性、节点次序与所有子结构，不等于原始XML字节哈希。
 

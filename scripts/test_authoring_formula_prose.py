@@ -88,7 +88,9 @@ class FormulaProseTests(unittest.TestCase):
         self.assertEqual(source_sha,t.sha(self.root/'source.docx'))
 
     def test_ordinary_greek_is_text_but_structured_special_and_bold_stay_native(self):
-        ids=self.source([MATH,flat('Ω'),flat('ℕ'),flat('x','<m:rPr><m:sty m:val="b"/></m:rPr>')],['symbol_reference']*4)
+        symbol = ET.fromstring(MATH)
+        for child in list(symbol)[1:]: symbol.remove(child)
+        ids=self.source([ET.tostring(symbol,encoding='unicode'),flat('Ω'),flat('ℕ'),flat('x','<m:rPr><m:sty m:val="b"/></m:rPr>')],['symbol_reference']*4)
         self.inline(ids)
         _, _, result, doc=self.create()
         self.assertEqual(result['counts']['omml_occurrences'],3)
@@ -163,7 +165,9 @@ class FormulaProseTests(unittest.TestCase):
         with self.assertRaisesRegex(t.AuthoringError,'source_main_count'):t.validate(self.root,self.spec)
 
     def test_structured_symbol_reference_cannot_be_promoted_to_display_formula(self):
-        fid=self.source([MATH],['symbol_reference'])[0]
+        symbol = ET.fromstring(MATH)
+        for child in list(symbol)[1:]: symbol.remove(child)
+        fid=self.source([ET.tostring(symbol,encoding='unicode')],['symbol_reference'])[0]
         self.spec['sections'][3]['blocks'].append(dict(id='eq',type='formula',formula_id=fid))
         with self.assertRaisesRegex(t.AuthoringError,'Symbol references belong'):t.validate(self.root,self.spec)
 

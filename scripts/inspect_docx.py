@@ -9,6 +9,7 @@ import unicodedata
 import uuid
 import zipfile
 import single_line_math
+import formula_uniqueness
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -992,6 +993,7 @@ def inspect(path):
                   'standalone_formula_semicolon_hits':[],'bare_symbol_omml_candidates':[],'plain_label_omml_candidates':[],
                   'inline_numeric_omml_candidates':[],'review_candidates':[],'standalone_formulas':[],
                   'group_separator_hits':[],'single_equation_continuation_hits':[],
+                  'duplicate_formula_candidates':[],
                   'scope':'Located formatting candidates only. Formula identity is source-semantic; complex OMML, text/image/OLE formulas, labels and mixed carriers retain the existing independent semantic and final-page review.'},
               'punctuation_evidence': {'schema_version':2,'literal_scan_complete':False,'hits':[],
                   'formula_protected_candidates':[],'preferred_wording_hits':[],'review_candidates':[],
@@ -1000,6 +1002,7 @@ def inspect(path):
                   'scope': 'Applied document-default, paragraph/character basedOn and direct Word/OMML run font colors. Unused styles ignored. Automatic colors, table conditional formatting, DrawingML/image text, highlighting and revision display still require final visual review.'}}
     result['formula_prose_evidence']['artifact_sha256']=result['sha256']
     result['content_spacing_evidence']['artifact_sha256']=result['sha256']
+    equation_occurrences = {}
     with zipfile.ZipFile(path) as z:
         if sum(i.file_size for i in z.infolist()) > 512 * 1024 * 1024:
             raise ValueError('Uncompressed DOCX exceeds 512 MiB inspection limit')
@@ -1042,10 +1045,13 @@ def inspect(path):
                 result['punctuation_evidence']['hits'].extend(dict(h,part=part,paragraph=index)
                     for h in numbered_punctuation(p,numbering_root,applied_styles))
                 owned_nodes = list(paragraph_owned_nodes(p))
+                removed_math = {id(math) for node in owned_nodes
+                                if node.tag in {f'{{{NS["w"]}}}del', f'{{{NS["w"]}}}moveFrom'}
+                                for math in node.iter(f'{{{NS["m"]}}}oMath')}
                 result['text_color_evidence']['review_runs'].extend(read_colors(p, owned_nodes, part, index))
                 formula_ids = []
                 object_ids = {}
-                for math in (n for n in owned_nodes if n.tag == f'{{{NS["m"]}}}oMath'):
+                for math_index, math in enumerate((n for n in owned_nodes if n.tag == f'{{{NS["m"]}}}oMath'), 1):
                     fid = f'F{len(result["formulas"])+1:04}'
                     formula_ids.append(fid)
                     object_ids[id(math)] = fid
@@ -1054,6 +1060,12 @@ def inspect(path):
                         'math_evidence':math_evidence(math),
                         'isolated_symbol_candidate':isolated_symbol_candidate(math),
                         'status':'unverified'})
+                    fingerprint = (None if id(math) in removed_math or containers[id(p)]['deleted']
+                                   else formula_uniqueness.equation_fingerprint(math))
+                    if fingerprint:
+                        equation_occurrences.setdefault(fingerprint, []).append({
+                            'part': part, 'paragraph': index, 'object_id': fid,
+                            'path': f'p[{index}]/oMath[{math_index}]'})
                     for name in sorted(math_operator_names(math)):
                         calls=operators.setdefault(name,[])
                         calls.append({'part':part,'paragraph':index,'object_id':fid})
@@ -1116,6 +1128,11 @@ def inspect(path):
         result['punctuation_evidence']['literal_scan_complete']=True
         result['content_spacing_evidence']['extraction_complete']=True
         result['content_spacing_evidence']['complete']=True
+        result['formula_prose_evidence']['duplicate_formula_candidates'] = [
+            {'artifact_sha256': result['sha256'], 'fingerprint': fingerprint,
+             'occurrences': occurrences,
+             'reason': 'repeated_complete_equation_requires_source_identity_review'}
+            for fingerprint, occurrences in equation_occurrences.items() if len(occurrences) > 1]
         result['formula_prose_evidence']['extraction_complete']=True
         result['formula_prose_evidence']['complete']=True
         for name in names:
@@ -1588,6 +1605,7 @@ def extractor_dependencies():
     return {'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve()),
             'figure_caption_contract.py':file_sha(Path(figure_caption_contract.__file__).resolve()),
             'single_line_math.py':file_sha(Path(single_line_math.__file__).resolve()),
+            'formula_uniqueness.py':file_sha(Path(formula_uniqueness.__file__).resolve()),
             'figure_description_contract.py':file_sha(Path(figure_description_contract.__file__).resolve())}
 
 

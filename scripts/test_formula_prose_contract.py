@@ -13,6 +13,8 @@ import output_contract as contract
 import parallel_batch as queue
 import test_output_contract as base
 import test_parallel_batch as fixtures
+import formula_uniqueness as unique
+import stage_bundle
 
 W=scan.NS['w'];M=scan.NS['m']
 SOURCE_HASH='1'*64
@@ -174,6 +176,93 @@ class FormulaProseTests(unittest.TestCase):
         r.pop('formula_prose_evidence')
         contract.check(r,'一种处理系统')
         with self.assertRaisesRegex(b.BatchError,'inspection'):self.accept(r)
+
+    def test_complete_equation_identity_preserves_semantics_not_display(self):
+        def fp(content):
+            return unique.equation_fingerprint(parse_xml(f'<m:oMath xmlns:m="{M}" xmlns:w="{W}">{content}</m:oMath>'))
+        plain=fp(mr('x=y+1'))
+        self.assertIsNotNone(plain)
+        self.assertEqual(plain,fp(mr('x=')+mr('y')+mr('+1；')))
+        display='<m:r><w:rPr><w:sz w:val="18"/><w:color w:val="FF0000"/></w:rPr><m:rPr><m:sty m:val="p"/></m:rPr><m:t>x=y+1</m:t></m:r>'
+        self.assertEqual(plain,fp(display))
+        math_bold='<m:rPr><m:sty m:val="b"/></m:rPr>'
+        word_plain='<w:rPr><w:b w:val="0"/></w:rPr>'
+        bold=fp('<m:r>'+math_bold+'<m:t>x</m:t></m:r>'+mr('=y+1'))
+        for properties in [math_bold+word_plain,word_plain+math_bold]:
+            self.assertEqual(bold,fp('<m:r>'+properties+'<m:t>x</m:t></m:r>'+mr('=y+1')))
+        self.assertNotEqual(plain,bold)
+        for change in [mr('x=y+2'),mr('y+1=x'),mr('x=f(y)'),mr('𝒙=y+1'),
+                       '<m:r><m:rPr><m:sty m:val="b"/></m:rPr><m:t>x</m:t></m:r>'+mr('=y+1'),
+                       '<m:sSup><m:e>'+mr('x')+'</m:e><m:sup>'+mr('2')+'</m:sup></m:sSup>'+mr('=y+1'),
+                       '<m:sSub><m:e>'+mr('x')+'</m:e><m:sub>'+mr('j')+'</m:sub></m:sSub>'+mr('=y+1'),
+                       '<m:acc><m:accPr><m:chr m:val="̂"/></m:accPr><m:e>'+mr('x')+'</m:e></m:acc>'+mr('=y+1')]:
+            with self.subTest(change=change):self.assertNotEqual(plain,fp(change))
+        for nonformula in [mr('x'),mr('x='),mr('3−0+1=4'),
+                           '<m:sSub><m:e>'+mr('min')+'</m:e><m:sub>'+mr('x∈A')+'</m:sub></m:sSub>']:
+            with self.subTest(nonformula=nonformula):self.assertIsNone(fp(nonformula))
+        group='<m:eqArr><m:e>'+mr('x=y')+'</m:e><m:e>'+mr('a=b')+'</m:e></m:eqArr>'
+        punctuated=group.replace('x=y','x=y，').replace('a=b','a=b；')
+        self.assertEqual(fp(group),fp(punctuated))
+        self.assertNotEqual(fp(group),fp(mr('x=y=a=b')))
+
+    def test_duplicate_complete_formula_requires_exact_distinct_scope_evidence(self):
+        r=self.with_paragraph('<w:r><w:t>按</w:t></w:r>'+omml('x=y+1')+
+                              '<w:r><w:t>计算，随后再次按</w:t></w:r>'+omml('x=y+1；'))
+        hits=r['formula_prose_evidence']['duplicate_formula_candidates']
+        self.assertEqual(len(hits),1);candidate=hits[0]
+        self.assertEqual(candidate['artifact_sha256'],r['sha256'])
+        self.assertEqual([p['object_id'] for p in candidate['occurrences']],['F0001','F0002'])
+        with self.assertRaisesRegex(b.BatchError,'duplicate complete formula'):self.accept(r)
+        generic=[self.finding(r,p) for p in candidate['occurrences']]
+        with self.assertRaisesRegex(b.BatchError,'duplicate complete formula'):self.accept(r,generic,[SOURCE_HASH])
+        finding=dict(rule_id='FORMULA-01',classification='distinct_formula_scopes',status='closed',
+                     artifact_sha256=r['sha256'],fingerprint=candidate['fingerprint'],
+                     reason='Independent source review established two different defined quantities.',
+                     occurrences=[dict(p,source_sha256=SOURCE_HASH,source_locator='source paragraph '+str(i),
+                                       registry_id='F'+str(i),scope_id='scope'+str(i),
+                                       scope_definition='source definition '+str(i))
+                                  for i,p in enumerate(candidate['occurrences'],1)])
+        self.accept(r,[finding],[SOURCE_HASH])
+        for key,value in [('artifact_sha256','2'*64),('fingerprint','3'*64),
+                          ('classification','source_math_identity'),('reason',''),('status','open')]:
+            with self.subTest(key=key),self.assertRaisesRegex(b.BatchError,'duplicate complete formula'):
+                self.accept(r,[dict(finding,**{key:value})],[SOURCE_HASH])
+        for key,value in [('object_id','F9999'),('source_sha256','2'*64),('source_locator',''),
+                          ('scope_definition',''),('scope_id',''),('registry_id','')]:
+            invalid=copy.deepcopy(finding);invalid['occurrences'][1][key]=value
+            with self.subTest(key=key),self.assertRaisesRegex(b.BatchError,'duplicate complete formula'):
+                self.accept(r,[invalid],[SOURCE_HASH])
+        for key in ['source_locator','scope_id','scope_definition']:
+            invalid=copy.deepcopy(finding);invalid['occurrences'][1][key]=invalid['occurrences'][0][key]
+            with self.subTest(key=key),self.assertRaisesRegex(b.BatchError,'duplicate complete formula'):
+                self.accept(r,[invalid],[SOURCE_HASH])
+        invalid=copy.deepcopy(finding);invalid['occurrences'].pop()
+        with self.assertRaisesRegex(b.BatchError,'duplicate complete formula'):self.accept(r,[invalid],[SOURCE_HASH])
+        clean=self.with_paragraph('<w:r><w:t>按</w:t></w:r>'+omml('x=y+1')+'<w:r><w:t>计算，后续使用上述关系。</w:t></w:r>')
+        self.assertFalse(clean['formula_prose_evidence']['duplicate_formula_candidates']);self.accept(clean)
+        clean['formula_prose_evidence'].pop('duplicate_formula_candidates')
+        with self.assertRaisesRegex(b.BatchError,'inspection'):self.accept(clean)
+
+    def test_duplicate_scan_covers_body_table_header_but_excludes_deleted_content(self):
+        r=self.with_paragraph('<w:r><w:t>按</w:t></w:r>'+omml('x=y+1'))
+        path=self.root/'scratch.docx';doc=Document(path)
+        for paragraph in [doc.add_table(rows=1,cols=1).cell(0,0).paragraphs[0],
+                          doc.sections[0].header.paragraphs[0]]:
+            paragraph._p.append(parse_xml(f'<m:oMath xmlns:m="{M}">'+mr('x=y+1')+'</m:oMath>'))
+        doc.add_paragraph()._p.append(parse_xml(f'<w:del xmlns:w="{W}" xmlns:m="{M}">'+omml('x=y+1')+'</w:del>'))
+        doc.save(path);before=b.sha(path);r=scan.inspect(path)
+        self.assertEqual(before,b.sha(path))
+        hits=r['formula_prose_evidence']['duplicate_formula_candidates'];self.assertEqual(len(hits),1)
+        self.assertEqual(len(hits[0]['occurrences']),3)
+        self.assertEqual({h['part'] for h in hits[0]['occurrences']},{'word/document.xml','word/header1.xml'})
+        self.assertIn('formula_uniqueness.py',scan.extractor_dependencies())
+        identity={'extractor_sha256':scan.file_sha(Path(scan.__file__)),
+                  'extractor_dependencies':scan.extractor_dependencies()}
+        self.assertTrue(scan.extractor_unchanged(identity))
+        changed=self.root/'changed-helper.py';changed.write_text('# different helper bytes',encoding='utf-8')
+        with patch.object(unique,'__file__',str(changed)):
+            self.assertFalse(scan.extractor_unchanged(identity))
+        self.assertIn(Path(unique.__file__).resolve(),stage_bundle.selected_files(Path(scan.__file__).resolve().parents[1]))
 
     def test_policy_requires_frozen_output_contract_and_known_formula_mode(self):
         p=copy.deepcopy(fixtures.POLICY);queue.validate_policy(p)

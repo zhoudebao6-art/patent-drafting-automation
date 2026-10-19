@@ -143,12 +143,54 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     if strict_formulas:
         formula=report.get('formula_prose_evidence')
         fields=('explanation_lead_hits','standalone_formula_semicolon_hits','bare_symbol_omml_candidates','plain_label_omml_candidates',
-                'inline_numeric_omml_candidates','review_candidates','standalone_formulas','group_separator_hits','single_equation_continuation_hits')
+                'inline_numeric_omml_candidates','review_candidates','standalone_formulas','group_separator_hits','single_equation_continuation_hits',
+                'duplicate_formula_candidates')
         if (not isinstance(formula,dict) or formula.get('schema_version')!=1 or
                 formula.get('extraction_complete') is not True or formula.get('complete') is not True or
                 formula.get('artifact_sha256')!=report['sha256'] or
                 any(not isinstance(formula.get(k),list) for k in fields)):
             raise b.BatchError('Final formula/prose inspection is missing, incomplete or bound to another artifact')
+        # Repeated complete equations cannot use the broad FORMULA-05 source
+        # identity finding. Only independently established, distinct meanings
+        # can close an exact group; every occurrence needs its own provenance.
+        for candidate in formula['duplicate_formula_candidates']:
+            locations = candidate.get('occurrences') if isinstance(candidate,dict) else None
+            if (not isinstance(candidate,dict) or candidate.get('artifact_sha256')!=report['sha256'] or
+                    not isinstance(candidate.get('fingerprint'),str) or
+                    not re.fullmatch(r'[0-9a-f]{64}',candidate['fingerprint']) or
+                    not isinstance(locations,list) or len(locations)<2 or
+                    any(not isinstance(row,dict) or type(row.get('paragraph')) is not int or
+                        any(not isinstance(row.get(k),str) or not row[k].strip()
+                            for k in ('part','path','object_id')) for row in locations)):
+                raise b.BatchError('Final duplicate formula inspection is malformed or stale')
+            keys=('part','paragraph','path','object_id')
+            locators=[tuple(row[k] for k in keys) for row in locations]
+            if len(set(locators))!=len(locators):
+                raise b.BatchError('Final duplicate formula inspection repeats one locator')
+            def distinct_formula_scopes(finding):
+                if (not isinstance(finding,dict) or finding.get('rule_id')!='FORMULA-01' or
+                        finding.get('classification')!='distinct_formula_scopes' or
+                        finding.get('status')!='closed' or
+                        finding.get('artifact_sha256')!=report['sha256'] or
+                        finding.get('fingerprint')!=candidate['fingerprint'] or
+                        not isinstance(finding.get('reason'),str) or not finding['reason'].strip()):
+                    return False
+                rows=finding.get('occurrences')
+                if not isinstance(rows,list) or len(rows)!=len(locations):return False
+                for row,location in zip(rows,locations):
+                    if (not isinstance(row,dict) or any(row.get(k)!=location[k] for k in keys) or
+                            not isinstance(row.get('source_sha256'),str) or
+                            not re.fullmatch(r'[0-9a-fA-F]{64}',row['source_sha256']) or
+                            row.get('source_sha256') not in source_hashes or
+                            any(not isinstance(row.get(k),str) or not row[k].strip()
+                                for k in ('source_locator','registry_id','scope_id','scope_definition'))):
+                        return False
+                return (len({(row['source_sha256'],row['source_locator']) for row in rows})==len(rows) and
+                        len({row['scope_id'] for row in rows})==len(rows) and
+                        len({row['scope_definition'] for row in rows})==len(rows))
+            if not any(distinct_formula_scopes(finding) for finding in findings):
+                where=', '.join(row['part']+' '+row['path'] for row in locations)
+                raise b.BatchError('Final duplicate complete formula requires removal or exact distinct-scope source evidence: '+where)
         # Formatting errors are not waivable as source formulas. A source-bound
         # exception applies only to this exact bare/arithmetical math object.
         for key,label in [('explanation_lead_hits','explanation lead must use 其中'),

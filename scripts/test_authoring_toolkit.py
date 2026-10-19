@@ -234,6 +234,80 @@ class ToolkitTests(unittest.TestCase):
         with self.assertRaisesRegex(toolkit.AuthoringError, 'one target'):
             self.build()
 
+    def add_repeated_source_equation(self):
+        source = self.add_math()
+        document = Document(source)
+        document.add_paragraph('后面的图说明再次引用同一关系。')
+        document.add_paragraph()._p.append(ET.fromstring(MATH))
+        document.save(source)
+        inv = toolkit.inventory(self.root, source.name)
+        self.spec['sources'] = [inv['source']]
+        self.spec['formulas'] = []
+        for row in inv['omml_objects']:
+            row.pop('linear_text_for_navigation_only')
+            row['category'] = 'main_formula'
+            self.spec['formulas'].append(row)
+        return source
+
+    def test_repeated_source_alias_preserves_evidence_with_only_one_target(self):
+        source = self.add_repeated_source_equation()
+        canonical, alias = self.spec['formulas']
+        alias.update(duplicate_of=canonical['id'], duplicate_reason='同一来源同一作用域的同一完整关系在图说明中重列。')
+        source_sha = toolkit.sha(source)
+        result = self.build()
+        verified = toolkit.verify_bundle(self.root, 'v1')
+        self.assertEqual(result['counts']['main_formula_occurrences'], 1)
+        self.assertEqual(verified['counts']['omml_occurrences'], 1)
+        self.assertEqual(len(verified['source_formula_aliases']), 1)
+        self.assertEqual(verified['source_formula_aliases'][0]['source_locator'], alias['locator'])
+        self.assertEqual(len(verified['source_formula_aliases'][0]['target_occurrences']), 1)
+        self.assertEqual(toolkit.sha(source), source_sha)
+
+    def test_repeated_source_requires_explicit_identity_and_no_second_target(self):
+        self.add_repeated_source_equation()
+        original = deepcopy(self.spec)
+        for fault in ('unmapped', 'output_alias', 'wrong_count', 'cycle', 'missing_reason', 'missing_target', 'symbol_disguise'):
+            with self.subTest(fault=fault):
+                self.spec = deepcopy(original)
+                canonical, alias = self.spec['formulas']
+                alias.update(duplicate_of=canonical['id'], duplicate_reason='同一关系重复出现')
+                if fault == 'unmapped':
+                    alias.pop('duplicate_of'); alias.pop('duplicate_reason')
+                    self.spec['formula_policy']['source_main_count'] = 2
+                elif fault == 'output_alias':
+                    self.spec['sections'][3]['blocks'].append({'id':'again','type':'formula','formula_id':alias['id']})
+                elif fault == 'wrong_count':
+                    self.spec['formula_policy']['source_main_count'] = 2
+                elif fault == 'cycle':
+                    canonical.update(duplicate_of=alias['id'], duplicate_reason='不合法环')
+                elif fault == 'missing_reason':
+                    alias['duplicate_reason'] = ''
+                elif fault == 'missing_target':
+                    self.spec['sections'][3]['blocks'].pop()
+                else:
+                    alias.pop('duplicate_of'); alias.pop('duplicate_reason')
+                    alias['category'] = 'symbol_reference'
+                with self.assertRaises(toolkit.AuthoringError):
+                    toolkit.validate(self.root, self.spec)
+
+    def test_different_source_equation_cannot_be_aliased(self):
+        source = self.add_repeated_source_equation()
+        def change(parts):
+            doc = ET.fromstring(parts['word/document.xml'])
+            nodes = doc.findall('.//m:oMath', toolkit.NS)
+            nodes[1].find('m:sSup/m:sup/m:r/m:t', toolkit.NS).text = '3'
+            parts['word/document.xml'] = ET.tostring(doc)
+        self.rewrite_docx(source, change)
+        inv = toolkit.inventory(self.root, source.name)
+        self.spec['sources'] = [inv['source']]
+        self.spec['formulas'] = []
+        for row in inv['omml_objects']:
+            row.pop('linear_text_for_navigation_only'); row['category'] = 'main_formula'
+            self.spec['formulas'].append(row)
+        self.spec['formulas'][1].update(duplicate_of=self.spec['formulas'][0]['id'], duplicate_reason='错误地合并不同指数')
+        with self.assertRaisesRegex(toolkit.AuthoringError, 'matching complete'):
+            toolkit.validate(self.root, self.spec)
+
     def test_unmapped_source_formula_is_not_silently_ignored(self):
         self.add_math()
         self.spec['formulas'] = []
