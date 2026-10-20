@@ -1311,6 +1311,29 @@ def antecedent_occurrences(parts):
     return rows
 
 
+def _standard_storage_medium_claim(claim, claim_numbers):
+    """Recognize only the user-fixed wording and existing earlier references.
+
+    This changes the literal quota only. Referenced categories, source support
+    and every antecedent still require the existing independent semantic review.
+    """
+    match = re.fullmatch(
+        r'([1-9][0-9]*)[.．、]一种计算机可读存储介质，其上存储有计算机程序，'
+        r'其特征在于，所述计算机程序被处理器执行时实现权利要求'
+        r'([1-9][0-9]*)(?:至([1-9][0-9]*)任一项)?所述的方法。',
+        claim['text'].strip())
+    if not match or any(len(value) > 9 for value in match.groups() if value is not None):
+        return False
+    number, first = int(match[1]), int(match[2])
+    last = int(match[3]) if match[3] is not None else first
+    if number != claim['number'] or not (first <= last < number):
+        return False
+    if match[3] is not None and first == last:
+        return False  # A single referenced method uses 权利要求N所述的方法.
+    numbers = set(claim_numbers)
+    return last - first + 1 <= len(numbers) and all(n in numbers for n in range(first, last + 1))
+
+
 def precheck(result, kind):
     issues = result['issues']
     def add(code, message, loc=None):
@@ -1411,13 +1434,17 @@ def precheck(result, kind):
         claim['parent_parse_issues']=parse_issues
         claim['parent_parse_status']=('requires_manual_reference_review' if parse_issues
                                       else 'structural_only_requires_legal_path_review')
+        standard_medium = _standard_storage_medium_claim(claim, nums)
+        minimum = 2 if standard_medium else 3
         claim['antecedent_count_evidence'] = {
             'literal_count':claim['text'].count('所述'),
             'reference_head_count':len(re.findall(r'根据权利要求[^。；\n]*?所述',head)),
-            'required_valid_minimum':3,
-            'applicability':'Rule version 16 onward; earlier frozen batches keep their recorded requirements.',
+            'required_valid_minimum':minimum,
+            'applicability':('Rule version 74 fixed storage-medium wording: two literal occurrences; '
+                             'method-category scope and valid antecedents still require semantic review.' if standard_medium else
+                             'Rule version 16 onward; earlier frozen batches keep their recorded requirements.'),
             'status':'requires_each_occurrence_validity_review_not_automatic_pass'}
-        if claim['text'].count('所述') < 3:
+        if claim['text'].count('所述') < minimum:
             add('CLAIM_SHUSU_MINIMUM','Each whole claim needs at least 3 valid 所述. Rephrase existing source-backed references; never prefix first-use nouns or invent features to meet a count.',f'P{claim["p"]:04}')
         if parse_issues:
             add('CLAIM_REFERENCE_PARSE','Reference syntax/range unresolved; detected parents are incomplete and require manual review.',f'P{claim["p"]:04}')

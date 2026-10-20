@@ -96,6 +96,26 @@ class InventionTests(unittest.TestCase):
         bad=self.report(self.doc(solution=[inv.claim_head(CLAIMS[0])[2].replace('所述',''),CLAIMS[1],inv.claim_head(CLAIMS[2])[2]]))
         with self.assertRaisesRegex(batch.BatchError,'solution_text_changed'):self.accept(bad,[finding])
 
+    def test_standard_storage_medium_uses_existing_manual_mapping_review(self):
+        medium='4.一种计算机可读存储介质，其上存储有计算机程序，其特征在于，所述计算机程序被处理器执行时实现权利要求1至2任一项所述的方法。'
+        claims=CLAIMS+['3.一种记录系统，其特征在于，处理器获取记录并保存所述记录。',medium]
+        solution=[inv.claim_head(p)[2] if p[0].isdigit() else p for p in claims[:-1]]
+        solution.append('一种计算机可读存储介质，其上存储有计算机程序，所述计算机程序被处理器执行时获取记录，保存所述记录，仅在所述记录有效时输出所述记录，否则不参与更新；优选的，对所述记录核验，保留所述记录的原标识。')
+        report=self.report(self.doc(claims=claims,solution=solution))
+        candidates=report['invention_evidence']['review_candidates']
+        self.assertEqual(len(candidates),1)
+        self.assertEqual(candidates[0]['claim'],4)
+        self.assertEqual(candidates[0]['reason'],'technical_claim_reference')
+        with self.assertRaisesRegex(batch.BatchError,'located independent review'):
+            self.accept(report)
+        finding=dict(candidates[0],rule_id='STYLE-02',classification='claim_solution_mapping',status='closed',
+                     artifact_sha256=report['sha256'],reason='Fixture review binds the referenced method range and its direct description to this artifact.')
+        self.accept(report,[finding])
+        spec=self.spec()
+        spec['sections'][2]['blocks'].extend(dict(id='medium_path_'+str(i),type='paragraph',role='body',text=text) for i,text in enumerate(claims[-2:]))
+        with self.assertRaisesRegex(t.AuthoringError,'Technical cross-reference'):
+            t.validate(self.root,spec)
+
     def test_missing_or_wrong_hash_evidence_rejected_and_legacy_is_unchanged(self):
         r=self.report()
         for key,value in [('schema_version',True),('complete',False),('artifact_sha256','f'*64),('mappings',[])]:

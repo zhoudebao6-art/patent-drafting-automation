@@ -31,6 +31,54 @@ class ClaimWordingTests(unittest.TestCase):
         warnings=[r for r in result['issues'] if r['code']=='CLAIM_SHUSU_MINIMUM']
         self.assertEqual([r['locator'] for r in warnings],['P0005'])
 
+    def test_standard_storage_medium_uses_two_occurrences_without_semantic_pass(self):
+        prefix='一种计算机可读存储介质，其上存储有计算机程序，其特征在于，所述计算机程序被处理器执行时实现权利要求'
+        for number, reference in ((10,'1至7任一项'),(6,'2至4任一项'),(3,'1')):
+            with self.subTest(number=number,reference=reference):
+                # The helper checks existing numbers, not the referenced category.
+                earlier=[f'{n}.一种记录系统，其特征在于，保存数据。' for n in range(1,number)]
+                medium=f'{number}.'+prefix+reference+'所述的方法。'
+                result=self.read(''.join(map(paragraph,['权利要求书',*earlier,medium,'技术领域'])))
+                claim=result['claims_detected'][-1]
+                evidence=claim['antecedent_count_evidence']
+                self.assertEqual(claim['text'],medium)
+                self.assertEqual(evidence['literal_count'],2)
+                self.assertEqual(evidence['required_valid_minimum'],2)
+                self.assertIn('not_automatic_pass',evidence['status'])
+                self.assertIn('method-category scope',evidence['applicability'])
+                self.assertIn('Rule version 74',evidence['applicability'])
+                self.assertEqual(len([row for row in result['antecedent_occurrences'] if row['paragraph']==claim['p']]),2)
+                self.assertFalse(any(row['code']=='CLAIM_SHUSU_MINIMUM' and row['locator']==f'P{claim["p"]:04}' for row in result['issues']))
+
+    def test_storage_medium_quota_exception_requires_exact_wording_and_earlier_complete_range(self):
+        standard='10.一种计算机可读存储介质，其上存储有计算机程序，其特征在于，所述计算机程序被处理器执行时实现权利要求1至7任一项所述的方法。'
+        variants={
+            'missing_storage_clause':standard.replace('其上存储有计算机程序，',''),
+            'changed_category_name':standard.replace('计算机可读存储介质','存储介质'),
+            'changed_intro_punctuation':standard.replace('其特征在于，','其特征在于：'),
+            'changed_range_punctuation':standard.replace('1至7','1-7'),
+            'descending':standard.replace('1至7','7至1'),
+            'singleton_range':standard.replace('1至7','1至1'),
+            'zero':standard.replace('1至7','0至7'),
+            'leading_zero':standard.replace('1至7','01至7'),
+            'self':standard.replace('1至7','1至10'),
+            'future':standard.replace('1至7','1至11'),
+            'too_large':standard.replace('1至7','1至999999999999999999999'),
+            'extra_content':standard+'附加步骤。',
+            'ordinary_claim':'10.一种记录方法，其特征在于，获取记录数据，核对所述记录数据，保存所述记录数据。',
+        }
+        for label, medium in variants.items():
+            with self.subTest(case=label):
+                earlier=[f'{n}.一种记录方法，其特征在于，保存数据。' for n in range(1,10)]
+                result=self.read(''.join(map(paragraph,['权利要求书',*earlier,medium,'技术领域'])))
+                claim=result['claims_detected'][-1]
+                self.assertEqual(claim['text'],medium)
+                self.assertEqual(claim['antecedent_count_evidence']['required_valid_minimum'],3)
+                self.assertTrue(any(row['code']=='CLAIM_SHUSU_MINIMUM' and row['locator']==f'P{claim["p"]:04}' for row in result['issues']))
+        earlier=[f'{n}.一种记录方法，其特征在于，保存数据。' for n in (1,2,3,5,6,7,8,9)]
+        result=self.read(''.join(map(paragraph,['权利要求书',*earlier,standard,'技术领域'])))
+        self.assertEqual(result['claims_detected'][-1]['antecedent_count_evidence']['required_valid_minimum'],3)
+
     def test_three_occurrences_are_never_a_semantic_pass(self):
         result=self.read(paragraph('1.所述新对象、所述另一新对象、所述第三新对象。')+paragraph('技术领域'))
         evidence=result['claims_detected'][0]['antecedent_count_evidence']

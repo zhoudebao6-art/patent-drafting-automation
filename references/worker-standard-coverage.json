@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.45：规则v73仍65条，BATCH-09明确单案交付后立即确认专属进程退出及全批结束退出控制器。worker-standard新增阶段产物保存、专属任务结束、回执后立即返回与残留归属核查入口，已独立核对完整约束/例外。沿用既有进程退出证据及收稿机制，不增扫描或模型阶段，保护在途案、用户窗口与共享宿主。",
+  "description": "v6.47：已独立核对六份规范的三权存储介质固定句式、实际方法范围、两处所述窄例外及说明书手工映射覆盖。规则v74仍65条；来源、引用、各处前置及现有六项独立验收保留，不新增扫描或模型阶段。",
   "files": {
-    "writing-standard.md": "10a7730a3aa15d1fe6950d188424a67cd6a2e481a3cd2fb44261b0c1062d8a6c",
-    "claim-families-and-benefits.md": "f2381a0f60d432f3dbd7ea6cecd3d5ebcb79d0a4ddcc8ea1fef8af241483b027",
-    "terminology-and-formula.md": "4d464ce51bde985d39587e2ca3321895421cf7e187ab33fb194b401dd14d5c06",
-    "reference-style-standard.md": "6d4219c145f9ae0af97c147e4f1571880e4627a7aad9ca6d7a424c99866f1d79",
-    "manual-format-and-wording.md": "355d682e6b1e560a2a006e3755e11b19480ce08ce86eadc01f49f70888e015b9",
-    "worker-standard.md": "02cbd0986ba195e42a3ba51ad16800b9f9b300581d4db5c0d92d49b6cc9b8b23"
+    "writing-standard.md": "430dfa9b794a4b8936f04ce717dc25195783e2c8ae53c5da9a5690cfb192dfef",
+    "claim-families-and-benefits.md": "c52c4cd7f434aed145316958d4fef9d29b79780bfe11cd89159c4710ad313933",
+    "terminology-and-formula.md": "2067096f1417d444b0d065b89e25841f4f273f7a6f238d47f759d8745a2235a5",
+    "reference-style-standard.md": "7171d45a80516453f254bb023a6cb8d64048adce55a0965bb456469d31e47344",
+    "manual-format-and-wording.md": "67fc1a717566e7949b99c3cb1494a9b4bdd025f40c6019069762b0fa3bdda028",
+    "worker-standard.md": "29f48672044fd49ecdd9c5cd5b3e35346ee65b553a638484964a1d9bb0eb7770"
   }
 }
