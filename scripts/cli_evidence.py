@@ -23,6 +23,7 @@ COMPLETION_FILES = ('events.jsonl', 'worker-final.json', 'session.jsonl', 'promp
 CONNECTION_RETRY = re.compile(
     r'Reconnecting\.\.\. ([1-9][0-9]*)/([1-9][0-9]*) '
     r'\(stream disconnected before completion: [^\r\n]+\)')
+NETWORK_WAIT = 'Reconnecting... waiting for network (Connection failed: error sending request)'
 _COMPLETION_SCOPE = ContextVar('cli_completion_scope', default=None)
 
 
@@ -95,7 +96,9 @@ def _json(data):
 
 
 def _jsonl(data):
-    return [_json(line) for line in data.decode('utf-8-sig').splitlines() if line.strip()]
+    # JSON strings may legally contain U+0085/U+2028/U+2029. Only LF delimits
+    # JSONL records; splitlines() corrupts otherwise valid execution evidence.
+    return [_json(line) for line in data.decode('utf-8-sig').split('\n') if line.strip()]
 
 
 def _identity(value):
@@ -316,11 +319,12 @@ def _verify_completion_full(attempt, dispatch, *, capture_identity=False):
             continue
         message = row.get('message')
         retry = CONNECTION_RETRY.fullmatch(message) if isinstance(message, str) else None
-        # CLI emits recovered stream reconnects as error events. Accept only
-        # this known shape, followed by a new final message in the same turn.
+        recovered_retry = (retry is not None and int(retry[1]) <= int(retry[2]))
+        # New CLI versions also emit this exact network-wait notice. Both
+        # notices require a new final message in the same completed turn.
         # Successful exit, real session final and all seals remain mandatory.
-        _require(set(row) == {'type', 'message'} and retry is not None
-                 and int(retry[1]) <= int(retry[2])
+        _require(set(row) == {'type', 'message'}
+                 and (recovered_retry or message == NETWORK_WAIT)
                  and turn_starts[0] < i < final_index,
                  'CLI events contain an unknown, terminal or unrecovered error')
     receipt = _json(data['worker-final.json'])

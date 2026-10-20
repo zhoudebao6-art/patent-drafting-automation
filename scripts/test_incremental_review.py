@@ -3,6 +3,7 @@ import copy
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 from zipfile import ZipFile
 
 import batch_tool as b
@@ -287,6 +288,31 @@ class IncrementalReviewTests(unittest.TestCase):
         third, plan, _ = self.attempt(['A', 'B corrected again'])
         render = self.render(third, ['white', 'black', 'white'])
         self.assertEqual(reuse.page_map(plan, render['evidence'])['eligible_inherited_pages'], [1, 2, 3])
+
+    def test_previous_not_run_render_without_passed_pages_requires_all_current_pages_fresh(self):
+        first, _, pointer = self.attempt(['A'])
+        receipt = self.receipt(first, pointer)
+        receipt['render'] = {'status': 'not_run', 'reason': 'Known content fix before rendering'}
+        self.record(first, receipt)
+        second, plan, pointer = self.attempt(['A corrected'])
+        current = self.inherited_receipt(second, plan, pointer)
+        current['render'] = self.render(second, ['white', 'black'])
+        mapping = reuse.page_map(plan, current['render']['evidence'])
+        self.assertEqual(mapping['eligible_inherited_pages'], [])
+        self.assertEqual(mapping['must_view_pages'], [1, 2])
+        current['verdict'] = 'pass'
+        current['checks']['rendered_pages'] = 'passed'
+        current['review_coverage']['pages'] = [{'page': n, 'mode': 'fresh', 'status': 'passed'} for n in (1, 2)]
+        self.record(second, current)
+
+    def test_claimed_prior_passed_page_without_render_evidence_still_rejected(self):
+        first, plan, _ = self.attempt(['A'])
+        render = self.render(first, ['white'])
+        prior = {'render': {'status': 'not_run'}, 'review_coverage': {
+            'pages': [{'page': 1, 'mode': 'fresh', 'status': 'passed'}]}}
+        with patch.object(reuse, 'previous_receipt', return_value=prior):
+            with self.assertRaisesRegex(b.BatchError, 'passed pages require canonical render'):
+                reuse.page_map(plan, render['evidence'])
 
     def test_prior_receipt_artifact_plan_and_cross_rules_tampering_rejected(self):
         for kind in ('receipt', 'artifact', 'plan', 'rules'):

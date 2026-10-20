@@ -210,6 +210,17 @@ class NonblockingBehaviorTests(unittest.TestCase):
         started, release = threading.Event(), threading.Event()
         seen = {name: threading.Event() for name in ('review', 'revise', 'publish')}
         real_prepare = handoff.prepare
+        real_status = cli.status
+        skipped_preparation = set()
+
+        def status(manifest, *, state=None, case_ids=None):
+            if state is not None:
+                self.assertIsNotNone(case_ids)
+                pending = {c['id'] for c in state['projects'] if c['active_attempt']
+                           and queue.attempt_by_id(c, c['active_attempt']).get('preparation_state') == 'pending'}
+                self.assertTrue(pending.isdisjoint(case_ids), 'I/O-owned preparation was observed again')
+                skipped_preparation.update(pending)
+            return real_status(manifest, state=state, case_ids=case_ids)
 
         def slow_prepare(m, case, attempt):
             if case['id'] == '004' and attempt['stage'] == 'draft':
@@ -225,6 +236,7 @@ class NonblockingBehaviorTests(unittest.TestCase):
                 seen['publish'].set()
 
         with patch.object(handoff, 'prepare', side_effect=slow_prepare), \
+             patch.object(cli, 'status', side_effect=status), \
              ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(self.run_fake_pipeline, workers=4, event=event)
             try:
@@ -237,12 +249,48 @@ class NonblockingBehaviorTests(unittest.TestCase):
                 release.set()
             result, launches = future.result(timeout=TIMEOUT*2)
         self.assertFalse(result['halted'], result)
+        self.assertIn('004', skipped_preparation)
         self.assertGreater(launches, 0)
         self.assertTrue(all(c['status'] == 'delivered' for c in self.state()['projects']))
         chain = [a['stage'] for a in self.case('002')['attempts']]
         self.assertEqual(chain, ['draft', 'review', 'revise', 'review'])
         sessions = [a.get('cli_session_id') or a['task_name'] for a in self.case('002')['attempts']]
         self.assertEqual(len(sessions), len(set(sessions)))
+
+    def test_filtered_observation_keeps_external_worker_and_returns_without_relaunch(self):
+        reserved = self.reserve(1)
+        with patch.object(cli, 'preflight', return_value=str(self.root/'synthetic-cli.exe')), \
+             patch.object(cli, 'start_supervisor') as launch, patch.object(cli, 'event'):
+            result = cli.run(self.manifest, 'controller', 1)
+        self.assertFalse(result['halted'], result)
+        row = next(c for c in result['cases'] if c['case_id'] == reserved['case_id'])
+        self.assertEqual(row['next_action'], 'wait_external_worker')
+        self.assertEqual(row['attempt'], reserved['attempt']['id'])
+        launch.assert_not_called()
+        self.assertEqual(self.case(reserved['case_id'])['active_attempt'], reserved['attempt']['id'])
+
+    def test_blocked_attempt_stops_reobservation_but_collects_completed_peer(self):
+        blocked = queue.reserve(self.manifest, 2, prepare=True, transport='codex_cli')
+        peer = queue.reserve(self.manifest, 2, prepare=True, transport='codex_cli')
+        self.fixture_cli(peer, bind=False)
+        real_status = cli.status
+        observed = []
+
+        def status(manifest, *, state=None, case_ids=None):
+            if case_ids is not None:
+                observed.append(set(case_ids))
+            return real_status(manifest, state=state, case_ids=case_ids)
+
+        with patch.object(cli, 'status', side_effect=status):
+            result, launches = self.run_fake_pipeline(workers=2)
+        self.assertTrue(result['halted'], result)
+        self.assertEqual(launches, 0)
+        self.assertEqual(self.case(blocked['case_id'])['active_attempt'], blocked['attempt']['id'])
+        self.assertEqual(len(self.case(blocked['case_id'])['attempts']), 1)
+        self.assertEqual(self.case(peer['case_id'])['status'], 'drafted')
+        self.assertIsNone(self.case(peer['case_id'])['active_attempt'])
+        self.assertEqual(sum(blocked['case_id'] in ids for ids in observed), 1)
+        self.assertEqual(len(result['cases']), len(self.state()['projects']))
 
     def test_preparation_holds_no_manifest_lock_and_cannot_commit_changed_source(self):
         reserved = queue.reserve(self.manifest, 3, defer_preparation=True, transport='codex_cli')

@@ -15,6 +15,26 @@ class CliPoolTests(unittest.TestCase):
     setUp = fixtures.ParallelTests.setUp
     receipt = fixtures.ParallelTests.receipt
 
+    def test_seal_uses_lf_records_and_preserves_raw_unicode_event_bytes(self):
+        root = self.root / 'unicode-seal'
+        root.mkdir()
+        ident = str(uuid.uuid4())
+        rows = [{'type': 'thread.started', 'thread_id': ident},
+                {'type': 'item.completed', 'item': {'type': 'command_execution',
+                                                  'aggregated_output': 'alpha\u2029beta'}}]
+        raw = ('\n'.join(json.dumps(r, ensure_ascii=False) for r in rows) + '\n').encode('utf-8')
+        (root / 'events.jsonl').write_bytes(raw)
+        for name in ('worker-final.json', 'cli-exit.json'):
+            (root / name).write_text('{}', encoding='utf-8')
+        (root / 'prompt.txt').write_text('input', encoding='utf-8')
+        native = self.root / 'native-session.jsonl'
+        native.write_bytes(b'{"type":"session_meta"}\n')
+        with patch.object(pool, 'locate_session', return_value=native):
+            pool.seal_completion(root, {'result': {'pid': 123, 'created': 456}}, 0)
+        self.assertEqual((root / 'events.jsonl').read_bytes(), raw)
+        self.assertEqual((root / 'session.jsonl').read_bytes(), native.read_bytes())
+        self.assertEqual(b.read(root / 'cli-completion.json')['files']['events.jsonl'], b.sha(root / 'events.jsonl'))
+
     def enable_cli(self):
         m = b.read(self.manifest)
         m['policy']['dispatch_transports'] = ['collaboration', 'codex_cli']
@@ -299,6 +319,29 @@ class CliPoolTests(unittest.TestCase):
         self.assertIn(json.dumps(r['worker_context']['primary_snapshot'],ensure_ascii=False),prompt)
         other=p.load_manifest(self.manifest)['projects'][1]['sources'][0]['snapshot_path']
         self.assertNotIn(json.dumps(other,ensure_ascii=False),prompt)
+
+    def test_status_filters_before_process_observation_and_defaults_to_all_cases(self):
+        self.enable_cli()
+        reserved = [p.reserve(self.manifest, 4, transport='codex_cli') for _ in range(2)]
+        for pid, row in enumerate(reserved, 101):
+            b.atomic(Path(row['attempt']['directory'])/'supervisor.json',
+                     {'pid': pid, 'created': pid})
+        state = p.load_manifest(self.manifest)
+        selected = reserved[1]['case_id']
+        with patch.object(ce, 'process_identity', side_effect=lambda pid: {'created': pid}) as observe:
+            filtered = pool.status(self.manifest, state=state, case_ids={selected})
+            self.assertEqual([row['case_id'] for row in filtered['cases']], [selected])
+            self.assertEqual(filtered['cases'][0]['next_action'], 'wait_cli')
+            self.assertEqual([call.args[0] for call in observe.call_args_list], [102])
+            observe.reset_mock()
+            self.assertEqual(pool.status(self.manifest, state=state, case_ids=set())['cases'], [])
+            observe.assert_not_called()
+            complete = pool.status(self.manifest, state=state)
+            self.assertEqual(len(complete['cases']), len(state['projects']))
+            self.assertEqual([call.args[0] for call in observe.call_args_list], [101, 102])
+        b.atomic(self.batch/'policy.snapshot.json', {'changed': True})
+        with self.assertRaisesRegex(b.BatchError, 'Policy snapshot changed'):
+            pool.status(self.manifest, case_ids=set())
 
     def test_duplicate_worker_cannot_acquire_attempt_lock_or_start_model(self):
         self.enable_cli(); r=p.reserve(self.manifest,4,prepare=True,transport='codex_cli')

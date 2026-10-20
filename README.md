@@ -1,6 +1,6 @@
 # 专利撰写自动化
 
-v6.48：终稿权利要求必须恰好十项且连续编号1至10，替换旧项数不固定规定；撰写、现有结构检查及最终通过/交付核对同一要求。不得重复或无来源凑数，变动同步父项、所述及说明书映射。规则v75仍65条，保留三权介质固定句式和两处所述例外，新建批次生效。
+v6.49：减少调度循环对正在准备、收稿及已隔离任务的无效状态查询，保留候选任务的身份核验及完整状态入口；整合本机已验证的网络重连、Unicode日志和页面覆盖修复。总控协调、原撰写项目执行的边界明确，调度说明改为当前操作入口。包含v6.38以来全部更新，规则仍为v75、65条，十项权利要求、三权介质句式、6/3/3三池和六项独立验收不变。
 
 ## 架构与阅读入口
 
@@ -16,7 +16,7 @@ v6.48：终稿权利要求必须恰好十项且连续编号1至10，替换旧项
 
 ## 安装与更新
 
-从本仓库[最新发布](https://github.com/zhoudebao6-art/patent-drafting-automation/releases/latest)下载`patent-drafting-automation-v6.37.zip`，解压后将整个`patent-drafting-automation`文件夹放入`%USERPROFILE%\.codex\skills`；设置了自定义CODEX_HOME时使用其`skills`目录。更新时先把旧技能目录移到skills目录之外备份，再放入新版，避免同时发现两份同名技能；工作批次及其skill-snapshot不要移动或覆盖。
+从本仓库[最新发布](https://github.com/zhoudebao6-art/patent-drafting-automation/releases/latest)下载该发布页中的`patent-drafting-automation-v版本号.zip`，解压后将整个`patent-drafting-automation`文件夹放入`%USERPROFILE%\.codex\skills`；设置了自定义CODEX_HOME时使用其`skills`目录。更新时先把旧技能目录移到skills目录之外备份，再放入新版，避免同时发现两份同名技能；工作批次及其skill-snapshot不要移动或覆盖。
 
 新电脑或软件升级后，先让Codex按[运行环境](references/runtime.md)探测本机Python、文档工具、WPS/LibreOffice、Poppler和字体，更新本机runtime.json并完成预检及首次样稿页面验证。包内runtime.json是原机器的配置样例，不能把其中路径或程序SHA当作新电脑已验证的环境；安装包不含这些外部程序。已有正确环境无需重复安装依赖。
 

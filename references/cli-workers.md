@@ -45,7 +45,7 @@ python scripts/cli_pool.py status --manifest 批次manifest.json
 
 ## 中断、失败和恢复
 
-2026-10-14用户批准修复成功重连被误拒收的问题。执行核验只允许严格匹配`Reconnecting... n/m (stream disconnected before completion: ...)`的中间连接重试：必须在唯一turn.started之后，且后续有新的最终agent_message及唯一turn.completed；所有原始日志保持原字节。未知error、turn.failed、非零退出、真实会话失败及模型/强度/prompt/封存哈希不一致仍拒绝。连接恢复不代表专利验收，原六项内容和页面门禁不变。
+2026-10-14用户批准修复成功重连被误拒收的问题。执行核验仅允许严格匹配`Reconnecting... n/m (stream disconnected before completion: ...)`，或新版CLI完整固定文本`Reconnecting... waiting for network (Connection failed: error sending request)`的中间连接通知：必须在唯一turn.started之后，且后续有新的最终agent_message及唯一turn.completed；所有原始日志保持原字节。未知error、turn.failed、非零退出、真实会话失败及模型/强度/prompt/封存哈希不一致仍拒绝。连接恢复不代表专利验收，原六项内容和页面门禁不变。
 
 对旧程序仅因该判定而终结的成功draft，确认整池已退出后运行`python scripts/recover_cli_batch.py --manifest 旧manifest --work-root 工作根目录 --controller 新控制器标识`。工具重新核验原始完整执行证据、冻结Sol/high、来源和稿件哈希，保留旧manifest、attempt与拒收记录；另建批次复制验证成功的初稿，只设为drafted，沿用原冻结来源/内容规则/模型策略。恢复批次必须按原冻结策略派发新的独立review，不能继承pass或用原Sol会话复查。恢复证据与新稿哈希绑定；幂等指针不能指向无关批次。该入口仅支持上述draft误拒收，不泛化恢复未知失败、修改稿或旧通过结论。
 
@@ -65,7 +65,7 @@ v5.8新模式在同一次collect中处理退出但未bind的worker时，bind与r
 
 reserve先按状态和公平顺序排列候选，再校验到首个可派案即停止，同一事务不再重复验证已选案。显式plan仍输出全部阻断；bind、record、deliver各自的完整性边界继续保留。正常CLI收稿以record作为完整执行证据和业务门禁，不在调用前再做一轮相同的全量日志校验；恢复时bind仍需单独确认派发身份。
 
-本地池每0.5秒观察进程/文件状态，不发模型轮询请求；worker遇到运行中工具用对应等待工具等待30–60秒，避免高频短轮询和重复打印全文。缓存/有效页面按现有规则复用，语义结论不复用。普通运行不执行本技能回归测试。
+三池调度按既有本地事件和轮询观察进程/文件状态，不发模型轮询请求；当前轮先排除正在prepare/collect的attempt及已隔离attempt，再观察剩余活动任务，外部worker仍保留。独立status默认完整，等待与退出仍检查在途任务，下一轮重新核验；不增加跨轮状态缓存。worker遇到运行中工具用对应等待工具等待30–60秒，避免高频短轮询和重复打印全文。内容和页面只按有证据且未受影响的范围继承，普通运行不执行维护回归。
 
 v5.7在同一空闲轮只加载验证一次manifest，供collect及status读取；状态变更、异常和交付后立即重载，下一轮重新验证，不能跨轮缓存通过结论。阶段prompt按职责派发：draft完成初稿和结构检查，最终全页视觉验收归review；review修改后仍由新独立review重验。非重叠规则块路径由prepared提供，不整读后重复分块。
 
@@ -80,3 +80,5 @@ v5.7在同一空闲轮只加载验证一次manifest，供collect及status读取�
 未知执行/身份异常仍先停新付费派发并保全证据；确认是内部工具误判后，由所属总控按[工具修复接续](tool-fault-recovery.md)修复、验证并继续，无须重复请求批准。有效真实回执直接沿原收稿；已失败且回执无效不能重写旧最终回复，候选初稿通过受控恢复后仍由新会话独立复查。原快照只读，单案唯一worker、来源/模型/六项及唯一交付目录不变。既有recover_cli_batch.py仍只支持其明确故障，不把新问题硬套旧入口。
 
 版本49提效沿用既有多CLI三池；入口改为角色路由，已在阶段包提供的细则不重复铺陈。同次JSON证据以一份字节核SHA并解析，下一核验仍重新读取，保留全部独立验收与即时交付。详见[单次证据读取](fast-execution.md#v622-单次证据读取与角色入口)。
+
+2026-10-20已授权批处理中定位到CLI输出的JSON字符串可包含未转义的U+0085、U+2028、U+2029。JSONL仅按LF切分记录，保留这些字符串字符及原始日志字节；真实LF破坏字符串、重复键、未知错误、失败turn及身份/哈希矛盾仍拒绝。监督器封存与完整执行核验使用相同记录边界。工具修复不继承专利通过，最终仍须独立六项与全部当前页验收。

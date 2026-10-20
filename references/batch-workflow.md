@@ -1,22 +1,16 @@
-> v5.3新建批次的model_policy=sol_review_xhigh_v20：初稿gpt-6.1-sol/high；复查、复查内修改、独立修改和修改后新一轮复查均为gpt-6.1-sol/xhigh，极高对应xhigh。缺少此标志的旧批次继续按冻结模型及强度执行；安装更新不迁移运行中批次。以下现行模型示例仅用于新批次，恢复/重试始终使用reserve返回的冻结参数。
-
 # 多项目滚动并行
 
-v6.0新批次增加invention_contract=claims_mirror_v27，固定发明内容目的句及衔接句，复用当前权项展开方案；当前稿双方段落和数学结构的对应检查复用同次封存预检，语义仍由原claims_alignment核定，不增加模型阶段。既有冻结批次不自动迁移。
+新批次使用scripts/parallel_batch.py及[当前策略](batch-policy.json)，来源准备→初稿→独立复查→必要修改后独立重验→逐案交付。初稿gpt-6.1-sol/high，复查和修改gpt-6.1-sol/xhigh；恢复和重试使用reserve返回的冻结参数。旧serial_per_project批次仍走batch_tool.py及[历史流程](batch-workflow-serial.md)，不自动迁移。
 
-v5.9起spacing_contract=no_literal_spaces_v26使用同次封存预检拦截可见空格；完整符号解释与同组公式分行并入既有formulas/rendered_pages。
-
-v5.8新批次增加post_review_optimization=single_closeout_v25，合并复检后的机械收尾；未变稿通过后直接交付，不重复启动模型或渲染。主控初次完整格式核验后绑定页面证据，发布前仍逐文件核字节；来源变化按案隔离，旧稿和旧冻结批次不迁移。具体强校验及恢复边界见[复检后收尾](fast-execution.md#复检后收尾-v58)。
-
-新批次的worker_preparation=frozen_stage_packet_v1：init一次冻结本技能规范、程序与阶段清单，prepared.pipeline传实际路径；队列及CLI命令自动路由到该快照。v5.7启用execution_optimization=lean_execution_v24，worker按stage_read_parts完整读取各不重叠块一次，公式/附图按需math_guide；适用规则原文保留、条件规范按索引读取。公共工具提供Word生成、只读证据查询和回执预校验，规则active及同案来源索引跨阶段复用。模型、六项审查、分案与即时交付不变。详见[快速执行](fast-execution.md)，旧无标志批次不自动迁移。
-
-新批次使用scripts/parallel_batch.py和schema_version=2的[策略](batch-policy.json)，execution=rolling_parallel。旧批次execution=serial_per_project仍使用scripts/batch_tool.py和[历史流程](batch-workflow-serial.md)；不改写旧清单、派发或快照，正在测试的旧项目不自动迁移。
+init一次冻结规则、工具和阶段清单；worker按prepared的非重叠stage_read_parts读取一次，条件规范按索引补读。来源索引、同稿预检和页面按身份复用，发明内容/空格/公式等门禁复用封存预检，语义仍归原六项审查。未改稿通过后直接交付，不重复开模型或渲染。完整契约和旧标志兼容边界见[快速执行](fast-execution.md)，本页只说明调度操作，不重复维护版本补丁列表。
 
 ## 本轮意图与路径入口
 
 实际办案时，仅发送案件文件夹路径即可启动本流程，无需重复写完整命令。先递归识别技术项目优化书及技术项目优化说明书，再按下文入库；同案附件不是独立项目。
 
 讨论以后用法、列示例路径或要求通用修复/更新技能时，仅更新长期规则，禁止为了演示而扫描真实示例目录、创建批次或派发模型。只有同条另明确现在办理该目录才同时执行。按句意判断，目录名字或引用文本包含某个词不能决定执行；已派发worker不回到本入口创建批次。
+
+用户要求交给已有撰写项目时，按[技能入口](../SKILL.md)交接给原项目，由原项目沿其队列派发修稿和独立复查；当前总控只协调，不启动第二个批次或替原项目另写同案。交接复用现成来源、候选稿、修改记录及待审问题，并明确哪些检查尚未完成。
 
 ## 入库及隔离
 
@@ -52,7 +46,7 @@ python scripts/parallel_batch.py reserve --manifest 批次清单 --capacity 实�
 
 reserve持久保存占槽并返回case_id、attempt、directory、task_name、context、spawn_arguments及source_snapshots。严格使用返回的上下文及路径。collaboration通道使用真实collaboration.spawn_agent，参数取spawn_arguments再补message：draft=gpt-6.1-sol/high；review/revise=gpt-6.1-sol/xhigh；fork_turns=none。成功后保存真实tool/context/arguments/result为本attempt的dispatch.json；reserve本身不代表模型已经运行。
 
-message包含本案来源快照及哈希、rules.snapshot.json、当前稿和哈希、attempt目录、阶段输出及上一轮问题。不得传入别案正文。worker不下派、不改共享规则或manifest，不写其他案目录。主控只编排，不能冒充指定模型写稿。
+message包含本案来源快照及哈希、rules.snapshot.json、当前稿和哈希、attempt目录、阶段输出及上一轮问题。不得传入别案正文。worker不下派、不改共享规则或manifest，不写其他案目录。项目主控只编排，不代替draft/revise写稿或代替review签发通过；跨项目总控也不重复接管这套阶段工作。
 
 同步手工reserve及旧批次：规则版本11起默认使用--prepare：同一条reserve命令同时返回worker_context.prepared，包含本案验证后的来源inspection/content/index路径、精简的冻结active规则、当前稿结构缓存及允许范围内的render候选。总控原样传入prepared；不再要求worker从整批文件夹重新寻找缓存。准备失败不提交占槽/派发，保留分析产物并处理具体错误。prepared仅是数据交接，不是复查通过。普通worker先读content和index，再按公式ID/段落定位读取完整OMML与来源，不能以索引替代原结构；使用rules.active.json，不加载冻结库history。细节见[提效流程](efficiency.md)。
 

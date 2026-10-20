@@ -337,10 +337,14 @@ def page_map(plan, render_path, expected_sha=None):
     current = checked_render(render_path, plan['input'], plan['case_root'], expected_sha)
     previous = previous_receipt(plan)
     eligible, prior_pages = [], {}
-    if previous and isinstance(previous.get('render'), dict):
-        render = previous['render']
+    covered = ({r['page'] for r in previous['review_coverage']['pages'] if r['status'] == 'passed'}
+               if previous else set())
+    if covered:
+        render = previous.get('render')
+        require(isinstance(render, dict) and isinstance(render.get('evidence'), str)
+                and isinstance(render.get('evidence_sha256'), str),
+                'previous passed pages require canonical render evidence')
         before = checked_render(render['evidence'], plan['previous']['input'], plan['case_root'], render['evidence_sha256'])
-        covered = {r['page'] for r in previous['review_coverage']['pages'] if r['status'] == 'passed'}
         # Same numbered page and image bytes: no fuzzy similarity or shifted context.
         if (isinstance(current.get('runtime_fingerprint'), str) and current['runtime_fingerprint']
                 and before.get('runtime_fingerprint') == current['runtime_fingerprint']):

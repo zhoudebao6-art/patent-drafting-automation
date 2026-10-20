@@ -172,7 +172,7 @@ def locate_session(session_id):
 
 
 def seal_completion(root, dispatch, returncode):
-    rows = [json.loads(line) for line in (root/'events.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
+    rows = [json.loads(line) for line in (root/'events.jsonl').read_text(encoding='utf-8').split('\n') if line.strip()]
     starts = [r['thread_id'] for r in rows if r.get('type') == 'thread.started']
     if len(starts) != 1:
         raise ValueError('CLI has no unique session')
@@ -253,12 +253,14 @@ def observe_identity(record):
     return current is not None and current['created'] == record['created']
 
 
-def status(manifest, *, state=None):
+def status(manifest, *, state=None, case_ids=None):
     # Only the controller's current iteration may pass an already-verified view.
     # Standalone status and every new iteration still load/verify frozen metadata.
     m = queue.load_manifest(manifest) if state is None else state
     rows = []
     for c in m['projects']:
+        if case_ids is not None and c['id'] not in case_ids:
+            continue
         next_action = queue.NEXT.get(c['status'], 'deliver' if c['status'] == 'accepted' else 'done' if c['status'] == 'delivered' else 'needs_attention')
         row = {'case_id': c['id'], 'status': c['status'], 'next_action': next_action}
         if c['active_attempt']:

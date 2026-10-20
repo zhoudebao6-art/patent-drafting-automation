@@ -94,7 +94,12 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
                 publication = None
 
             m = queue.load_manifest(manifest)
-            snapshot = cli.status(manifest, state=m)
+            # Local I/O futures already own their attempts until completion;
+            # only unowned, unblocked attempts can produce an action this round.
+            observable = {c['id'] for c in m['projects'] if c['active_attempt']
+                          and c['active_attempt'] not in jobs
+                          and c['active_attempt'] not in blocked_attempts}
+            snapshot = cli.status(manifest, state=m, case_ids=observable)
             rows = {r['case_id']: r for r in snapshot['cases']}
             # Each completed worker is independently verified. Arrival order
             # affects scheduling only; acceptance still checks original bytes.

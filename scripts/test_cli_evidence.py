@@ -189,6 +189,45 @@ class CliEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     ce.verify_completion(self.attempt, self.dispatch)
 
+    def test_completion_accepts_exact_recovered_network_wait(self):
+        self.events[2:2] = [self.retry_event(), self.retry_event(ce.NETWORK_WAIT),
+                            self.retry_event(ce.NETWORK_WAIT)]
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None):
+            self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
+                             {'session_id': self.session_id, 'receipt': self.receipt})
+
+    def test_network_wait_retains_failure_order_and_message_guards(self):
+        base = copy.deepcopy(self.events)
+        notice = self.retry_event(ce.NETWORK_WAIT)
+        invalid = [base[:index] + [notice] + base[index:] for index in (0, 1, 3, 4)]
+        invalid += [base[:2] + [self.retry_event(text)] + base[2:] for text in (
+            ce.NETWORK_WAIT + '\nturn.failed', ce.NETWORK_WAIT + ' trailing',
+            ce.NETWORK_WAIT.replace('error sending request', 'authentication failed'),
+            'Reconnecting... waiting for network (Connection failed: )')]
+        invalid += [base[:2] + [dict(notice, fatal=True)] + base[2:],
+                    base[:2] + [notice] + base[2:] + [{'type': 'turn.failed'}],
+                    base[:2] + [notice] + base[2:-1]]
+        for index, rows in enumerate(invalid):
+            self.events = rows
+            self.seal()
+            with self.subTest(index=index), patch.object(ce, 'process_identity', return_value=None):
+                with self.assertRaises(ValueError):
+                    ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_completion_preserves_legal_unicode_separators_inside_json_strings(self):
+        self.events.insert(2, {'type': 'item.completed', 'item': {'type': 'command_execution',
+                            'aggregated_output': 'alpha\u0085beta\u2028gamma\u2029delta'}})
+        self.seal()
+        with patch.object(ce, 'process_identity', return_value=None):
+            self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
+                             {'session_id': self.session_id, 'receipt': self.receipt})
+
+    def test_jsonl_still_rejects_literal_lf_inside_string_or_duplicate_keys(self):
+        for raw in (b'{"text":"broken\nstring"}', b'{"type":"x","type":"y"}'):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                ce._jsonl(raw)
+
     def test_completion_rejects_retry_outside_turn_or_without_new_final(self):
         base = copy.deepcopy(self.events)
         # Even an identical pre-error receipt and a genuine session final do not
