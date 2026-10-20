@@ -1334,7 +1334,26 @@ def _standard_storage_medium_claim(claim, claim_numbers):
     return last - first + 1 <= len(numbers) and all(n in numbers for n in range(first, last + 1))
 
 
-def precheck(result, kind):
+def tool_rule_version():
+    """Use the calling skill's rules, including its immutable batch snapshot."""
+    rules = json.loads((Path(__file__).resolve().parent.parent/'references'/'rules.json').read_text(encoding='utf-8-sig'))
+    version = rules.get('version')
+    if type(version) is not int or version < 1:
+        raise ValueError('Calling skill rules must have a positive integer version')
+    return version
+
+
+def requires_ten_claims(rule_version):
+    return type(rule_version) is int and rule_version >= 75
+
+
+def require_ten_claim_numbers(numbers):
+    if (not isinstance(numbers, list) or any(type(number) is not int for number in numbers)
+            or numbers != list(range(1, 11))):
+        raise ValueError('Exactly 10 complete claims numbered 1 through 10 are required; missing, duplicate or extra claims are not allowed')
+
+
+def precheck(result, kind, rule_version=0):
     issues = result['issues']
     def add(code, message, loc=None):
         issues.append({'code':code,'message':message,'locator':loc,'status':'needs_review'})
@@ -1426,6 +1445,9 @@ def precheck(result, kind):
     nums=[c['number'] for c in claims]
     if nums != list(range(1,len(nums)+1)) or not nums:
         add('CLAIM_NUMBERS','Claims absent, duplicated or nonconsecutive; check document layout.')
+    if requires_ten_claims(rule_version):
+        try:require_ten_claim_numbers(nums)
+        except ValueError as exc:add('CLAIM_COUNT',str(exc))
     for claim in claims:
         head=claim['text'].split('其特征在于')[0]
         refs, parents, parse_issues = parse_parent_references(head)
@@ -1643,12 +1665,16 @@ def extractor_unchanged(identity):
     return file_sha(Path(__file__).resolve())==identity['extractor_sha256'] and extractor_dependencies()==identity.get('extractor_dependencies')
 
 
-def cache_identity(input_path, kind, extract_media):
+def cache_identity(input_path, kind, extract_media, rule_version=None):
     source = local_path(input_path)
-    return {'input': str(source), 'source_sha256': file_sha(source),
-            'extractor_sha256': file_sha(Path(__file__).resolve()),
-            'extractor_dependencies':extractor_dependencies(),
-            'kind': kind, 'extract_media': bool(extract_media)}
+    version = tool_rule_version() if rule_version is None else rule_version
+    identity = {'input': str(source), 'source_sha256': file_sha(source),
+                'extractor_sha256': file_sha(Path(__file__).resolve()),
+                'extractor_dependencies':extractor_dependencies(),
+                'kind': kind, 'extract_media': bool(extract_media)}
+    if kind == 'draft' and requires_ten_claims(version):
+        identity['claim_count_required'] = True
+    return identity
 
 
 def cache_key(identity):
@@ -1658,14 +1684,15 @@ def cache_key(identity):
     return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:24]
 
 
-def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=False):
+def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=False, rule_version=None):
     """An explicit case-local cache stores structural evidence, never review approval."""
     source = local_path(input_path)
     output = local_path(output)
     if source.suffix.lower() != '.docx' or kind not in {'proposal', 'draft'}:
         raise ValueError('A DOCX and proposal/draft kind are required')
     extractor = Path(__file__).resolve()
-    identity = cache_identity(source, kind, extract_media)
+    version = tool_rule_version() if rule_version is None else rule_version
+    identity = cache_identity(source, kind, extract_media, version)
     cache_reason = 'reuse_not_requested'
     if reuse:
         key = cache_key(identity)
@@ -1687,7 +1714,7 @@ def run_inspection(input_path, output, kind='draft', extract_media=False, reuse=
     else:
         output.mkdir(parents=True, exist_ok=True)
     result = inspect(source)
-    precheck(result, kind)
+    precheck(result, kind, version)
     result['review_status']='structural_precheck_only'
     result['required_semantic_reviews']=['claim antecedents and scope','claims to invention consistency',
         'formula logic, symbols, dimensions, numerical examples','figure truth and deletion dependencies',

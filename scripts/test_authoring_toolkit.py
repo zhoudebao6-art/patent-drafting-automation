@@ -56,6 +56,36 @@ class ToolkitTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.spec = minimal_spec()
+        rules = patch.object(toolkit.inspect_docx, 'tool_rule_version', return_value=74)
+        rules.start(); self.addCleanup(rules.stop)
+
+    def test_rule75_input_requires_exact_ten_and_keeps_legacy_fixture_context(self):
+        for numbers in (list(range(1,10)),list(range(1,12)),list(range(1,9))+[8,10],list(range(1,9))+[10]):
+            with self.subTest(numbers=numbers):
+                spec=minimal_spec()
+                spec['sections'][2]['blocks']=[dict(id='c'+str(i),type='paragraph',role='body',text=f'{n}.记录数据保持原有来源。') for i,n in enumerate(numbers)]
+                with self.assertRaisesRegex(toolkit.AuthoringError,'Exactly 10 complete claims'):
+                    toolkit.validate(self.root,spec,rule_version=75)
+                toolkit.validate(self.root,spec,rule_version=74)
+        self.spec['sections'][2]['blocks']=[dict(id='c'+str(n),type='paragraph',role='body',
+            runs=[{'type':'text','text':ch} for ch in f'{n}.记录数据保持原有来源。']) for n in range(1,11)]
+        self.spec['sections'][2]['blocks'].insert(1,dict(id='continuation',type='paragraph',role='body',text='继续核对已有记录数据。'))
+        toolkit.validate(self.root,self.spec,rule_version=75)
+
+    def test_real_build_uses_calling_rule_version_and_valid_ten_claim_cache(self):
+        with patch.object(toolkit.inspect_docx,'tool_rule_version',return_value=75):
+            with self.assertRaisesRegex(toolkit.AuthoringError,'Exactly 10 complete claims'):
+                self.build()
+            self.assertFalse((self.root/'v1').exists())
+            self.spec['sections'][2]['blocks']=[dict(id='c'+str(n),type='paragraph',role='body',text=f'{n}.记录数据保持原有来源。') for n in range(1,11)]
+            result=self.build()
+            report=json.loads(Path(result['inspection']['inspection']).read_text(encoding='utf-8'))
+            self.assertEqual([claim['number'] for claim in report['claims_detected']],list(range(1,11)))
+            self.assertFalse(any(issue['code']=='CLAIM_COUNT' for issue in report['issues']))
+            toolkit.verify_bundle(self.root,'v1')
+            with patch.object(toolkit.inspect_docx,'inspect',side_effect=AssertionError('duplicate parse')):
+                cached=toolkit.inspect_docx.run_inspection(self.root/'v1'/'draft.docx',self.root/'v1'/'inspection-cache','draft',True,True)
+            self.assertEqual(cached['cache_status'],'hit')
 
     def save_spec(self, spec=None):
         p = self.root / '内容.json'

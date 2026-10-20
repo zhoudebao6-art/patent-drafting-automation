@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.47：已独立核对六份规范的三权存储介质固定句式、实际方法范围、两处所述窄例外及说明书手工映射覆盖。规则v74仍65条；来源、引用、各处前置及现有六项独立验收保留，不新增扫描或模型阶段。",
+  "description": "v6.48：已独立核对六规范对恰好十项权利要求、连续编号1至10、有效来源和引用重组的覆盖，保留三权介质固定句式与两处所述例外。规则v75仍65条，原六项独立复查和旧冻结批次保留；计数复用当前封存报告，不增加扫描或模型阶段。",
   "files": {
-    "writing-standard.md": "430dfa9b794a4b8936f04ce717dc25195783e2c8ae53c5da9a5690cfb192dfef",
-    "claim-families-and-benefits.md": "c52c4cd7f434aed145316958d4fef9d29b79780bfe11cd89159c4710ad313933",
+    "writing-standard.md": "3d0788859dd66f4ec8a8f26e7c6b7769c90940208e68152d1e17abaa774eba8f",
+    "claim-families-and-benefits.md": "8bbf8223c2120cb9c449f1b7ab03f3efd402001843d791737f5f14105d1ca90a",
     "terminology-and-formula.md": "2067096f1417d444b0d065b89e25841f4f273f7a6f238d47f759d8745a2235a5",
     "reference-style-standard.md": "7171d45a80516453f254bb023a6cb8d64048adce55a0965bb456469d31e47344",
-    "manual-format-and-wording.md": "67fc1a717566e7949b99c3cb1494a9b4bdd025f40c6019069762b0fa3bdda028",
-    "worker-standard.md": "29f48672044fd49ecdd9c5cd5b3e35346ee65b553a638484964a1d9bb0eb7770"
+    "manual-format-and-wording.md": "88971f7cade0e34c91a585435d848eadabf54baa4b549875bcc6ec36dd74ec07",
+    "worker-standard.md": "839b931d54230695ec852dc8bbd3b3c37ec048d14b75e8eff27ec902dad9fb05"
   }
 }

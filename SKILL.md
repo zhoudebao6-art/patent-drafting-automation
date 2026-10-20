@@ -29,7 +29,7 @@ description: 从指定案件文件夹递归识别技术项目优化书，滚动�
 
 主控独占状态写入，同案最多一个活动attempt，保留锁、唯一启动意图及进程身份。中断先收已有结果、取消前确认worker停止，不重复收费重放。已知本案错误按范围隔离；未知身份、哈希或完整性异常停止新派发。已确认工具缺陷按[故障接续](references/tool-fault-recovery.md)直接修复、定向验证并继续已授权任务，保护原证据，不增加人工确认或继承pass。
 
-最终source_support、antecedents、claims_alignment、formulas、figures、rendered_pages六项及全部当前页完整覆盖且通过、身份和哈希一致，即交付DOCX到桌面唯一批次目录根部。新目录名为“原始输入文件夹完整名称_终稿_冻结批次标识”，续跑沿用；不按案件/阶段分目录或散放桌面。证据留工作区，未改稿通过后只做一次机械收尾。每案交付后立即按[完成即退出](references/cli-workers.md#完成即退出)确认本案专属进程退出并释放资源，不等全批；全批无在途任务后结束本批控制器，不终止共享宿主或其他项目。细节见[交付](references/batch-workflow.md#版本46唯一桌面交付目录)、[提效执行索引](references/efficiency.md)。
+最终权利要求恰好十项且编号连续1至10，source_support、antecedents、claims_alignment、formulas、figures、rendered_pages六项及全部当前页完整覆盖且通过、身份和哈希一致，即交付DOCX到桌面唯一批次目录根部。新目录名为“原始输入文件夹完整名称_终稿_冻结批次标识”，续跑沿用；不按案件/阶段分目录或散放桌面。证据留工作区，未改稿通过后只做一次机械收尾。每案交付后立即按[完成即退出](references/cli-workers.md#完成即退出)确认本案专属进程退出并释放资源，不等全批；全批无在途任务后结束本批控制器，不终止共享宿主或其他项目。细节见[交付](references/batch-workflow.md#版本46唯一桌面交付目录)、[提效执行索引](references/efficiency.md)。
 
 ## 按问题定位详细规范
 

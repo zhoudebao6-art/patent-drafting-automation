@@ -8,6 +8,7 @@ import batch_tool as b
 import invention_contract
 import figure_description_contract
 import figure_caption_contract
+import inspect_docx
 
 MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
@@ -32,7 +33,12 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False, strict_captions=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False, strict_captions=False, strict_claim_count=False):
+    if strict_claim_count:
+        claims = report.get('claims_detected')
+        numbers = [claim.get('number') if isinstance(claim,dict) else None for claim in claims] if isinstance(claims,list) else None
+        try:inspect_docx.require_ten_claim_numbers(numbers)
+        except ValueError as exc:raise b.BatchError('Final claim count: '+str(exc)) from exc
     contract=report.get('document_contract_evidence',{})
     title=contract.get('title') or {}
     if title.get('text') != expected_title:
@@ -296,4 +302,5 @@ def verify(m,case,attempt,receipt):
                  m['policy'].get('spacing_contract')==SPACING_MODE,
                  m['policy'].get('invention_contract')==invention_contract.MODE,
                  m['policy'].get('figure_description_contract')==figure_description_contract.MODE,
-                 m['policy'].get('figure_caption_contract')==figure_caption_contract.MODE)
+                 m['policy'].get('figure_caption_contract')==figure_caption_contract.MODE,
+                 inspect_docx.requires_ten_claims(m.get('rule_version')))

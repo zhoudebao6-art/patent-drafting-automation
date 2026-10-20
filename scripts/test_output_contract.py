@@ -27,6 +27,25 @@ class OutputContractTests(unittest.TestCase):
         r=inspector.inspect(path);inspector.precheck(r,'draft')
         return r
 
+    def test_rule75_final_count_cannot_be_waived_or_inferred_from_maximum(self):
+        report=self.report()
+        cases=[None,[],list(range(1,10)),list(range(1,12)),list(range(1,9))+[8,10],list(range(1,9))+[10],
+               [str(n) for n in range(1,11)],[True]+list(range(2,11))]
+        for numbers in cases:
+            with self.subTest(numbers=numbers):
+                current=copy.deepcopy(report)
+                if numbers is None:current.pop('claims_detected')
+                else:current['claims_detected']=[{'number':number} for number in numbers]
+                with self.assertRaisesRegex(b.BatchError,'Final claim count'):
+                    contract.check(current,'一种处理系统',findings=[{'rule_id':'STYLE-01','status':'closed','reason':'cannot waive'}],strict_claim_count=True)
+        verified={'handoff':{'input_inspection':{}},'input_report':report}
+        verified['handoff']['input_inspection']={'inspection':'already-verified.json'}
+        with patch('prepare_handoff.verify_prepared',return_value=verified),patch.object(inspector,'inspect',side_effect=AssertionError('duplicate parse')):
+            attempt={'input_artifact_sha256':report['sha256']}
+            contract.verify({'rule_version':74,'policy':{'output_contract':contract.MODE}},{'title':'一种处理系统'},attempt,{})
+            with self.assertRaisesRegex(b.BatchError,'Final claim count'):
+                contract.verify({'rule_version':75,'policy':{'output_contract':contract.MODE}},{'title':'一种处理系统'},attempt,{})
+
     def test_claim_terms_remain_valid_and_exact_title_is_used(self):
         report=self.report()
         result=contract.check(report,'一种处理系统')
@@ -111,25 +130,55 @@ class QueueContractTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name);self.src=self.root/'input';self.src.mkdir()
         doc=Document();doc.add_paragraph('源技术内容');doc.save(self.src/'source.docx')
+        QueueContractTests.init_queue(self,74)
+
+    def init_queue(self,rule_version):
         policy=copy.deepcopy(fixtures.POLICY)
         policy.update(worker_preparation='frozen_stage_packet_v1',output_contract=contract.MODE,
                       delivery={'folder_prefix':'专利撰写完成','layout':'flat_final_files','timing':'after_each_acceptance'})
         policy_path=self.root/'policy.json';b.atomic(policy_path,policy)
         selection={'projects':[{'title':'一种处理系统','source_files':['source.docx'],'primary_source':'source.docx'}]}
-        with patch.object(queue,'POLICY',policy_path):
+        rules_path=self.root/f'rules-v{rule_version}.json'
+        b.atomic(rules_path,{'version':rule_version,'rules':[]})
+        with patch.object(queue,'POLICY',policy_path),patch.object(queue,'RULES',rules_path):
             self.manifest=queue.init(self.src,self.root/'work',selection,self.root/'desktop')
         self.batch=self.manifest.parent
 
-    def review_attempt(self,text='保存对应记录。',title='一种处理系统'):
+    def review_attempt(self,text='保存对应记录。',title='一种处理系统',numbers=None):
         draft=self.reserve(1);receipt=self.receipt(draft)
         doc=Document();doc.add_paragraph('权利要求书')
-        doc.add_paragraph('1.一种处理系统，其特征在于，依照权利要求所限定的记录。')
+        for number in ([1] if numbers is None else numbers):
+            doc.add_paragraph(f'{number}.一种处理系统，其特征在于，依照权利要求所限定的记录。')
+            doc.add_paragraph('继续核对已有记录数据。')
         doc.add_paragraph(title);doc.add_paragraph('技术领域');doc.add_paragraph('本发明涉及记录处理。')
         doc.add_paragraph('具体实施方式');doc.add_paragraph(text)
         doc.save(receipt['artifact']);receipt['artifact_sha256']=b.sha(receipt['artifact'])
         queue.record(self.manifest,draft['case_id'],draft['attempt']['id'],receipt)
         review=self.reserve(1)
         return review,self.receipt(review,'pass')
+
+    def test_rule75_invalid_count_cannot_be_accepted_or_delivered(self):
+        for numbers in (list(range(1,10)),list(range(1,12)),list(range(1,9))+[8,10],list(range(1,9))+[10]):
+            with self.subTest(numbers=numbers):
+                self.init_queue(75)
+                review,receipt=self.review_attempt(numbers=numbers)
+                with patch.object(inspector,'inspect',side_effect=AssertionError('duplicate parse')):
+                    with self.assertRaisesRegex(b.BatchError,'Final claim count'):
+                        queue.record(self.manifest,review['case_id'],review['attempt']['id'],receipt)
+                    with self.assertRaises(b.BatchError):queue.deliver(self.manifest)
+                self.assertNotEqual(b.read(self.manifest)['projects'][0]['status'],'accepted')
+                self.assertFalse(list((self.root/'desktop').rglob('*.docx')))
+
+    def test_rule75_valid_ten_uses_sealed_claim_evidence_at_acceptance_and_delivery(self):
+        self.init_queue(75)
+        review,receipt=self.review_attempt(numbers=list(range(1,11)))
+        with patch.object(inspector,'inspect',side_effect=AssertionError('duplicate parse')),patch.object(contract,'check',wraps=contract.check) as gate:
+            queue.record(self.manifest,review['case_id'],review['attempt']['id'],receipt)
+            dest=Path(queue.deliver(self.manifest))
+            self.assertGreaterEqual(gate.call_count,2)
+            self.assertTrue(all(call.args[-1] is True for call in gate.call_args_list))
+        self.assertEqual([path.name for path in dest.glob('*.docx')],['一种处理系统.docx'])
+        self.assertEqual(b.read(self.manifest)['projects'][0]['status'],'delivered')
 
     def test_final_acceptance_and_exact_name_delivery_reuse_sealed_report(self):
         review,receipt=self.review_attempt()

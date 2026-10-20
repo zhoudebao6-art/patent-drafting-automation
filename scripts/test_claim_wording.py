@@ -1,4 +1,8 @@
 import hashlib
+import json
+from pathlib import Path
+from unittest.mock import patch
+import inspect_docx as scan
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -11,14 +15,51 @@ def paragraph(text):
 
 
 class ClaimWordingTests(unittest.TestCase):
-    def read(self, body, kind='draft', extra=None):
+    def read(self, body, kind='draft', extra=None, rule_version=0):
         with tempfile.TemporaryDirectory() as root:
             path = fixtures.InspectionTests().make_docx(root, body, extra)
             before = hashlib.sha256(path.read_bytes()).hexdigest()
             result = inspect(path)
-            precheck(result, kind)
+            precheck(result, kind, rule_version)
             self.assertEqual(before, hashlib.sha256(path.read_bytes()).hexdigest())
             return result
+
+    def test_rule75_claim_inventory_counts_claims_not_continuation_paragraphs(self):
+        cases={'ten':list(range(1,11)), 'nine':list(range(1,10)), 'eleven':list(range(1,12)),
+               'duplicate_with_maximum_ten':list(range(1,9))+[8,10], 'missing_with_maximum_ten':list(range(1,9))+[10]}
+        for name,numbers in cases.items():
+            body=['权利要求书']
+            for number in numbers:
+                body.extend([f'{number}.一种记录方法，其特征在于，保存记录数据。','继续核对已有记录数据。'])
+            body.append('技术领域')
+            with self.subTest(case=name):
+                report=self.read(''.join(map(paragraph,body)),rule_version=75)
+                self.assertEqual([claim['number'] for claim in report['claims_detected']],numbers)
+                self.assertTrue(all(len(claim['paragraphs'])==2 for claim in report['claims_detected']))
+                self.assertEqual(any(issue['code']=='CLAIM_COUNT' for issue in report['issues']),name!='ten')
+        old=self.read(paragraph('1.一种记录方法，其特征在于，保存记录数据。')+paragraph('技术领域'),rule_version=74)
+        self.assertFalse(any(issue['code']=='CLAIM_COUNT' for issue in old['issues']))
+        source=self.read(paragraph('1.来源第一项。'),kind='proposal',rule_version=75)
+        self.assertNotIn('claims_detected',source)
+        self.assertFalse(any(issue['code']=='CLAIM_COUNT' for issue in source['issues']))
+
+    def test_calling_skill_rules_and_rule75_cache_activation_are_explicit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);skill=root/'skill';(skill/'scripts').mkdir(parents=True);(skill/'references').mkdir()
+            (skill/'references'/'rules.json').write_text(json.dumps({'version':75}),encoding='utf-8')
+            with patch.object(scan,'__file__',str(skill/'scripts'/'inspect_docx.py')):
+                self.assertEqual(scan.tool_rule_version(),75)
+            source=fixtures.InspectionTests().make_docx(root,paragraph('1.一种方法。')+paragraph('技术领域'))
+            first=scan.run_inspection(source,root/'cache',reuse=True,rule_version=74)
+            second=scan.run_inspection(source,root/'cache',reuse=True,rule_version=75)
+            self.assertEqual(second['cache_status'],'miss')
+            self.assertNotEqual(first['inspection'],second['inspection'])
+            report=json.loads(Path(second['inspection']).read_text(encoding='utf-8'))
+            self.assertTrue(any(issue['code']=='CLAIM_COUNT' for issue in report['issues']))
+            with patch.object(scan,'inspect',side_effect=AssertionError('duplicate parse')):
+                third=scan.run_inspection(source,root/'cache',reuse=True,rule_version=75)
+            self.assertEqual(third['cache_status'],'hit')
+            self.assertEqual(scan.cache_identity(source,'proposal',False,74),scan.cache_identity(source,'proposal',False,75))
 
     def test_whole_claim_count_spans_continuation_paragraphs(self):
         text = ['权利要求书','1.一种方法，获取记录并核对所述记录；','根据所述记录生成清单；','保存所述清单。','2.根据权利要求1所述的方法，其特征在于，核对所述清单。','技术领域']

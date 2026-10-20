@@ -462,7 +462,7 @@ def source_formula(row, sources):
     return symbol_display(dict(row, node=node, plain_text=plain))
 
 
-def validate(case_root, spec):
+def validate(case_root, spec, rule_version=0):
     spec = deepcopy(spec)  # Generated ordinal prefixes must not mutate caller input.
     root = Path(case_root).resolve(strict=True)
     if not root.is_dir():
@@ -593,6 +593,7 @@ def validate(case_root, spec):
     if [s.get('kind') for s in spec['sections'] if isinstance(s, dict)] != list(SECTIONS):
         fail('Exactly five sections in the documented order are required')
     blocks = []
+    claim_numbers = []
     ids = set()
     formula_uses, figure_uses = Counter(), Counter()
     abstract_uses, title_count = [], 0
@@ -790,6 +791,12 @@ def validate(case_root, spec):
                 fail('Unsupported block type: ' + str(btype))
             blocks.append(dict(block, section=kind, bookmark=f'b{len(blocks) + 1:06d}'))
             block_texts[block_id] = string
+            if kind == 'claims' and btype == 'paragraph':
+                claim_number = re.match(r'^\s*([0-9]+)[.．、]\s*', string)
+                if claim_number:claim_numbers.append(int(claim_number[1]))
+    if inspect_docx.requires_ten_claims(rule_version):
+        try:inspect_docx.require_ten_claim_numbers(claim_numbers)
+        except ValueError as exc:fail(str(exc))
     if title_count != 1:
         fail('Exactly one protected project_title paragraph is required')
     for block_id,string in block_texts.items():
@@ -1456,7 +1463,8 @@ def build(case_root, input_file, out_dir):
     if output.exists():
         fail('Output directory already exists; select a new revision directory')
     spec = read_json(source_json)
-    context = validate(root, spec)
+    rule_version = inspect_docx.tool_rule_version()
+    context = validate(root, spec, rule_version)
     output.parent.mkdir(parents=True, exist_ok=True)
     # A short sibling staging path avoids deep Chinese project/cache paths.
     staging = Path(tempfile.mkdtemp(prefix='.author-', dir=output.parent))
@@ -1480,7 +1488,7 @@ def build(case_root, input_file, out_dir):
         readback = verify_document(context, final_docx)
         # One existing extractor call at the permanent artifact path. The next
         # handoff searches artifact.parent/inspection-cache and reuses this.
-        summary = inspect_docx.run_inspection(final_docx, output / 'inspection-cache', 'draft', True, True)
+        summary = inspect_docx.run_inspection(final_docx, output / 'inspection-cache', 'draft', True, True, rule_version=rule_version)
         inspection_file = Path(summary['inspection'])
         cache_file = Path(summary['output_directory']) / 'cache.json'
         for source in context['sources'].values():
@@ -1514,7 +1522,7 @@ def verify_bundle(case_root, out_dir):
         path = bounded_path(root, str((output / name).relative_to(root)))
         require(path.is_relative_to(output), 'bundle evidence escaped output directory')
         require(sha(path) == manifest[key], 'bundle hash mismatch: ' + name)
-    context = validate(root, read_json(output / 'content.json'))
+    context = validate(root, read_json(output / 'content.json'), inspect_docx.tool_rule_version())
     for key in ('case_id', 'project_title', 'sources'):
         require(manifest.get(key) == context['spec'][key], 'manifest source/project identity mismatch')
     require(manifest.get('output_file') == 'draft.docx', 'unexpected bundle filename')

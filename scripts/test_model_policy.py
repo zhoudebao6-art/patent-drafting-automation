@@ -50,9 +50,12 @@ class QueueFixture:
         selection = {'projects': [{'title': '一种处理系统', 'source_files': ['source.docx'],
                                    'primary_source': 'source.docx'}]}
         if policy is None:
-            # Use the real new-batch defaults, including frozen preparation and
-            # document contracts. Only model execution and rendering are fixtures.
-            self.manifest = queue.init(self.src, self.root / 'work', selection, self.root / 'desktop')
+            # Keep the real policy defaults; this one-claim model-routing fixture
+            # explicitly retains its pre-count rules context.
+            rules_path = self.root / 'rules.json'
+            b.atomic(rules_path, {'version': 74, 'rules': []})
+            with patch.object(queue, 'RULES', rules_path):
+                self.manifest = queue.init(self.src, self.root / 'work', selection, self.root / 'desktop')
         else:
             policy_path = self.root / 'policy.json'
             rules_path = self.root / 'rules.json'
@@ -115,7 +118,8 @@ class QueueFixture:
         with tempfile.TemporaryDirectory(dir=path.parent) as temp:
             root=Path(temp)
             (root/'spec.json').write_text(json.dumps(spec,ensure_ascii=False),encoding='utf-8')
-            toolkit.build(root,'spec.json','generated')
+            with patch.object(toolkit.inspect_docx,'tool_rule_version',return_value=74):
+                toolkit.build(root,'spec.json','generated')
             shutil.copyfile(root/'generated/draft.docx',path)
 
     def record(self, reserved, verdict=None):

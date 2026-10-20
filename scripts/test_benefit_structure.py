@@ -326,6 +326,8 @@ class BenefitAuthoringTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.spec = authoring_fixtures.minimal_spec()
+        rules = patch.object(scan, 'tool_rule_version', return_value=74)
+        rules.start(); self.addCleanup(rules.stop)
         self.spec['sections'][3]['blocks'] += [
             paragraph('invention', '发明内容', 'heading'),
             paragraph('scheme', '本发明读取并保存已有记录。'),
@@ -467,7 +469,9 @@ class BenefitQueueGateTests(unittest.TestCase):
             policy['benefit_contract'] = contract.BENEFIT_MODE
         policy_path = self.root/'policy.json'; batch.atomic(policy_path, policy)
         selection = {'projects':[{'title':TITLE,'source_files':['source.docx'],'primary_source':'source.docx'}]}
-        with patch.object(queue, 'POLICY', policy_path):
+        rules_path = self.root/'rules.json'
+        batch.atomic(rules_path, {'version':74, 'rules':[]})
+        with patch.object(queue, 'POLICY', policy_path), patch.object(queue, 'RULES', rules_path):
             self.manifest = queue.init(self.src, self.root/'work', selection, self.root/'desktop')
         self.batch = self.manifest.parent
 
