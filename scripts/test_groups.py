@@ -21,7 +21,7 @@ GROUPS = {
                             'test_prepare_handoff', 'test_verified_json_reads']),
     'antecedents': ('所述与术语', ['test_antecedent_wording', 'test_claim_wording']),
     'claims': ('名称与章节联动', ['test_title_identity', 'test_invention_contract', 'test_benefit_structure',
-                              'test_output_contract', 'test_claim_wording']),
+                              'test_output_contract', 'test_claim_wording', 'test_claim_templates']),
     'formulas': ('公式与完整符号', ['test_authoring_formula_prose', 'test_formula_prose_contract',
                                 'test_inline_formula_style', 'test_math_details', 'test_math_layout',
                                 'test_math_notation', 'test_math_references_v30', 'test_single_line_math',
@@ -59,6 +59,7 @@ SCRIPT_GROUPS = {
     'incremental_review.py': ['source', 'pages', 'workflow'],
     'batch_throughput.py': ['workflow'],
     'formula_uniqueness.py': ['formulas', 'pages', 'source', 'claims'],
+    'claims_contract.py': ['claims', 'pages', 'source'],
     'flat_delivery.py': ['claims', 'workflow', 'maintenance'], 'recover_cli_batch.py': ['workflow'],
     'rules_tool.py': ['maintenance'],
 }

@@ -1,6 +1,6 @@
 # 专利撰写自动化
 
-v6.49：减少调度循环对正在准备、收稿及已隔离任务的无效状态查询，保留候选任务的身份核验及完整状态入口；整合本机已验证的网络重连、Unicode日志和页面覆盖修复。总控协调、原撰写项目执行的边界明确，调度说明改为当前操作入口。包含v6.38以来全部更新，规则仍为v75、65条，十项权利要求、三权介质句式、6/3/3三池和六项独立验收不变。
+v6.50：按用户提供的权利要求模板统一五种结构、实施例逐字来源、完整术语、严格字数区间、单末句号及禁止公式/计算方式等要求，替换冲突的旧介质固定短句。规则仍为65条，共同要求并入原规则；生成、同次预检及交付复用同一检查逻辑，不增加模型阶段或第二遍DOCX扫描。更新前已完整备份v6.49，旧运行批次继续原快照。6/3/3三池、六项独立验收及逐案交付保留。
 
 ## 架构与阅读入口
 
@@ -42,7 +42,7 @@ v6.49：减少调度循环对正在准备、收稿及已隔离任务的无效状
 - [写作标准](references/writing-standard.md)、[技术校核](references/technical-review.md)、[所述与公式规范](references/terminology-and-formula.md)：完整名词的前置、源公式数量、完整符号、无空白及图文要求。
 - [历史格式证据](references/terminology-formula-evidence.md)：三组定稿的Cambria Math/14磅/正体、主公式映射和不再继承的个别缺陷。
 - [正确稿净稿与图序](references/reference-style-standard.md)：不加红字解释，术语回指依章节句法核对，图片与图下号同页。
-- [人工定稿格式与分范围用词](references/manual-format-and-wording.md)：权项分段、合法所述数量及标准介质句式例外、页眉页脚参数、孤立变量及名称保护；新增案例正文不随公开技能发布。
+- [人工定稿格式与分范围用词](references/manual-format-and-wording.md)：权项分段、合法所述与来源优先边界、页眉页脚参数、孤立变量及名称保护；新增案例正文不随公开技能发布。
 - [公式结构与版式](references/formula-layout-standard.md)：显示续行与合法条件数组的区别、空基底/空限制、角色样式、逐式显示验收与实际反例。
 - [运行环境](references/runtime.md)：Windows Word页面转换及哈希验证。
 - [案例资料](references/corpus)、[来源清单](references/source-manifest.json)：三组历史参考项目。

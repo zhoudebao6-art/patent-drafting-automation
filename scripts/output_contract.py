@@ -9,6 +9,7 @@ import invention_contract
 import figure_description_contract
 import figure_caption_contract
 import inspect_docx
+import claims_contract
 
 MODE = 'wording_title_v18'
 PROSE_MODE = 'clean_prose_v19'
@@ -33,7 +34,10 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False, strict_captions=False, strict_claim_count=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False, strict_captions=False, strict_claim_count=False, strict_claim_templates=False):
+    if strict_claim_templates:
+        try:claims_contract.require_valid(report,expected_title)
+        except ValueError as exc:raise b.BatchError(str(exc)) from exc
     if strict_claim_count:
         claims = report.get('claims_detected')
         numbers = [claim.get('number') if isinstance(claim,dict) else None for claim in claims] if isinstance(claims,list) else None
@@ -60,10 +64,13 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     def protected_formula(hit):
         return strict_prose and (hit.get('formula_protected_candidate') is True or
                                  source_bound(hit,'source_formula','WORDING-06'))
+    def source_feature(hit):
+        return (strict_claim_templates and claims_contract.is_feature_hit(report,hit) and
+                source_bound(hit,'source_verbatim_feature','WORDING-07'))
     violations=[h for h in contract.get('description_word_hits',[]) if not protected_formula(h)]
     for hit in contract.get('global_word_hits',[]):
         if protected_formula(hit) or (strict_prose and hit['text']=='一一' and
-                                      source_bound(hit,'protected_technical_name','WORDING-07')):continue
+                                      (source_bound(hit,'protected_technical_name','WORDING-07') or source_feature(hit))):continue
         known=KNOWN_YIYI.match(hit['context'][min(24,hit['offset']):]) if strict_prose else KNOWN_YIYI.search(hit['context'])
         if hit['text']=='从而' or known:
             violations.append(hit)
@@ -94,7 +101,7 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
             raise b.BatchError('Final quotation/bracket contract not satisfied: '+where)
         wording=[h for h in punctuation['preferred_wording_hits']
                  if not (source_bound(h,'protected_technical_name','WORDING-07') or
-                         source_bound(h,'source_formula','WORDING-06'))]
+                         source_bound(h,'source_formula','WORDING-06') or source_feature(h))]
         if wording:
             where=', '.join(f'{h["part"]} {h["path"]}:{h["text"]} -> {h["replacement"]}' for h in wording[:6])
             raise b.BatchError('Final preferred wording contract not satisfied: '+where)
@@ -303,4 +310,5 @@ def verify(m,case,attempt,receipt):
                  m['policy'].get('invention_contract')==invention_contract.MODE,
                  m['policy'].get('figure_description_contract')==figure_description_contract.MODE,
                  m['policy'].get('figure_caption_contract')==figure_caption_contract.MODE,
-                 inspect_docx.requires_ten_claims(m.get('rule_version')))
+                 inspect_docx.requires_ten_claims(m.get('rule_version')),
+                 strict_claim_templates=claims_contract.enabled(m.get('rule_version')))

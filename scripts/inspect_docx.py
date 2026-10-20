@@ -1427,6 +1427,11 @@ def precheck(result, kind, rule_version=0):
         add('SECTION_ORDER','Body headings are out of expected order.')
     # Main sections can reside in headers; do not demand duplicate body headings.
     claim_end=anchors['技术领域'] or len(body)+1
+    current_document_contract=document_contract_evidence(body)
+    if rule_version>=76 and current_document_contract.get('title'):
+        # Plain documents without section headers still end their claims before
+        # the description's official title, not after that title.
+        claim_end=min(claim_end,current_document_contract['title']['paragraph'])
     claim_section_paragraphs={p['p'] for p in body if any(
         '权利要求书' in re.sub(r'\s+', '', text) for text in p.get('section_headers', []))}
     claims=[]
@@ -1456,7 +1461,10 @@ def precheck(result, kind, rule_version=0):
         claim['parent_parse_issues']=parse_issues
         claim['parent_parse_status']=('requires_manual_reference_review' if parse_issues
                                       else 'structural_only_requires_legal_path_review')
-        standard_medium = _standard_storage_medium_claim(claim, nums)
+        # New source-template rules retire this old exact-sentence exemption.
+        # Version 0 preserves the legacy low-level API; frozen batches use
+        # their own explicit rule version and tool snapshot.
+        standard_medium = rule_version < 76 and _standard_storage_medium_claim(claim, nums)
         minimum = 2 if standard_medium else 3
         claim['antecedent_count_evidence'] = {
             'literal_count':claim['text'].count('所述'),
@@ -1474,9 +1482,15 @@ def precheck(result, kind, rule_version=0):
             add('CLAIM_REFERENCE','Self, future or missing parent detected',f'P{claim["p"]:04}')
     result['claims_detected']=claims
     result['wording_evidence']=wording_evidence(body, claims)
-    result['document_contract_evidence']=document_contract_evidence(body)
+    result['document_contract_evidence']=current_document_contract
+    import claims_contract
+    if claims_contract.enabled(rule_version):
+        title=result['document_contract_evidence'].get('title') or {}
+        result['claim_template_evidence']=claims_contract.evaluate(claims,title.get('text'),body,result['sha256'],result['formulas'])
+        for hit in result['claim_template_evidence']['issues']:
+            add('CLAIM_TEMPLATE',hit['code'],str(hit.get('claim')))
     import invention_contract
-    result['invention_evidence']=invention_contract.evidence(result,body,claims,result['document_contract_evidence']['title'])
+    result['invention_evidence']=invention_contract.evidence(result,body,claims,result['document_contract_evidence']['title'],rule_version)
     for hit in result['invention_evidence']['issues']:
         add('INVENTION_CLAIM_ALIGNMENT','Rule v27 fixed wording and current claim projection: '+hit['code'],str(hit.get('paragraph')))
     result['page_flow_evidence']=page_flow_evidence(result,body,claims)
@@ -1651,10 +1665,12 @@ def verified_cache(directory, identity):
 
 
 def extractor_dependencies():
+    import claims_contract
     import invention_contract
     import figure_description_contract
     import figure_caption_contract
-    return {'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve()),
+    return {'claims_contract.py':file_sha(Path(claims_contract.__file__).resolve()),
+            'invention_contract.py':file_sha(Path(invention_contract.__file__).resolve()),
             'figure_caption_contract.py':file_sha(Path(figure_caption_contract.__file__).resolve()),
             'single_line_math.py':file_sha(Path(single_line_math.__file__).resolve()),
             'formula_uniqueness.py':file_sha(Path(formula_uniqueness.__file__).resolve()),
@@ -1674,6 +1690,8 @@ def cache_identity(input_path, kind, extract_media, rule_version=None):
                 'kind': kind, 'extract_media': bool(extract_media)}
     if kind == 'draft' and requires_ten_claims(version):
         identity['claim_count_required'] = True
+    if kind == 'draft' and version >= 76:
+        identity['claim_template_version'] = 76
     return identity
 
 

@@ -31,6 +31,7 @@ from PIL import Image
 import inspect_docx
 import math_fragments
 import invention_contract
+import claims_contract
 import figure_description_contract
 import single_line_math
 import formula_uniqueness
@@ -476,7 +477,7 @@ def validate(case_root, spec, rule_version=0):
     for key in ('sources', 'protected_names', 'formulas', 'figures', 'sections'):
         if not isinstance(spec[key], list):
             fail(key + ' must be an array')
-    try:invention_contract.expand(spec)
+    try:invention_contract.expand(spec,rule_version)
     except (ValueError,KeyError,TypeError) as exc:fail('Invention from claims: '+str(exc))
     sources = {}
     for row in spec['sources']:
@@ -594,6 +595,7 @@ def validate(case_root, spec, rule_version=0):
         fail('Exactly five sections in the documented order are required')
     blocks = []
     claim_numbers = []
+    template_claims = []
     ids = set()
     formula_uses, figure_uses = Counter(), Counter()
     abstract_uses, title_count = [], 0
@@ -615,6 +617,9 @@ def validate(case_root, spec, rule_version=0):
             ids.add(block_id)
             btype = block.get('type')
             string = ''
+            if claims_contract.enabled(rule_version) and kind=='claims':
+                if btype!='paragraph':
+                    fail('Rule 76 claims use sourced prose only; keep formulas in the implementation section')
             if btype == 'paragraph':
                 fields(block, ('id', 'type', 'role'), ('text', 'runs'), 'paragraph')
                 if kind in {'abstract_figure', 'figures'}:
@@ -684,7 +689,14 @@ def validate(case_root, spec, rule_version=0):
                         fields(run, ('type', 'formula_id'), where='formula run')
                         if run['formula_id'] not in formulas:
                             fail('Unknown inline formula')
-                        string += formulas[run['formula_id']]['plain_text'] or ''
+                        current_formula=formulas[run['formula_id']]
+                        if claims_contract.enabled(rule_version) and kind=='claims':
+                            if (current_formula['category'] in {'main_formula','source_example','prose_example'} or
+                                    claims_contract.math_kind(current_formula['node'])=='formula'):
+                                fail('Rule 76 claims prohibit formulas and calculation expressions')
+                            string += current_formula['plain_text'] or ''.join(n.text or '' for n in current_formula['node'].iter(qn('m:t')))
+                        else:
+                            string += current_formula['plain_text'] or ''
                         formula_uses[run['formula_id']] += 1
                     elif rtype == 'figure_ref':
                         fields(run, ('type', 'figure_id'), where='figure_ref')
@@ -793,14 +805,38 @@ def validate(case_root, spec, rule_version=0):
             block_texts[block_id] = string
             if kind == 'claims' and btype == 'paragraph':
                 claim_number = re.match(r'^\s*([0-9]+)[.．、]\s*', string)
-                if claim_number:claim_numbers.append(int(claim_number[1]))
+                if claim_number:
+                    claim_numbers.append(int(claim_number[1]))
+                    template_claims.append(dict(number=int(claim_number[1]),text=string,paragraphs=[len(blocks)]))
+                elif template_claims:
+                    template_claims[-1]['text']+='\n'+string
+                    template_claims[-1]['paragraphs'].append(len(blocks))
     if inspect_docx.requires_ten_claims(rule_version):
         try:inspect_docx.require_ten_claim_numbers(claim_numbers)
         except ValueError as exc:fail(str(exc))
     if title_count != 1:
         fail('Exactly one protected project_title paragraph is required')
+    category_slots=set()
+    if claims_contract.enabled(rule_version):
+        template=claims_contract.evaluate(template_claims,spec['project_title'])
+        if template['issues']:
+            fail('Rule 76 claim-template contract: '+', '.join(h['code'] for h in template['issues'][:6]))
+        mirrors=set()
+        for block in blocks:
+            if block['section']!='claims':continue
+            if re.match(r'^[1-9][0-9]*[.．、]',block_texts[block['id']]):category_slots.add(block['id'])
+            try:_,claim_kind,converted=invention_contract.claim_head(block_texts[block['id']])
+            except ValueError:continue
+            if claim_kind=='independent':mirrors.add(converted)
+        in_solution=False
+        for block in blocks:
+            if block['section']!='description':continue
+            text=block_texts[block['id']]
+            if block.get('role')=='heading' and text=='发明内容':in_solution=True;continue
+            if text==invention_contract.BENEFITS or block.get('role')=='heading':in_solution=False
+            if in_solution and text in mirrors:category_slots.add(block['id'])
     for block_id,string in block_texts.items():
-        if invention_contract.name_prefix_issue(string,spec['project_title']):
+        if invention_contract.name_prefix_issue(string,spec['project_title'],block_id in category_slots):
             fail('NAME-01 title_reference_prefix: use the official name unchanged in '+block_id)
     for formula_id, formula in formulas.items():
         count = formula_uses[formula_id]

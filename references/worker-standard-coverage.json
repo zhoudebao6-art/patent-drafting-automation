@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.48：已独立核对六规范对恰好十项权利要求、连续编号1至10、有效来源和引用重组的覆盖，保留三权介质固定句式与两处所述例外。规则v75仍65条，原六项独立复查和旧冻结批次保留；计数复用当前封存报告，不增加扫描或模型阶段。",
+  "description": "v6.50：已核五模板结构、实施例逐字特征来源、完整术语、严格长度和单末句号、禁公式/计算/原理效果、旧介质短句退役及名称限定槽位；v77/78逐字特征窄位置保护覆盖原话术冲突。规则78仍65条，六项独立复查及旧快照保留，生成/预检/交付共用同稿证据，不加阶段或扫描。",
   "files": {
-    "writing-standard.md": "3d0788859dd66f4ec8a8f26e7c6b7769c90940208e68152d1e17abaa774eba8f",
-    "claim-families-and-benefits.md": "8bbf8223c2120cb9c449f1b7ab03f3efd402001843d791737f5f14105d1ca90a",
-    "terminology-and-formula.md": "2067096f1417d444b0d065b89e25841f4f273f7a6f238d47f759d8745a2235a5",
-    "reference-style-standard.md": "7171d45a80516453f254bb023a6cb8d64048adce55a0965bb456469d31e47344",
-    "manual-format-and-wording.md": "88971f7cade0e34c91a585435d848eadabf54baa4b549875bcc6ec36dd74ec07",
-    "worker-standard.md": "839b931d54230695ec852dc8bbd3b3c37ec048d14b75e8eff27ec902dad9fb05"
+    "writing-standard.md": "ad117ced456325c332557a54122454345095c38ef8ef1beaecabed5fb8dab601",
+    "claim-families-and-benefits.md": "2b86d6a59309d4398d4ac306514bf6d66354190115e267c69e5a4b3c2d24118d",
+    "terminology-and-formula.md": "d68c6a63c6ed3af1a9cc6e32478706640d212e422e3a84df49915808078c8194",
+    "reference-style-standard.md": "233e24174823b57118f132fb1e2e8b9439e551e6e96d2ed87559d5710319b889",
+    "manual-format-and-wording.md": "7a8794e8514bc429b53aef783bd88da9470e7b01750b9038f3a941e31850272e",
+    "worker-standard.md": "2e0a78e072c88fae52ac9420f54351ff3e2f0be5fee7d4a62234e8373455a33a"
   }
 }

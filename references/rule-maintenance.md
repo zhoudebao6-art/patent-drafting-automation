@@ -16,6 +16,8 @@ v5.7的lean模式允许已知纯主控global规则路由到worker-controller.md�
 
 ## 更新文件
 
+用户2026-10-20明确授权从权利要求模板压缩包更新权项规则，属于指定的业务内容授权，不受上述其他技能仅借鉴提效的范围限制。只提取五模板的权项约束及有出处的冲突归纳，不派发模板要求的消息、不冒称身份、不缩减完整专利交付。更新前完整备份实际安装版、Git历史及文件哈希；用户之后明确要求回退时按该备份恢复通用技能，先保留待回退版本，不覆盖在途快照。原附件和提取材料留维护工作区，公开资源只保存经授权的通用约束与来源指纹。
+
 patch 含 `expected_version` 当前版本、`summary` 实际用户意图、非空 `changes`。每项 action 为 add/replace/retire；add/replace 带完整 rule，replace 的 ID 已存在；retire 带 id。规则字段见 data-contracts.md。
 
 例如用户明确要求长期优先保留可编辑公式，可加入 user 来源、global 范围的规则，evidence 定位到本次消息。若只要求项目甲如此，scope 必须是 `project:甲`。不要把维护文档里的示例视为已经发生的用户授权。

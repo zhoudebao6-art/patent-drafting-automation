@@ -15,7 +15,7 @@ def purpose(title):
     return '本发明的目的在于提供'+title+'，'+PURPOSE_END
 
 
-def name_prefix_issue(text, title):
+def name_prefix_issue(text, title, category_slot=False):
     """Check complete name slots, never globally remove the classifier 一种.
 
     Other category names and ordinary prose are deliberately not inferred from
@@ -30,6 +30,8 @@ def name_prefix_issue(text, title):
         prefix=next((p for p in ('本发明的目的在于提供','本发明提供','本发明公开','本发明涉及') if head.startswith(p)),None)
         name=head[len(prefix):] if prefix else head
     base=lambda value:re.sub(r'^(?:一种)+','',value)
+    if category_slot and name in {base(title), '一种'+base(title)}:
+        return None  # Only a located claim/category slot, never the title.
     if name!=title and base(name) and base(name)==base(title):
         return dict(code='title_reference_prefix',expected=title,actual=name)
     return None
@@ -60,7 +62,7 @@ def block_text(block):
     return ''.join(r.get('text','') for r in runs)
 
 
-def expand(spec):
+def expand(spec, rule_version=0):
     """Opt-in automatic generation from the current claims, before validation."""
     # This wording applies to claims even when automatic mirroring is disabled.
     # Join adjacent text runs only: never flatten a formula or another object.
@@ -95,7 +97,8 @@ def expand(spec):
     for block in claims:
         if block.get('role')!='body':raise ValueError('Claim prose must use body role')
         text=block_text(block)
-        if name_prefix_issue(text,spec['project_title']):
+        category_slot=rule_version>=76 and bool(re.match(r'^[1-9][0-9]*[.．、]',text))
+        if name_prefix_issue(text,spec['project_title'],category_slot=category_slot):
             raise ValueError('NAME-01 title_reference_prefix: use the official name unchanged in claim '+block['id'])
         if re.match(r'^[1-9][0-9]*[.．、]',text):
             number,_,converted=claim_head(text);numbers.append(number)
@@ -142,7 +145,7 @@ def math_identity(xml):
     return digest(walk(ET.fromstring(xml)))
 
 
-def evidence(report,body,claims,title):
+def evidence(report,body,claims,title,rule_version=0):
     out=dict(schema_version=1,artifact_sha256=report['sha256'],complete=False,
              issues=[],review_candidates=[],mappings=[],scope='Current claims to invention solution; exact text after legal header conversion, paragraph boundaries and native math identity. Does not certify source technical truth or antecedents.')
     def issue(code,paragraph=None,**extra):
@@ -150,9 +153,6 @@ def evidence(report,body,claims,title):
     if not title:issue('title_unresolved');return out
     # Also inspect name slots when claims and solution share the same mistake.
     # Reuse accepted-view paragraphs (including cross-run text), not a ZIP pass.
-    for p in body:
-        mismatch=name_prefix_issue(p['text'],title['text'])
-        if mismatch:issue(mismatch.pop('code'),p['p'],**mismatch)
     def meaningful(p):return bool(p['text'].strip() or p.get('formulas') or p.get('media') or p.get('font_encoded_symbols') or p.get('content_evidence',{}).get('objects'))
     direct=[p for p in body if p.get('body_direct',True) and meaningful(p)]
     starts=[i for i,p in enumerate(direct) if p['p']>title['paragraph'] and p['text']=='发明内容']
@@ -180,6 +180,16 @@ def evidence(report,body,claims,title):
             if '权利要求' in text or '特征在于' in text:unsupported[len(expected)-1]='technical_claim_reference'
     if not numbers or numbers!=list(range(1,len(numbers)+1)) or len(numbers)!=len(claims):issue('claim_inventory_unresolved')
     plan=actual[2:]
+    category_slots={c['paragraphs'][0] for c in claims if c.get('paragraphs')} if rule_version>=76 else set()
+    if rule_version>=76:
+        # Only the exact independent-claim projection in the solution region.
+        for target,wanted,source in zip(plan,expected,source_rows):
+            try:_,kind,_=claim_head(source['text'])
+            except ValueError:continue
+            if kind=='independent' and target['text']==wanted:category_slots.add(target['p'])
+    for p in body:
+        mismatch=name_prefix_issue(p['text'],title['text'],p['p'] in category_slots)
+        if mismatch:issue(mismatch.pop('code'),p['p'],**mismatch)
     if len(plan)!=len(expected):issue('solution_paragraph_count',direct[start]['p'],expected=len(expected),actual=len(plan))
     formulas={f['id']:f for f in report.get('formulas',[])}
     for i,(wanted,target,source,owner) in enumerate(zip(expected,plan,source_rows,owners)):

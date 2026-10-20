@@ -17,6 +17,7 @@ import authoring_toolkit as toolkit
 import batch_tool as batch
 import inspect_docx as scan
 import output_contract as contract
+import formula_uniqueness
 import parallel_batch as queue
 import test_authoring_toolkit as authoring_fixtures
 import test_parallel_batch as queue_fixtures
@@ -441,7 +442,14 @@ class BenefitAuthoringTests(unittest.TestCase):
         with zipfile.ZipFile(result['output']) as archive:
             root = ET.fromstring(archive.read('word/document.xml'))
         actual = root.findall('.//m:oMath', toolkit.NS)
-        self.assertEqual([toolkit.tree_signature(x) for x in actual], [r['tree_sha256'] for r in rows])
+        # Current display contract makes math upright; byte/tree equality with
+        # the raw source is no longer the promise. Source bytes remain above.
+        expected=[ET.fromstring(authoring_fixtures.MATH),ET.fromstring(DELIMITED_MATH)]
+        identities=[formula_uniqueness.equation_fingerprint(x) for x in expected]
+        self.assertTrue(all(identities))
+        self.assertEqual([formula_uniqueness.equation_fingerprint(x) for x in actual],identities)
+        self.assertTrue(all(n.get(toolkit.qn('m:val')) in {'p','b'}
+                            for math in actual for n in math.findall('.//m:sty',toolkit.NS)))
         report = scan.inspect(Path(result['output'])); scan.precheck(report, 'draft')
         contract.check(report, self.spec['project_title'], strict_benefits=True, strict_prose=True)
         evidence = report['benefit_numbering_evidence']
