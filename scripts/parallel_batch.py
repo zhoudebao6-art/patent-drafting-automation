@@ -521,8 +521,8 @@ def finish_preparation(path, result, controller='controller'):
             raise BatchError('Prepared navigation changed existing evidence')
         c['source_navigation'] = copy.deepcopy(result['source_navigation'])
         a['prepared_handoff'] = copy.deepcopy(result['seal'])
-        verify_prepared(m, c, a)
-        if b.read(file_path(result['seal']['path'], a['directory'])) != result['prepared']:
+        verified = verify_prepared(m, c, a)
+        if verified['handoff'] != result['prepared']:
             raise BatchError('Preparation payload differs from sealed handoff')
         a['preparation_state'] = 'ready'
         return reservation_payload(m, c, a, result['prepared'])

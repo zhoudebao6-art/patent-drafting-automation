@@ -47,7 +47,7 @@ class ClaimTemplatesTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
 
-    def report(self, rows=None, formula=False, bad_purpose=False):
+    def report(self, rows=None, formula=False, bad_purpose=False, rule_version=76):
         rows = claims_for() if rows is None else rows
         doc = Document()
         for line in ['说明书摘要', '摘要内容。', '权利要求书']:
@@ -62,14 +62,22 @@ class ClaimTemplatesTests(unittest.TestCase):
             doc.add_paragraph(line)
         for row in rows:
             first, *rest = row['text'].split('\n')
-            doc.add_paragraph(inv.claim_head(first)[2])
+            # Invalid claim punctuation is deliberately retained in the claims
+            # fixture; keep its separate description structurally constructible.
+            projected=inv.claim_head(first.replace('其特征在于：','其特征在于，'))[2]
+            if rule_version >= 79 and cc.standard_storage_medium(row,rows):
+                # Description prose must not mechanically copy claim numbers.
+                # This fixture exercises only mechanical checks, not source or
+                # semantic claim-to-description acceptance.
+                projected=projected[:projected.index('实现权利要求')]+'实现记录处理方法。'
+            doc.add_paragraph(projected)
             for line in rest:doc.add_paragraph(line)
         for line in [inv.BENEFITS, '1.记录保存。', '附图说明', '图1为本发明的流程图。', '具体实施方式', '记录内容。']:
             doc.add_paragraph(line)
         path = self.root/'sample.docx'
         doc.save(path)
         result = scan.inspect(path)
-        scan.precheck(result, 'draft', rule_version=76)
+        scan.precheck(result, 'draft', rule_version=rule_version)
         return result, path
 
     def spec(self, rows=None):
@@ -153,6 +161,133 @@ class ClaimTemplatesTests(unittest.TestCase):
         self.assertNotIn('claim_template_evidence',old)
         source=scan.inspect(path);scan.precheck(source,'proposal',76)
         self.assertNotIn('claim_template_evidence',source)
+
+    def test_rule79_screenshot_wording_actual_method_ranges_and_old_versions(self):
+        prefix='10.一种计算机可读存储介质，其上存储有计算机程序，其特征在于，所述计算机程序被处理器执行时实现权利要求'
+        for reference in ('1至7任一项','1至8任一项','2至8任一项','1'):
+            rows=claims_for('three_independent')
+            rows[-1]['text']=prefix+reference+'所述的方法。'
+            with self.subTest(reference=reference):
+                report,_=self.report(rows,rule_version=79)
+                medium=report['claims_detected'][-1]
+                self.assertEqual(medium['text'],rows[-1]['text'])
+                self.assertEqual(medium['antecedent_count_evidence']['required_valid_minimum'],2)
+                self.assertIn('not_automatic_pass',medium['antecedent_count_evidence']['status'])
+                self.assertEqual(report['claim_template_evidence']['issues'],[])
+                self.assertIsNone(report['claim_template_evidence']['claims'][-1]['exclusive_bounds'])
+                toolkit.validate(self.root,self.spec(rows),79)
+                final.check(report,TITLE,strict_claim_templates=True,claim_rule_version=79)
+                for version in (76,77,78):
+                    old,_=self.report(rows,rule_version=version)
+                    self.assertEqual(old['claims_detected'][-1]['antecedent_count_evidence']['required_valid_minimum'],3)
+                    self.assertIn('claim_length',[h['code'] for h in old['claim_template_evidence']['issues']])
+
+    def test_rule79_fixed_medium_rejects_changed_wording_and_wrong_references(self):
+        standard='10.一种计算机可读存储介质，其上存储有计算机程序，其特征在于，所述计算机程序被处理器执行时实现权利要求1至8任一项所述的方法。'
+        variants={
+            'missing_storage':standard.replace('其上存储有计算机程序，',''),
+            'extra_quota_text':standard.replace('方法。','方法，核对所述计算机程序。'),
+            'wrong_punctuation':standard.replace('其特征在于，','其特征在于：'),
+            'system_in_range':standard.replace('1至8','1至9'),
+            'self':standard.replace('1至8','1至10'),
+            'future':standard.replace('1至8','1至11'),
+            'descending':standard.replace('1至8','8至1'),
+            'singleton_range':standard.replace('1至8','1至1'),
+            'leading_zero':standard.replace('1至8','01至8'),
+        }
+        for name,text in variants.items():
+            rows=claims_for('three_independent');rows[-1]['text']=text
+            with self.subTest(case=name):
+                report,_=self.report(rows,rule_version=79)
+                self.assertEqual(report['claims_detected'][-1]['antecedent_count_evidence']['required_valid_minimum'],3)
+                self.assertIn('storage_medium_wording_or_method_range',[h['code'] for h in report['claim_template_evidence']['issues']])
+                with self.assertRaises(batch.BatchError):
+                    final.check(report,TITLE,[{'rule_id':'STYLE-08','status':'closed','reason':'No blanket waiver'}],strict_claim_templates=True,claim_rule_version=79)
+        for mutation in ('missing','wrong_method_category','wrong_family'):
+            rows=claims_for('three_independent');rows[-1]['text']=standard
+            if mutation=='missing':rows.pop(3)
+            elif mutation=='wrong_method_category':rows[3]['text']=rows[3]['text'].replace('记录处理方法','记录处理系统')
+            else:rows[8]['text']=rows[8]['text'].replace('一种记录处理系统','根据权利要求1所述的记录处理方法')
+            with self.subTest(case=mutation):
+                self.assertFalse(cc.standard_storage_medium(rows[-1],rows))
+
+    def test_rule79_other_third_categories_keep_general_limits_and_source_choice(self):
+        for theme in ('一种记录处理设备','一种记录处理装置'):
+            rows=claims_for('three_independent')
+            rows[-1]['text']=rows[-1]['text'].replace('一种计算机可读存储介质',theme)
+            ev=cc.evaluate(rows,TITLE,rule_version=79)
+            with self.subTest(theme=theme):
+                self.assertEqual(ev['issues'],[])
+                self.assertEqual(ev['claims'][-1]['exclusive_bounds'],[150,300])
+                rows[-1]['text']='10.'+theme+'，其特征在于，存储计算机程序。'
+                report,_=self.report(rows,rule_version=79)
+                self.assertEqual(report['claims_detected'][-1]['antecedent_count_evidence']['required_valid_minimum'],3)
+                self.assertIn('claim_length',[h['code'] for h in report['claim_template_evidence']['issues']])
+
+    def test_rule79_cache_build_and_sealed_gate_bind_current_wording_contract(self):
+        rows=claims_for('three_independent')
+        rows[-1]['text']='10.一种计算机可读存储介质，其上存储有计算机程序，其特征在于，所述计算机程序被处理器执行时实现权利要求1至8任一项所述的方法。'
+        _,path=self.report(rows,rule_version=79)
+        old=scan.run_inspection(path,self.root/'cache79',reuse=True,rule_version=78)
+        new=scan.run_inspection(path,self.root/'cache79',reuse=True,rule_version=79)
+        self.assertNotEqual(old['inspection'],new['inspection'])
+        self.assertEqual(new['cache_status'],'miss')
+        stale=json.loads(Path(old['inspection']).read_text(encoding='utf-8'))
+        with self.assertRaises(batch.BatchError):
+            final.check(stale,TITLE,strict_claim_templates=True,claim_rule_version=79)
+        spec_path=self.root/'medium.json'
+        spec_path.write_text(json.dumps(self.spec(rows),ensure_ascii=False),encoding='utf-8')
+        with patch.object(scan,'tool_rule_version',return_value=79):
+            built=toolkit.build(self.root,spec_path.name,'medium-build')
+            report=json.loads(Path(built['inspection']['inspection']).read_text(encoding='utf-8'))
+            cc.require_valid(report,TITLE,79)
+            toolkit.verify_bundle(self.root,'medium-build')
+            with patch.object(scan,'inspect',side_effect=AssertionError('No repeat DOCX parse')):
+                final.check(report,TITLE,strict_claim_templates=True,claim_rule_version=79)
+
+    def test_rule80_sealed_gate_reuses_marker_evidence_and_rejects_enabled_properties(self):
+        report,_=self.report(rule_version=80)
+        attempt={'input_artifact_sha256':report['sha256']}
+        manifest={'rule_version':80,'policy':{'output_contract':final.MODE}}
+        verified={'handoff':{'input_inspection':{'inspection':'sealed'}},'input_report':report}
+        with patch('prepare_handoff.verify_prepared',return_value=verified),patch.object(scan,'inspect',side_effect=AssertionError('No repeat DOCX parse')):
+            final.verify(manifest,{'title':TITLE},attempt,{'findings':[]})
+            report['page_flow_evidence']['pagination_markers']['violations'].append(
+                {'part':'word/document.xml','path':'paragraph[1]/pPr/keepNext'})
+            with self.assertRaisesRegex(batch.BatchError,'pagination marker'):
+                final.verify(manifest,{'title':TITLE},attempt,{'findings':[]})
+
+    def test_rule81_plain_paper_sealed_gate_and_versioned_cache(self):
+        report,path=self.report(rule_version=81)
+        attempt={'input_artifact_sha256':report['sha256']}
+        manifest={'rule_version':81,'policy':{'output_contract':final.MODE}}
+        verified={'handoff':{'input_inspection':{'inspection':'sealed'}},'input_report':report}
+        original=deepcopy(report['background_evidence'])
+        with patch('prepare_handoff.verify_prepared',return_value=verified),patch.object(scan,'inspect',side_effect=AssertionError('No repeat DOCX parse')):
+            final.verify(manifest,{'title':TITLE},attempt,{'findings':[]})
+            for kind in ('missing','stale','incomplete','hit','candidate'):
+                with self.subTest(kind=kind):
+                    report['background_evidence']=deepcopy(original)
+                    e=report['background_evidence']
+                    if kind=='missing':report.pop('background_evidence')
+                    elif kind=='stale':e['artifact_sha256']='0'*64
+                    elif kind=='incomplete':e['extraction_complete']=False
+                    elif kind=='hit':e['hits'].append({'part':'word/document.xml','path':'background[1]'})
+                    else:e['review_candidates'].append({'part':'word/document.xml','paragraph':0,'path':'table[1]'})
+                    with self.assertRaisesRegex(batch.BatchError,'plain-paper'):
+                        final.verify(manifest,{'title':TITLE},attempt,{'findings':[]})
+            candidate=report['background_evidence']['review_candidates'][0]
+            finding=dict(candidate,rule_id='FORMAT-02',classification='plain_paper_reviewed',status='closed',artifact_sha256=report['sha256'],reason='Fixture: conditional fill is inactive; final page plain.')
+            final.verify(manifest,{'title':TITLE},attempt,{'findings':[finding]})
+            for key,value in [('artifact_sha256','0'*64),('path','table[2]'),('reason','')]:
+                bad=dict(finding);bad[key]=value
+                with self.subTest(key=key),self.assertRaises(batch.BatchError):
+                    final.verify(manifest,{'title':TITLE},attempt,{'findings':[bad]})
+            report['background_evidence']['hits'].append(candidate)
+            with self.assertRaises(batch.BatchError):final.verify(manifest,{'title':TITLE},attempt,{'findings':[finding]})
+        self.assertNotEqual(scan.cache_identity(path,'draft',False,79),scan.cache_identity(path,'draft',False,80))
+        self.assertNotEqual(scan.cache_identity(path,'draft',False,80),scan.cache_identity(path,'draft',False,81))
+        self.assertEqual(scan.cache_identity(path,'proposal',False,80),scan.cache_identity(path,'proposal',False,81))
 
     def test_title_prefix_exception_is_only_claims_and_exact_solution_slots(self):
         report,_=self.report()

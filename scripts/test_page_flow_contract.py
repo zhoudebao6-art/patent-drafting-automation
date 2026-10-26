@@ -67,6 +67,50 @@ class FlowEvidenceTests(unittest.TestCase):
         self.assertEqual(self.body_row(report)['effective']['keepLines']['source'],'direct')
         self.check(report)
 
+    def test_v80_rejects_markers_in_all_roles_and_old_contract_remains_compatible(self):
+        for text, extra in [('有益效果',''), ('','<m:oMath/>'), ('','<w:r><w:drawing/></w:r>'), ('图1','')]:
+            for key in ('keepLines','keepNext','pageBreakBefore'):
+                with self.subTest(text=text, key=key):
+                    props=FALSE_FLOW.replace(f'<w:{key} w:val="0"/>', f'<w:{key}/>')
+                    report=self.report(body=paragraph(text,props,extra))
+                    contract.check(report,TITLE,strict_pagination_markers=False)
+                    with self.assertRaisesRegex(b.BatchError,'pagination marker'):
+                        contract.check(report,TITLE,strict_pagination_markers=True)
+        contract.check(self.report(),TITLE,strict_pagination_markers=True)
+
+    def test_v80_inherited_unknown_and_header_table_textbox_markers(self):
+        styles='<w:style w:styleId="Marked"><w:pPr><w:keepNext/></w:pPr></w:style>'
+        containers=['{p}', '<w:tbl><w:tr><w:tc>{p}</w:tc></w:tr></w:tbl>',
+                    '<w:p><w:r><w:pict><w:txbxContent>{p}</w:txbxContent></w:pict></w:r></w:p>']
+        for template in containers:
+            report=self.report(body=template.format(p=paragraph('有益效果','<w:pStyle w:val="Marked"/>')),styles=styles)
+            with self.assertRaisesRegex(b.BatchError,'pagination marker'):
+                contract.check(report,TITLE,strict_pagination_markers=True)
+        report=self.report(body=paragraph('有益效果','<w:pStyle w:val="Missing"/>'))
+        self.assertTrue(report['page_flow_evidence']['pagination_markers']['unresolved'])
+        with self.assertRaises(b.BatchError):contract.check(report,TITLE,strict_pagination_markers=True)
+        report=self.report()
+        header=next(p for p in report['parts'] if p['part'].startswith('word/header'))
+        header['paragraphs'][0]['page_flow']['effective']['keepNext']['value']=True
+        markers=scan.pagination_marker_evidence(report)
+        self.assertEqual(markers['violations'][0]['part'],header['part'])
+        report=self.report()
+        report['parts'][0]['relationships']['custom']={'type':'header','part':'word/custom.xml',
+                                                     'target':'custom.xml','external':False}
+        self.assertTrue(any(x['property']=='unparsed_story' for x in scan.pagination_marker_evidence(report)['unresolved']))
+
+    def test_v80_marker_evidence_is_current_complete_and_precheck_is_versioned(self):
+        keep=FALSE_FLOW.replace('<w:keepNext w:val="0"/>','<w:keepNext/>')
+        report=self.report(body=paragraph('有益效果',keep))
+        scan.precheck(report,'draft',79)
+        self.assertFalse(any(x['code']=='PAGINATION_MARKER_FORMAT' for x in report['issues']))
+        scan.precheck(report,'draft',80)
+        self.assertTrue(any(x['code']=='PAGINATION_MARKER_FORMAT' for x in report['issues']))
+        for key,value in [('complete',False),('artifact_sha256','wrong'),('paragraph_count',0)]:
+            with self.subTest(key=key):
+                report=self.report();report['page_flow_evidence']['pagination_markers'][key]=value
+                with self.assertRaises(b.BatchError):contract.check(report,TITLE,strict_pagination_markers=True)
+
     def test_document_defaults_and_specification_default_are_distinguished(self):
         styles='<w:docDefaults><w:pPrDefault><w:pPr>'+FALSE_FLOW+'</w:pPr></w:pPrDefault></w:docDefaults>'
         report=self.report(flow='',styles=styles)
@@ -208,7 +252,11 @@ class QueueFlowContractTests(unittest.TestCase):
                       delivery={'folder_prefix':'专利撰写完成','layout':'flat_final_files','timing':'after_each_acceptance'})
         policy_path=self.root/'policy.json';b.atomic(policy_path,policy)
         selection={'projects':[{'title':TITLE,'source_files':['source.docx'],'primary_source':'source.docx'}]}
-        with patch.object(queue,'POLICY',policy_path):
+        # These three fixtures exercise the legacy v22 layout gate, not the
+        # newer ten-claim/template contract. Freeze their intended version.
+        rules=json.loads(queue.RULES.read_text(encoding='utf-8'));rules['version']=74
+        rules_path=self.root/'layout-fixture-rules.json';b.atomic(rules_path,rules)
+        with patch.object(queue,'POLICY',policy_path),patch.object(queue,'RULES',rules_path):
             self.manifest=queue.init(self.src,self.root/'work',selection,self.root/'desktop')
         self.batch=self.manifest.parent
 

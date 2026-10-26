@@ -9,6 +9,7 @@ import re
 from xml.etree import ElementTree as ET
 
 VERSION = 76
+MEDIUM_VERSION = 79
 BANDS = ((100, 150), (150, 200), (200, 250), (250, 300))
 VAGUE = re.compile(r'该(?:系统|模块|单元|算法)|二者|三者')
 RELATION = re.compile(r'[A-Za-z0-9α-ωΑ-Ω)\]）][ \t]*[=＝≤≥<>≠][ \t]*[A-Za-z0-9α-ωΑ-Ω(（+\-−]')
@@ -51,8 +52,32 @@ def math_kind(xml_or_node):
     return 'review'
 
 
-def evaluate(claims, title, body=(), artifact_sha256=None, formulas=()):
-    out = dict(schema_version=1, rule_version=VERSION, artifact_sha256=artifact_sha256,
+def standard_storage_medium(claim, claims):
+    """Exact user wording, restricted to claim 10 of a three-topic family.
+
+    Existing method heads and range are checked here. Source support, the real
+    dependency tree and each antecedent still need independent semantic review.
+    """
+    if claim.get('number') != 10 or [c.get('number') for c in claims] != list(range(1, 11)):
+        return False
+    heads = {c['number']: re.split('[，。；：]', content(c['text']), maxsplit=1)[0] for c in claims}
+    if [n for n, head in heads.items() if not head.startswith('根据权利要求')] != [1, 9, 10]:
+        return False
+    match = re.fullmatch(
+        r'10[.．、]一种计算机可读存储介质，其上存储有计算机程序，'
+        r'其特征在于，所述计算机程序被处理器执行时实现权利要求'
+        r'([1-9])(?:至([1-9])任一项)?所述的方法。', claim['text'].strip())
+    if not match:
+        return False
+    first = int(match[1]); last = int(match[2]) if match[2] else first
+    if not first <= last < 10 or (match[2] and first == last):
+        return False
+    return all(heads[n].endswith('方法') for n in range(first, last + 1))
+
+
+def evaluate(claims, title, body=(), artifact_sha256=None, formulas=(), rule_version=VERSION):
+    contract_version = MEDIUM_VERSION if rule_version >= MEDIUM_VERSION else VERSION
+    out = dict(schema_version=1, rule_version=contract_version, artifact_sha256=artifact_sha256,
                title=title, inventory_sha256=inventory_digest(claims),
                counting='Remove claim ordinal and whitespace; count remaining visible characters including punctuation.',
                family=None, claims=[], issues=[], review_candidates=[],
@@ -78,11 +103,16 @@ def evaluate(claims, title, body=(), artifact_sha256=None, formulas=()):
             if not re.fullmatch(r'一种(?!一种).+', head):
                 issue('independent_theme_prefix', number)
         low, high = dependent_band(title, number) if dependent else (150, 300)
+        standard_medium = rule_version >= MEDIUM_VERSION and standard_storage_medium(claim, claims)
+        if rule_version >= MEDIUM_VERSION and number == 10 and head == '一种计算机可读存储介质' and not standard_medium:
+            issue('storage_medium_wording_or_method_range', number)
         count = visible_count(claim['text'])
         row = dict(number=number, kind='dependent' if dependent else 'independent', theme=head,
-                   category=category, count=count, exclusive_bounds=[low, high])
+                   category=category, count=count, exclusive_bounds=None if standard_medium else [low, high])
+        if standard_medium:
+            row['wording_exception'] = 'user_fixed_storage_medium_v79'
         out['claims'].append(row)
-        if not low < count < high:
+        if not standard_medium and not low < count < high:
             issue('claim_length', number, count=count, exclusive_bounds=[low, high])
         # The ordinal dot is already removed. A decimal point is not a stop.
         if text.count('。') != 1 or not text.endswith('。'):
@@ -134,13 +164,16 @@ def evaluate(claims, title, body=(), artifact_sha256=None, formulas=()):
     return out
 
 
-def require_valid(report, expected_title):
+def require_valid(report, expected_title, rule_version=None):
     ev = report.get('claim_template_evidence')
     claims = report.get('claims_detected')
+    expected_version = ((MEDIUM_VERSION if rule_version >= MEDIUM_VERSION else VERSION)
+                        if type(rule_version) is int else ev.get('rule_version') if isinstance(ev, dict) else None)
     if (not isinstance(claims, list) or
             [c.get('number') if isinstance(c,dict) else None for c in claims] != list(range(1,11)) or
             not isinstance(ev, dict) or
-            ev.get('schema_version') != 1 or ev.get('rule_version') != VERSION or
+            ev.get('schema_version') != 1 or expected_version not in (VERSION, MEDIUM_VERSION) or
+            ev.get('rule_version') != expected_version or
             ev.get('artifact_sha256') != report.get('sha256') or
             not re.fullmatch('[0-9a-f]{64}', str(report.get('sha256', ''))) or
             ev.get('title') != expected_title or ev.get('inventory_sha256') != inventory_digest(claims) or

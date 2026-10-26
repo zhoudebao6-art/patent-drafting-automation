@@ -41,14 +41,45 @@ class SharedManifestReaderTests(unittest.TestCase):
             b.atomic(target, {'version': 2})
             real_resolve = Path.resolve
 
-            def resolving(path, *args, **kwargs):
-                if path == target:
-                    return obsolete
-                return real_resolve(path, *args, **kwargs)
+            observed_names = [obsolete]
+            if os.name == 'nt': observed_names.append(Path('\\\\?\\' + str(target)))
+            for observed in observed_names:
+                with self.subTest(observed=observed):
+                    def resolving(path, *args, **kwargs):
+                        if path == target:
+                            return observed
+                        return real_resolve(path, *args, **kwargs)
 
-            with patch.object(Path, 'resolve', new=resolving):
-                self.assertEqual(queue.file_path(target, root), target)
-                self.assertEqual(b.read(queue.file_path(target, root)), {'version': 2})
+                    with patch.object(Path, 'resolve', new=resolving):
+                        self.assertEqual(queue.file_path(target, root), target)
+                        self.assertEqual(b.read(queue.file_path(target, root)), {'version': 2})
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows extended path comparison')
+    def test_extended_names_preserve_containment_and_link_refusal(self):
+        # Resolved DOS and UNC spellings are equivalent; other roots/devices are not.
+        cases = [
+            ('C:/batch/file.json', 'C:/batch', True),
+            ('//?/C:/batch/file.json', 'C:/batch', True),
+            ('C:/batch/file.json', '//?/C:/batch', True),
+            ('//?/C:/batch-neighbor/file.json', 'C:/batch', False),
+            ('//?/D:/batch/file.json', 'C:/batch', False),
+            ('//?/UNC/server/share/batch/file.json', '//server/share/batch', True),
+            ('//server/share/batch/file.json', '//?/UNC/server/share/batch', True),
+            ('//?/UNC/server/other/batch/file.json', '//server/share/batch', False),
+            ('//?/Volume{fixture}/batch/file.json', 'C:/batch', False),
+        ]
+        with patch.object(Path, 'resolve', lambda path: path):
+            for target, root, expected in cases:
+                with self.subTest(target=target, root=root):
+                    self.assertEqual(b.inside(target, root), expected)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root/'manifest.json'; b.atomic(target, {})
+            with patch.object(b, 'linked', side_effect=lambda path: Path(path) == target):
+                with self.assertRaisesRegex(b.BatchError, 'Links and reparse'):
+                    queue.file_path(target, root)
+            with self.assertRaisesRegex(b.BatchError, 'Path escapes'):
+                b.clean_path(root/'..'/'foreign.json', root)
 
     def test_open_reader_keeps_old_complete_json_without_blocking_atomic_replace(self):
         ANALYSIS.mkdir(parents=True, exist_ok=True)

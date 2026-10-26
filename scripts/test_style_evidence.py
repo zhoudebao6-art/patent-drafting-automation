@@ -1,7 +1,8 @@
 """Meaningful font inheritance and image-location evidence; not visual acceptance."""
 import tempfile
 import unittest
-from inspect_docx import inspect, precheck, NS
+from inspect_docx import inspect, precheck, NS, background_reader
+from xml.etree import ElementTree as ET
 import test_inspect_docx as fixtures
 
 
@@ -77,6 +78,55 @@ class StyleEvidenceTests(unittest.TestCase):
         self.assertEqual(data['reference_paragraphs'][0]['paragraph'],4)
         self.assertEqual(data['image_occurrences'][0]['media'][0]['part'],'word/media/imageA.png')
         self.assertEqual(data['caption_paragraphs'][0]['paragraph'],6)
+
+
+    def test_plain_paper_direct_formats_and_story_locations(self):
+        bodies={
+          'paragraph':'<w:p><w:pPr><w:shd w:val="clear" w:fill="CCFFCC"/></w:pPr><w:r><w:t>正文</w:t></w:r></w:p>',
+          'run':'<w:p><w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t>正文</w:t></w:r></w:p>',
+          'math':'<w:p><m:oMath><m:r><w:rPr><w:shd w:fill="CCFFCC"/></w:rPr><m:t>x</m:t></m:r></m:oMath></w:p>',
+          'cell':'<w:tbl><w:tr><w:tc><w:tcPr><w:shd w:fill="CCFFCC"/></w:tcPr><w:p/></w:tc></w:tr></w:tbl>',
+          'textbox':'<w:p><w:r><w:pict><w:txbxContent><w:p><w:pPr><w:shd w:fill="CCFFCC"/></w:pPr><w:r><w:t>框内</w:t></w:r></w:p></w:txbxContent></w:pict></w:r></w:p>'}
+        for label,body in bodies.items():
+            with self.subTest(label=label):
+                data=self.extract(body);e=data['background_evidence']
+                self.assertEqual(len(e['hits']),1)
+                self.assertEqual(e['artifact_sha256'],data['sha256'])
+                self.assertTrue(e['extraction_complete'])
+                precheck(data,'draft',rule_version=81)
+                self.assertTrue(any(i['code']=='FINAL_BACKGROUND' for i in data['issues']))
+        for story in ('header','footer'):
+            xml=f'<w:{"hdr" if story=="header" else "ftr"} xmlns:w="{NS["w"]}">{bodies["run"]}</w:{"hdr" if story=="header" else "ftr"}>'
+            e=self.extract('<w:p/>',extra={f'word/{story}1.xml':xml})['background_evidence']
+            self.assertEqual(e['hits'][0]['part'],f'word/{story}1.xml')
+        root=ET.fromstring(f'<w:document xmlns:w="{NS["w"]}"><w:background w:color="CCFFCC"/><w:body/></w:document>')
+        e=background_reader(ET.fromstring(f'<w:styles xmlns:w="{NS["w"]}"/>'))(root,'word/document.xml')
+        self.assertEqual(e['hits'][0]['reason'],'page_background_setting')
+
+    def test_plain_paper_effective_inheritance_and_explicit_none(self):
+        styles='<w:style w:type="paragraph" w:styleId="Base"><w:pPr><w:shd w:fill="CCFFCC"/></w:pPr><w:rPr><w:highlight w:val="yellow"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Child"><w:basedOn w:val="Base"/></w:style><w:style w:type="character" w:styleId="Char"><w:rPr><w:shd w:fill="CCFFCC"/></w:rPr></w:style>'
+        for direct,expected in [(False,3),(True,0)]:
+            with self.subTest(direct=direct):
+                p='<w:shd w:val="nil"/>' if direct else ''
+                r='<w:shd w:val="clear" w:fill="auto"/><w:highlight w:val="none"/>' if direct else ''
+                body=f'<w:p><w:pPr><w:pStyle w:val="Child"/>{p}</w:pPr><w:r><w:rPr><w:rStyle w:val="Char"/>{r}</w:rPr><w:t>文字</w:t></w:r></w:p>'
+                self.assertEqual(len(self.extract(body,styles)['background_evidence']['hits']),expected)
+        self.assertEqual(self.extract('<w:p><w:r><w:t>普通文字</w:t></w:r></w:p>',styles)['background_evidence']['hits'],[])
+        defaults='<w:docDefaults><w:rPrDefault><w:rPr><w:highlight w:val="yellow"/></w:rPr></w:rPrDefault></w:docDefaults>'
+        self.assertEqual(self.extract('<w:p><w:r><w:t>x</w:t></w:r></w:p>',defaults)['background_evidence']['hits'][0]['reason'],'default_background')
+        for unresolved in ('Missing','Cycle'):
+            cycle='<w:style w:styleId="Cycle"><w:basedOn w:val="Cycle"/></w:style>'
+            e=self.extract(f'<w:p><w:pPr><w:pStyle w:val="{unresolved}"/></w:pPr></w:p>',cycle)['background_evidence']
+            self.assertTrue(e['review_candidates'])
+
+    def test_plain_paper_table_candidates_and_technical_fill_boundary(self):
+        styles='<w:style w:type="table" w:styleId="T"><w:tblStylePr w:type="firstRow"><w:tcPr><w:shd w:fill="CCFFCC"/></w:tcPr></w:tblStylePr></w:style>'
+        table='<w:tbl><w:tblPr><w:tblStyle w:val="T"/></w:tblPr><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>'
+        e=self.extract(table,styles)['background_evidence']
+        self.assertFalse(e['hits']);self.assertTrue(e['review_candidates'])
+        body='<w:p><w:r><w:drawing><a:solidFill><a:srgbClr val="AAAAAA"/></a:solidFill></w:drawing></w:r></w:p>'
+        e=self.extract(body,styles)['background_evidence']
+        self.assertEqual(e['hits'],[]);self.assertEqual(e['review_candidates'],[])
 
 
 if __name__ == '__main__': unittest.main()

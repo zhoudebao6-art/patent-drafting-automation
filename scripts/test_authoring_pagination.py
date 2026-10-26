@@ -82,7 +82,7 @@ class PaginationTests(unittest.TestCase):
     def test_abstract_media_and_math_preserved_but_only_final_figure_has_caption(self):
         result=self.create(figures=True,math=True)
         self.assertEqual(self.block('abs').find('w:pPr/w:keepNext',t.NS).get(t.qn('w:val')),'0')
-        self.assertEqual(self.block('image').find('w:pPr/w:keepNext',t.NS).get(t.qn('w:val')),'1')
+        self.assertEqual(self.block('image').find('w:pPr/w:keepNext',t.NS).get(t.qn('w:val')),'0')
         captions=self.doc.xpath('./w:body/w:p[w:r/w:t="图1"]',namespaces=t.NS)
         self.assertEqual(len(captions),1)
         self.assertEqual(result['counts']['omml_occurrences'],1)
@@ -98,6 +98,42 @@ class PaginationTests(unittest.TestCase):
                 self.changed()
                 with self.assertRaises(t.AuthoringError):t.verify_document(self.context,self.path)
 
+    def test_all_stories_and_roles_disable_black_square_properties(self):
+        self.create(figures=True, math=True)
+        for name, data in self.parts.items():
+            if name == 'word/document.xml' or name.startswith(('word/header', 'word/footer')) and name.endswith('.xml'):
+                root = t.xml(data, name)
+                for paragraph in root.iter(t.qn('w:p')):
+                    props = paragraph.find('w:pPr',t.NS)
+                    for prop in ('keepLines', 'keepNext', 'pageBreakBefore'):
+                        with self.subTest(part=name, prop=prop):
+                            self.assertEqual(paragraph.find('w:pPr/w:'+prop,t.NS).get(t.qn('w:val')), '0')
+                            siblings = [child.tag for child in props]
+                            for later in ('spacing','ind','rPr','sectPr'):
+                                if t.qn('w:'+later) in siblings:
+                                    self.assertLess(siblings.index(t.qn('w:'+prop)),siblings.index(t.qn('w:'+later)))
+
+    def test_readback_rejects_heading_formula_image_and_header_marker_tamper(self):
+        self.create(figures=True, math=True)
+        original = deepcopy(self.parts)
+        for block in ('title', 'heading', 'math', 'image'):
+            with self.subTest(block=block):
+                self.parts = deepcopy(original)
+                self.doc = t.xml(self.parts['word/document.xml'], 'doc')
+                self.block(block).find('w:pPr/w:keepLines',t.NS).set(t.qn('w:val'),'1')
+                self.changed()
+                with self.assertRaisesRegex(t.AuthoringError, 'pagination marker'):
+                    t.verify_document(self.context,self.path)
+        self.parts = deepcopy(original)
+        self.doc = t.xml(self.parts['word/document.xml'], 'doc')
+        name = next(n for n in self.parts if n.startswith('word/header') and n.endswith('.xml'))
+        header = t.xml(self.parts[name], name)
+        header.find('.//w:pPr/w:keepNext',t.NS).set(t.qn('w:val'),'1')
+        self.parts[name] = ET.tostring(header)
+        self.changed()
+        with self.assertRaisesRegex(t.AuthoringError, 'pagination marker'):
+            t.verify_document(self.context,self.path)
+
     def test_readback_rejects_extra_caption_inside_abstract_image(self):
         self.create(figures=True)
         p=self.block('abs');r=t.element('w:r');node=t.element('w:t');node.text='图1';r.append(node);p.append(r)
@@ -110,6 +146,39 @@ class PaginationTests(unittest.TestCase):
         p.find('w:pPr/w:spacing',t.NS).set(t.qn('w:line'),'312')
         self.changed()
         with self.assertRaises(t.AuthoringError):t.verify_document(self.context,self.path)
+
+
+    def test_plain_paper_generation_and_reintroduced_background_readback(self):
+        self.create(figures=True,math=True)
+        original=deepcopy(self.parts)
+        for kind in ('page','paragraph','run','header'):
+            with self.subTest(kind=kind):
+                self.parts=deepcopy(original)
+                self.doc=t.xml(self.parts['word/document.xml'],'doc')
+                if kind=='page':
+                    node=t.element('w:background');node.set(t.qn('w:color'),'CCFFCC');self.doc.insert(0,node)
+                elif kind=='paragraph':
+                    node=t.element('w:shd');node.set(t.qn('w:fill'),'CCFFCC');self.block('body').find('w:pPr',t.NS).append(node)
+                elif kind=='run':
+                    node=t.element('w:highlight');node.set(t.qn('w:val'),'yellow');self.block('body').find('w:r/w:rPr',t.NS).append(node)
+                else:
+                    part=next(n for n in self.parts if n.startswith('word/header') and n.endswith('.xml'))
+                    header=t.xml(self.parts[part],part);node=t.element('w:shd');node.set(t.qn('w:fill'),'CCFFCC');header.find('.//w:pPr',t.NS).append(node)
+                    self.parts[part]=ET.tostring(header)
+                self.changed()
+                with self.assertRaisesRegex(t.AuthoringError,'background shading'):
+                    t.verify_document(self.context,self.path)
+
+    def test_math_background_removed_only_from_display_before_hash(self):
+        source=ET.fromstring(MATH)
+        props=source.find('.//w:rPr',t.NS)
+        for tag,value in [('shd','CCFFCC'),('highlight','yellow')]:
+            node=t.element('w:'+tag);node.set(t.qn('w:fill' if tag=='shd' else 'w:val'),value);props.append(node)
+        before=t.tree_signature(source)
+        display=t.upright_math_display(source)
+        self.assertEqual(t.tree_signature(source),before)
+        self.assertEqual(display.xpath('.//w:shd | .//w:highlight',namespaces=t.NS),[])
+        self.assertEqual(source.xpath('.//m:t/text()',namespaces=t.NS),display.xpath('.//m:t/text()',namespaces=t.NS))
 
 
 if __name__=='__main__':unittest.main()

@@ -981,6 +981,92 @@ def color_reader(z):
     return read
 
 
+def background_reader(styles):
+    """Read applied text/paragraph backgrounds from existing parsed XML.
+
+    Table conditional styles and graphic fills remain located visual review;
+    unused styles are not treated as document backgrounds.
+    """
+    w = '{'+NS['w']+'}'
+    catalog = {s.get(w+'styleId'):s for s in styles.findall('./w:style',NS)}
+    defaults = {s.get(w+'type'):s.get(w+'styleId') for s in catalog.values()
+                if s.get(w+'default') in {'1','true','on'}}
+    cache = {}
+    def chain(sid, trail=()):
+        if not sid:return [], []
+        if sid in cache:return cache[sid]
+        if sid in trail:return [], ['style_cycle:'+sid]
+        node=catalog.get(sid)
+        if node is None:return [], ['missing_style:'+sid]
+        parent=node.find('./w:basedOn',NS)
+        prior,problems=chain(parent.get(w+'val') if parent is not None else None,trail+(sid,))
+        answer=([(sid,node)]+prior,problems);cache[sid]=answer
+        return answer
+    def state(node):
+        if node is None:return 'none'
+        attrs={key.split('}')[-1]:value for key,value in node.attrib.items()}
+        if node.tag==w+'highlight':return 'none' if attrs.get('val')=='none' else 'fill'
+        pattern=attrs.get('val','clear')
+        if pattern=='nil':return 'none'
+        if any(k.startswith('theme') for k in attrs):return 'fill'
+        # An explicit white cell is visually plain paper; generation prefers
+        # no fill. White must never hide a colored parent/page background.
+        if pattern=='clear' and attrs.get('fill','auto').upper() in {'AUTO','FFFFFF'}:return 'none'
+        return 'fill'
+    def read(part_root,part):
+        out={'hits':[],'review_candidates':[]}
+        def add(key,where,reason,node=None):
+            row=dict(where,reason=reason)
+            if node is not None:row['properties']={k.split('}')[-1]:v for k,v in node.attrib.items()}
+            out[key].append(row)
+        for index,node in enumerate(part_root.iter(w+'background'),1):
+            add('hits',{'part':part,'paragraph':0,'path':f'background[{index}]'},'page_background_setting',node)
+        def resolve(where, direct, paths, default_path):
+            # Ordered precedence: direct, character style, paragraph style,
+            # document defaults. Explicit none/nil stops inheritance.
+            if direct is not None:
+                if state(direct)=='fill':add('hits',where,'applied_background',direct)
+                return
+            for sid,path in paths:
+                inherited,problems=chain(sid)
+                for problem in problems:add('review_candidates',where,problem)
+                for style_id,node in inherited:
+                    value=node.find(path,NS)
+                    if value is not None:
+                        if state(value)=='fill':add('hits',dict(where,style=style_id),'inherited_background',value)
+                        return
+            default=styles.find(default_path,NS)
+            if state(default)=='fill':add('hits',where,'default_background',default)
+        for number,p in enumerate(part_root.iter(w+'p'),1):
+            locator={'part':part,'paragraph':number,'path':f'paragraph[{number}]'}
+            pstyle=p.find('./w:pPr/w:pStyle',NS)
+            pid=pstyle.get(w+'val') if pstyle is not None else defaults.get('paragraph')
+            resolve(dict(locator,path=locator['path']+'/pPr/shd'),p.find('./w:pPr/w:shd',NS),
+                    [(pid,'./w:pPr/w:shd')],'./w:docDefaults/w:pPrDefault/w:pPr/w:shd')
+            for index,run in enumerate((n for n in paragraph_owned_nodes(p)
+                                      if n.tag in {w+'r','{'+NS['m']+'}r'}),1):
+                sid_node=run.find('./w:rPr/w:rStyle',NS)
+                sid=sid_node.get(w+'val') if sid_node is not None else defaults.get('character')
+                for key in ('shd','highlight'):
+                    resolve(dict(locator,path=locator['path']+f'/run[{index}]/rPr/{key}'),
+                        run.find('./w:rPr/w:'+key,NS),[(sid,'./w:rPr/w:'+key),(pid,'./w:rPr/w:'+key)],
+                        './w:docDefaults/w:rPrDefault/w:rPr/w:'+key)
+        for index,table in enumerate(part_root.iter(w+'tbl'),1):
+            locator={'part':part,'paragraph':0,'path':f'table[{index}]'}
+            sid_node=table.find('./w:tblPr/w:tblStyle',NS)
+            sid=sid_node.get(w+'val') if sid_node is not None else defaults.get('table')
+            inherited,problems=chain(sid)
+            for problem in problems:add('review_candidates',locator,problem)
+            for style_id,node in inherited:
+                if any(state(n)=='fill' for n in node.iter() if n.tag in {w+'shd',w+'highlight'}):
+                    add('review_candidates',dict(locator,style=style_id),'table_style_background_requires_effective_and_page_review')
+            for key in ('tblPr','tcPr'):
+                for n,node in enumerate(table.findall('.//w:'+key+'/w:shd',NS),1):
+                    if state(node)=='fill':add('hits',dict(locator,path=locator['path']+f'/{key}/shd[{n}]'),'direct_table_background',node)
+        return out
+    return read
+
+
 def inspect(path):
     result = {'input': str(path.resolve()), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
               'locator_convention': 'part + 1-based all w:p document order; not page numbers',
@@ -1030,10 +1116,14 @@ def inspect(path):
                            for s in styles_root.findall('./w:style', NS)],
                 'boundary': 'Definitions, not applied formatting. Resolve actual styles, inheritance, direct overrides and final renderer output.'}
         read_page_flow=page_flow_reader(styles_root)
+        read_backgrounds=background_reader(styles_root)
+        result['background_evidence']={'schema_version':1,'artifact_sha256':result['sha256'],
+            'extraction_complete':False,'hits':[],'review_candidates':[]}
         parts = [n for n in names if re.fullmatch(r'word/(document|header\d+|footer\d+|footnotes|endnotes|comments)\.xml', n)]
         parts.sort(key=lambda n: (n != 'word/document.xml', n))
         for part in parts:
             root = ET.fromstring(z.read(part))
+            for key,rows in read_backgrounds(root,part).items():result['background_evidence'][key].extend(rows)
             result['content_spacing_evidence']['hits'].extend(content_spacing_hits(root, part))
             punctuation=punctuation_evidence(root,part)
             for key in punctuation:result['punctuation_evidence'][key].extend(punctuation[key])
@@ -1129,6 +1219,7 @@ def inspect(path):
         result['punctuation_evidence']['literal_scan_complete']=True
         result['content_spacing_evidence']['extraction_complete']=True
         result['content_spacing_evidence']['complete']=True
+        result['background_evidence']['extraction_complete']=True
         result['formula_prose_evidence']['duplicate_formula_candidates'] = [
             {'artifact_sha256': result['sha256'], 'fingerprint': fingerprint,
              'occurrences': occurrences,
@@ -1192,6 +1283,35 @@ def benefit_numbering_evidence(body):
             result['issues'].append(dict(locator,code='native_list_label_requires_literal_conversion'))
     if not result['items']:result['issues'].append({'code':'empty_benefit_group'})
     return result
+
+
+def pagination_marker_evidence(result):
+    evidence = {'artifact_sha256': result['sha256'], 'complete': True,
+                'violations': [], 'unresolved': [], 'paragraph_count': 0}
+    parsed_parts = {part['part'] for part in result['parts']}
+    for part in result['parts']:
+        for relation in part.get('relationships', {}).values():
+            if (str(relation.get('type', '')).rsplit('/', 1)[-1] in
+                    {'header', 'footer', 'footnotes', 'endnotes'} and
+                    (relation.get('external') or relation.get('part') not in parsed_parts)):
+                evidence['unresolved'].append({'part': part['part'], 'paragraph': 0,
+                    'path': 'relationship/'+str(relation.get('target')),
+                    'property': 'unparsed_story', 'value': None})
+        if part['part'] == 'word/comments.xml':
+            continue  # Clean-final revision checks reject comments separately.
+        for paragraph in part['paragraphs']:
+            evidence['paragraph_count'] += 1
+            flow = paragraph.get('page_flow', {}).get('effective', {})
+            for key in ('keepLines', 'keepNext', 'pageBreakBefore'):
+                value = flow.get(key, {})
+                row = {'part': part['part'], 'paragraph': paragraph['p'],
+                       'path': f'paragraph[{paragraph["p"]}]/pPr/{key}',
+                       'property': key, **value}
+                if value.get('value') is True:
+                    evidence['violations'].append(row)
+                elif value.get('value') is not False:
+                    evidence['unresolved'].append(row)
+    return evidence
 
 
 def page_flow_evidence(result, body, claims):
@@ -1461,16 +1581,19 @@ def precheck(result, kind, rule_version=0):
         claim['parent_parse_issues']=parse_issues
         claim['parent_parse_status']=('requires_manual_reference_review' if parse_issues
                                       else 'structural_only_requires_legal_path_review')
-        # New source-template rules retire this old exact-sentence exemption.
-        # Version 0 preserves the legacy low-level API; frozen batches use
-        # their own explicit rule version and tool snapshot.
-        standard_medium = rule_version < 76 and _standard_storage_medium_claim(claim, nums)
+        # Keep the legacy API and v76-78 behavior; v79 restores the user's
+        # exact short sentence only for claim 10 with existing method references.
+        import claims_contract
+        standard_medium = ((rule_version < 76 and _standard_storage_medium_claim(claim, nums)) or
+                           (rule_version >= claims_contract.MEDIUM_VERSION and
+                            claims_contract.standard_storage_medium(claim, claims)))
         minimum = 2 if standard_medium else 3
         claim['antecedent_count_evidence'] = {
             'literal_count':claim['text'].count('所述'),
             'reference_head_count':len(re.findall(r'根据权利要求[^。；\n]*?所述',head)),
             'required_valid_minimum':minimum,
-            'applicability':('Rule version 74 fixed storage-medium wording: two literal occurrences; '
+            'applicability':(('Rule version 79' if rule_version >= 79 else 'Rule version 74')+
+                             ' fixed storage-medium wording: two literal occurrences; '
                              'method-category scope and valid antecedents still require semantic review.' if standard_medium else
                              'Rule version 16 onward; earlier frozen batches keep their recorded requirements.'),
             'status':'requires_each_occurrence_validity_review_not_automatic_pass'}
@@ -1486,7 +1609,7 @@ def precheck(result, kind, rule_version=0):
     import claims_contract
     if claims_contract.enabled(rule_version):
         title=result['document_contract_evidence'].get('title') or {}
-        result['claim_template_evidence']=claims_contract.evaluate(claims,title.get('text'),body,result['sha256'],result['formulas'])
+        result['claim_template_evidence']=claims_contract.evaluate(claims,title.get('text'),body,result['sha256'],result['formulas'],rule_version)
         for hit in result['claim_template_evidence']['issues']:
             add('CLAIM_TEMPLATE',hit['code'],str(hit.get('claim')))
     import invention_contract
@@ -1494,6 +1617,17 @@ def precheck(result, kind, rule_version=0):
     for hit in result['invention_evidence']['issues']:
         add('INVENTION_CLAIM_ALIGNMENT','Rule v27 fixed wording and current claim projection: '+hit['code'],str(hit.get('paragraph')))
     result['page_flow_evidence']=page_flow_evidence(result,body,claims)
+    result['page_flow_evidence']['pagination_markers']=pagination_marker_evidence(result)
+    if rule_version >= 81:
+        for hit in result.get('background_evidence',{}).get('hits',[]):
+            add('FINAL_BACKGROUND','Rule v81 final pages require plain paper without background shading or highlighting.',hit['part']+' '+hit['path'])
+    if rule_version >= 80:
+        markers = result['page_flow_evidence']['pagination_markers']
+        for hit in markers['violations'] + markers['unresolved']:
+            add('PAGINATION_MARKER_FORMAT',
+                'Rule v80: disable the paragraph property causing black pagination squares; '
+                'resolve inheritance and verify actual final layout without deleting content.',
+                hit['part']+' '+hit['path'])
     import figure_caption_contract
     result['figure_caption_evidence']=figure_caption_contract.evidence(result,body)
     for hit in result['figure_caption_evidence']['issues']:
@@ -1688,10 +1822,12 @@ def cache_identity(input_path, kind, extract_media, rule_version=None):
                 'extractor_sha256': file_sha(Path(__file__).resolve()),
                 'extractor_dependencies':extractor_dependencies(),
                 'kind': kind, 'extract_media': bool(extract_media)}
+    if kind == 'draft' and version >= 80:
+        identity['clean_format_version'] = 81 if version >= 81 else 80
     if kind == 'draft' and requires_ten_claims(version):
         identity['claim_count_required'] = True
     if kind == 'draft' and version >= 76:
-        identity['claim_template_version'] = 76
+        identity['claim_template_version'] = 79 if version >= 79 else 76
     return identity
 
 

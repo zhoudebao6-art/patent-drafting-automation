@@ -3,11 +3,16 @@ import re
 
 MODE='named_figures_v32'
 ENTRY=re.compile(r'图([1-9][0-9]*)为本发明的([^；。]+)([；。])')
+# Literal editorial annotations only. Source semantics and mathematical
+# parentheses remain subject to the existing prose/formula and image review.
+ANNOTATION=re.compile(r'图中[^；。\r\n]*?(?:表示|代表|指代|意为)|[（(\[【]\s*(?:注|说明|备注)\s*[：:]')
 
 
 def description(number,title,last):
     if not isinstance(title,str) or not title or re.search(r'[；。!?！？\r\n]',title):
         raise ValueError('Figure title must be a name without sentence-ending punctuation')
+    if ANNOTATION.search(title):
+        raise ValueError('Figure title contains an explanatory annotation; use the source-supported name only')
     if title.endswith('图图'):
         raise ValueError('Figure title has a duplicated 图 suffix')
     name=title if title.endswith('图') else title+'图'
@@ -36,6 +41,7 @@ def evidence(report,body):
             row=dict(part='word/document.xml',paragraph=p['p'],path=f'paragraph[{p["p"]}]/visible_text',
                      offset=m.start(),number=int(m[1]),name=m[2],punctuation=m[3])
             out['items'].append(row)
+            if ANNOTATION.search(m[2]):issue('figure_description_annotation',p['p'],offset=m.start(),number=int(m[1]))
             if not m[2].endswith('图') or m[2]=='图':issue('figure_description_missing_tu',p['p'],offset=m.start(),number=int(m[1]))
             elif m[2].endswith('图图'):issue('figure_description_duplicate_tu',p['p'],offset=m.start(),number=int(m[1]))
     for index,row in enumerate(out['items']):

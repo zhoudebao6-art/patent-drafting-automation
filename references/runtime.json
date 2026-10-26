@@ -1,22 +1,20 @@
 {
   "schema_version": 1,
-  "python": "C:\\Users\\HS\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
-  "renderer": "C:\\Users\\HS\\.codex\\plugins\\cache\\openai-primary-runtime\\documents\\26.1013.11914\\skills\\documents\\render_docx.py",
-  "libreoffice": "D:\\Apps\\LibreOffice\\program\\soffice.exe",
-  "libreoffice_sha256": "3c24436274cb9b5ccd363a517b377d07991eae82072690227e41c62ca9ca718b",
-  "poppler_dir": "C:\\Users\\HS\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin",
-  "verified_version": "26.2.4.2",
-  "verified_signer": "The Document Foundation",
-  "purpose": "2026-10-13 user-requested Windows rendering repair; process-local PATH and isolated profile only",
+  "python": "",
+  "renderer": "",
+  "libreoffice": "",
+  "libreoffice_sha256": "",
+  "poppler_dir": "",
   "font_files": {
-    "math": "C:\\Windows\\Fonts\\cambria.ttc",
-    "body": "C:\\Windows\\Fonts\\simsun.ttc",
-    "header": "C:\\Windows\\Fonts\\simhei.ttf"
+    "math": "",
+    "body": "",
+    "header": ""
   },
   "conversion_backend": "wps",
-  "wps_program": "C:\\Users\\HS\\AppData\\Local\\Kingsoft\\WPS Office\\12.1.0.29161\\office6\\wps.exe",
-  "wps_program_sha256": "5de5a5c7c8bdaa74c2ba6cdb7fee12810045208cbec0da1758e045d06138bab0",
-  "wps_powershell": "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe",
-  "wps_powershell_sha256": "870eda04ea71cc066ec907f005e1d05ce592f04799c60e600e2cb986dc85b5eb",
-  "wps_progid": "KWPS.Application"
+  "wps_program": "",
+  "wps_program_sha256": "",
+  "wps_powershell": "",
+  "wps_powershell_sha256": "",
+  "wps_progid": "KWPS.Application",
+  "purpose": "Portable release template. Detect and verify this computer before use; see INSTALL.md."
 }

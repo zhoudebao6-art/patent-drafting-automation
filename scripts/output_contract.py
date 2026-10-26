@@ -34,9 +34,9 @@ def filename(title):
     return title+'.docx'
 
 
-def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False, strict_captions=False, strict_claim_count=False, strict_claim_templates=False):
+def check(report, expected_title, findings=(), strict_prose=False, source_hashes=(), strict_benefits=False, strict_layout=False, strict_formulas=False, strict_spacing=False, strict_invention=False, strict_figures=False, strict_captions=False, strict_claim_count=False, strict_claim_templates=False, claim_rule_version=None, strict_pagination_markers=False, strict_plain_paper=False):
     if strict_claim_templates:
-        try:claims_contract.require_valid(report,expected_title)
+        try:claims_contract.require_valid(report,expected_title,claim_rule_version)
         except ValueError as exc:raise b.BatchError(str(exc)) from exc
     if strict_claim_count:
         claims = report.get('claims_detected')
@@ -127,6 +127,31 @@ def check(report, expected_title, findings=(), strict_prose=False, source_hashes
     if strict_captions:
         try:figure_caption_contract.validate(report,findings,source_hashes)
         except ValueError as exc:raise b.BatchError(str(exc)) from exc
+    if strict_plain_paper:
+        evidence=report.get('background_evidence')
+        if (not isinstance(evidence,dict) or evidence.get('schema_version')!=1 or
+                evidence.get('artifact_sha256')!=report['sha256'] or evidence.get('extraction_complete') is not True or
+                not isinstance(evidence.get('hits'),list) or not isinstance(evidence.get('review_candidates'),list)):
+            raise b.BatchError('Final plain-paper background evidence missing or stale')
+        if evidence['hits']:
+            raise b.BatchError('Final plain-paper background/shading/highlight contract not satisfied')
+        for candidate in evidence['review_candidates']:
+            if not any(isinstance(f,dict) and f.get('rule_id')=='FORMAT-02' and
+                       f.get('classification')=='plain_paper_reviewed' and f.get('status')=='closed' and
+                       f.get('artifact_sha256')==report['sha256'] and
+                       all(f.get(k)==candidate.get(k) for k in ('part','paragraph','path')) and
+                       isinstance(f.get('reason'),str) and f['reason'].strip() for f in findings):
+                raise b.BatchError('Final plain-paper background needs located effective-format and page review')
+    if strict_pagination_markers:
+        markers = report.get('page_flow_evidence', {}).get('pagination_markers')
+        if (not isinstance(markers, dict) or markers.get('complete') is not True or
+                markers.get('artifact_sha256') != report['sha256'] or
+                not isinstance(markers.get('violations'), list) or
+                not isinstance(markers.get('unresolved'), list) or
+                type(markers.get('paragraph_count')) is not int or markers['paragraph_count'] <= 0):
+            raise b.BatchError('Final pagination marker evidence is missing or not bound to this artifact')
+        if markers['violations'] or markers['unresolved']:
+            raise b.BatchError('Final black pagination marker properties remain enabled or unresolved')
     if strict_layout:
         flow=report.get('page_flow_evidence')
         if (not isinstance(flow,dict) or flow.get('schema_version')!=1 or
@@ -311,4 +336,7 @@ def verify(m,case,attempt,receipt):
                  m['policy'].get('figure_description_contract')==figure_description_contract.MODE,
                  m['policy'].get('figure_caption_contract')==figure_caption_contract.MODE,
                  inspect_docx.requires_ten_claims(m.get('rule_version')),
-                 strict_claim_templates=claims_contract.enabled(m.get('rule_version')))
+                 strict_claim_templates=claims_contract.enabled(m.get('rule_version')),
+                 claim_rule_version=m.get('rule_version'),
+                 strict_pagination_markers=type(m.get('rule_version')) is int and m['rule_version'] >= 80,
+                 strict_plain_paper=type(m.get('rule_version')) is int and m['rule_version'] >= 81)

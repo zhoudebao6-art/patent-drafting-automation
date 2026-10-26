@@ -90,8 +90,18 @@ def sha(path):
     with Path(path).open('rb') as f:
         for block in iter(lambda: f.read(1048576), b''): h.update(block)
     return h.hexdigest()
+def _comparison_path(path):
+    value = Path(path).resolve().as_posix()
+    # Windows realpath can retain the extended prefix on only one operand
+    # during ReplaceFile. Compare equivalent DOS/UNC spellings; keep other
+    # device namespaces distinct and leave actual file paths unchanged.
+    if os.name == "nt":
+        if value[:8].lower() == "//?/unc/": value = "//" + value[8:]
+        elif re.match(r"^//\?/[A-Za-z]:/", value): value = value[4:]
+    return Path(value)
+
 def inside(path, root):
-    try: Path(path).resolve().relative_to(Path(root).resolve()); return True
+    try: _comparison_path(path).relative_to(_comparison_path(root)); return True
     except ValueError: return False
 def linked(path):
     s = Path(path).lstat()

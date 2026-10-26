@@ -62,6 +62,7 @@ SCRIPT_GROUPS = {
     'claims_contract.py': ['claims', 'pages', 'source'],
     'flat_delivery.py': ['claims', 'workflow', 'maintenance'], 'recover_cli_batch.py': ['workflow'],
     'rules_tool.py': ['maintenance'],
+    'figure_description_contract.py': ['figures'],
 }
 
 

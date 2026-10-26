@@ -8,6 +8,7 @@ be isolated; integrity/identity/unknown failures deliberately remain fatal.
 from __future__ import annotations
 import argparse
 import copy
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -163,17 +164,19 @@ def assemble(job_path, decisions):
     import cli_evidence as evidence
     job_path = Path(job_path).resolve(strict=True)
     root = job_path.parent
-    job = b.read(evidence._file(root, 'cli-job.json'))
+    job_bytes = evidence._file(root, 'cli-job.json').read_bytes()
+    job = json.loads(job_bytes.decode('utf-8-sig'))
     attempt = job['attempt']
     if job_path.name != 'cli-job.json' or Path(attempt['directory']).resolve() != root:
         raise b.BatchError('Receipt job belongs to another attempt')
     intent = b.read(evidence._file(root, 'cli-launch-intent.json'))
-    if intent != {'context': attempt['context'], 'job_sha256': b.sha(job_path)}:
+    if intent != {'context': attempt['context'], 'job_sha256': hashlib.sha256(job_bytes).hexdigest()}:
         raise b.BatchError('Receipt launch intent changed')
     reservation_path = evidence._file(root, 'reservation.json')
-    reservation = b.read(reservation_path)
-    if b.sha(reservation_path) != attempt['reservation_sha256']:
+    reservation_bytes = reservation_path.read_bytes()
+    if hashlib.sha256(reservation_bytes).hexdigest() != attempt['reservation_sha256']:
         raise b.BatchError('Receipt reservation changed')
+    reservation = json.loads(reservation_bytes.decode('utf-8-sig'))
     expected_reservation = {key: value for key, value in attempt.items()
                             if key != 'reservation_sha256'}
     if (reservation.get('preparation_state') == 'pending'
@@ -183,9 +186,12 @@ def assemble(job_path, decisions):
             raise b.BatchError('Receipt preparation seal missing or malformed')
         prepared_root = root / 'prepared'
         handoff = evidence._file(prepared_root, 'handoff.json')
-        if Path(seal['path']).resolve() != handoff or b.sha(handoff) != seal['sha256']:
+        if Path(seal['path']).resolve() != handoff:
             raise b.BatchError('Receipt preparation seal changed')
-        if b.read(handoff).get('context') != attempt['context']:
+        handoff_bytes = handoff.read_bytes()
+        if hashlib.sha256(handoff_bytes).hexdigest() != seal['sha256']:
+            raise b.BatchError('Receipt preparation seal changed')
+        if json.loads(handoff_bytes.decode('utf-8-sig')).get('context') != attempt['context']:
             raise b.BatchError('Receipt preparation context changed')
         expected_reservation['preparation_state'] = 'pending'
     if reservation != expected_reservation:

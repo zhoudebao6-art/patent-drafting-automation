@@ -90,6 +90,35 @@ class FigureDescriptionTests(unittest.TestCase):
             _,doc=self.build(['温度响应']);p=next(p for p in doc.paragraphs if p.text.startswith('图1为'));p.text=text
             with self.subTest(text=text),self.assertRaises(batch.BatchError):self.accept(self.report(doc))
 
+    def test_explanatory_annotation_rejected_before_figure_generation(self):
+        titles = ['整体处理流程图（图中Ⓐ表示某条件）',
+                  '数据处理流程图(图中B代表另一条件)',
+                  '处理流程图图中C指代某状态图',
+                  '流程图【说明：某条件】']
+        for title in titles:
+            with self.subTest(title=title), self.assertRaisesRegex(toolkit.AuthoringError, 'explanatory annotation'):
+                toolkit.validate(self.root, self.spec([title]))
+
+    def test_manually_added_annotation_cannot_pass_after_suffix_repair(self):
+        for text in ['图1为本发明的整体处理流程图（图中Ⓐ表示某条件）。',
+                     '图1为本发明的处理流程图图中B代表某状态图。']:
+            _,doc=self.build(['整体处理流程'])
+            next(p for p in doc.paragraphs if p.text.startswith('图1为')).text=text
+            with self.subTest(text=text),self.assertRaisesRegex(batch.BatchError,'figure_description_annotation'):
+                self.accept(self.report(doc))
+
+    def test_title_gate_does_not_delete_mathematical_parentheses_or_audit_body(self):
+        # Literal gate is not formula-source approval. The normal formula
+        # review still has to establish identity and protect exact spans.
+        self.assertEqual(fig.description(1,'响应函数f(x)曲线图',True),
+                         '图1为本发明的响应函数f(x)曲线图。')
+        report={'sha256':'a'*64}
+        body=[{'p':1,'text':'附图说明'}, {'p':2,'text':'图1为本发明的整体处理流程图。'},
+              {'p':3,'text':'具体实施方式'}, {'p':4,'text':'图中输入表示来源定义的业务数据。'}]
+        ev=fig.evidence(report,body)
+        self.assertTrue(ev['complete'])
+        self.assertEqual(ev['issues'],[])
+
     def test_empty_figure_section_does_not_invent_a_figure(self):
         _,doc=self.build([]);r=self.report(doc);self.accept(r)
         self.assertEqual(r['figure_description_evidence']['items'],[])

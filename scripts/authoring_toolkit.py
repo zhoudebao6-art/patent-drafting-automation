@@ -303,7 +303,7 @@ def symbol_display(formula):
 
 
 def upright_math_display(source):
-    """Remove only slant in a display copy, never mathematical alphabet identity.
+    """Normalize slant and background in a display copy, preserving mathematical identity.
 
     Math uses italic by default even when Word's w:i is false. Both layers
     must be explicit. Unicode italic alphabets and dedicated italic fonts
@@ -320,6 +320,9 @@ def upright_math_display(source):
             fail('Dedicated italic mathematical font requires a reviewed upright font mapping; '
                  'manual source-preserving route required')
     node = deepcopy(source)
+    # Background formatting changes only the display copy, before its hash.
+    for prop in node.xpath('.//w:shd | .//w:highlight', namespaces=NS):
+        prop.getparent().remove(prop)
     for owner in node.xpath('.//m:r', namespaces=NS):
         props = owner.find('m:rPr', NS)
         if props is None:
@@ -818,7 +821,7 @@ def validate(case_root, spec, rule_version=0):
         fail('Exactly one protected project_title paragraph is required')
     category_slots=set()
     if claims_contract.enabled(rule_version):
-        template=claims_contract.evaluate(template_claims,spec['project_title'])
+        template=claims_contract.evaluate(template_claims,spec['project_title'],rule_version=rule_version)
         if template['issues']:
             fail('Rule 76 claim-template contract: '+', '.join(h['code'] for h in template['issues'][:6]))
         mirrors=set()
@@ -911,11 +914,10 @@ def paragraph_format(p, role='body', section='description'):
     props.append(element('w:snapToGrid', val='1' if indented else '0'))
     for name in ('autoSpaceDE', 'autoSpaceDN'):
         props.append(element('w:' + name, val='0'))
-    # Ordinary prose must use the remaining page area and continue naturally.
-    # Keep only an actual indivisible object or short heading together.
-    props.append(element('w:keepLines', val=0 if role == 'body' else 1))
-    props.append(element('w:keepNext', val=int(role in {'heading', 'project_title'} or
-                                             (role == 'image' and section == 'figures'))))
+    # Rule v80: no paragraph pagination squares, including headings/objects.
+    # Object integrity and caption adjacency are checked on rendered pages.
+    props.append(element('w:keepLines', val=0))
+    props.append(element('w:keepNext', val=0))
     props.append(element('w:pageBreakBefore', val=0))
     props.append(element('w:widowControl', val=0))
 
@@ -1077,6 +1079,11 @@ def render_document(context, path):
     footer_style = document.styles['Footer']
     footer_style.font.name, footer_style.font.size = '黑体', Pt(9)
     footer_style.paragraph_format.line_spacing = 1
+    # Fresh output uses plain paper. Do not touch source image/shape fills.
+    for background in list(document._element.findall(qn('w:background'))):
+        document._element.remove(background)
+    for prop in document.styles.element.xpath('.//w:shd | .//w:highlight'):
+        prop.getparent().remove(prop)
     settings = document.settings.element
     for node in list(settings.findall(qn('w:evenAndOddHeaders'))):
         settings.remove(node)
@@ -1135,6 +1142,25 @@ def render_document(context, path):
                     mark(caption, block['bookmark'] + 'c', len(document.paragraphs) * 2)
                     paragraph_format(caption, 'caption', kind)
                     font(caption.add_run('图' + str(figure['number'])))
+    # Also cover footer spacer paragraphs and nested text containers without
+    # changing their geometry or deleting their contents.
+    for part in document.part.package.parts:
+        node = getattr(part, '_element', None)
+        if node is None:
+            continue
+        for paragraph in node.iter(qn('w:p')):
+            props = paragraph.get_or_add_pPr()
+            keys = ('keepNext', 'keepLines', 'pageBreakBefore')
+            for key in keys:
+                for previous in list(props.findall(qn('w:' + key))):
+                    props.remove(previous)
+            # Legacy generated pPr children need not already be ordered, so
+            # insert these leading schema properties just after pStyle rather
+            # than relying on get_or_add finding an already ordered successor.
+            style = props.find(qn('w:pStyle'))
+            position = props.index(style) + 1 if style is not None else 0
+            for offset, key in enumerate(keys):
+                props.insert(position + offset, element('w:' + key, val=0))
     document.save(path)
 
 
@@ -1184,6 +1210,20 @@ def verify_document(context, path):
             (tree_signature(wanted_math_pr) if wanted_math_pr is not None else None), 'source mathPr context changed')
     require(settings.find('w:evenAndOddHeaders', NS) is None, 'unexpected even-page header mode')
     styles = xml(parts['word/styles.xml'], 'word/styles.xml')
+    def require_no_pagination_markers(root):
+        read_flow = inspect_docx.page_flow_reader(styles)
+        for paragraph in root.iter(qn('w:p')):
+            flow = read_flow(paragraph)
+            require(all(flow['effective'][key]['value'] is False
+                        for key in ('keepLines', 'keepNext', 'pageBreakBefore')),
+                    'black pagination marker property enabled or unresolved')
+    require_no_pagination_markers(doc)
+    read_backgrounds = inspect_docx.background_reader(styles)
+    def require_plain_paper(root, part):
+        evidence=read_backgrounds(root,part)
+        require(not evidence['hits'] and not evidence['review_candidates'],
+                'page/background shading or highlighting detected: '+part)
+    require_plain_paper(doc, 'word/document.xml')
     footer_style = styles.find('w:style[@w:styleId="Footer"]', NS)
     require(footer_style is not None and
             attributes(footer_style.find('w:rPr/w:sz', NS)).get('val') == '18' and
@@ -1204,6 +1244,10 @@ def verify_document(context, path):
         footer_part = rels[footers[0].get(qn('r:id'))]
         header = xml(parts[header_part], header_part)
         footer = xml(parts[footer_part], footer_part)
+        require_no_pagination_markers(header)
+        require_no_pagination_markers(footer)
+        require_plain_paper(header,header_part)
+        require_plain_paper(footer,footer_part)
         require(word_text(header) == HEADERS[i], 'section header text changed')
         expected_margins = {'top': '1417', 'right': '851', 'bottom': '850', 'left': '1418',
                             'header': '851' if i < 3 else '709', 'footer': '227' if i < 3 else '70', 'gutter': '0'}
@@ -1328,9 +1372,7 @@ def verify_document(context, path):
         require(attributes(p.find('w:pPr/w:jc', NS)).get('val') == wanted_alignment, 'paragraph alignment changed')
         for prop in ('autoSpaceDE','autoSpaceDN'):
             require(attributes(p.find('w:pPr/w:'+prop,NS)).get('val')=='0','Automatic extra content spacing changed')
-        for prop, value in {'keepLines': int(role != 'body'),
-                            'keepNext': int(role in {'heading', 'project_title'} or
-                                            (role == 'image' and section == 'figures')),
+        for prop, value in {'keepLines': 0, 'keepNext': 0,
                             'pageBreakBefore': 0, 'widowControl': 0}.items():
             require(attributes(p.find('w:pPr/w:' + prop, NS)).get('val') == str(value),
                     'paragraph pagination changed: ' + block['id'] + '/' + prop)
@@ -1357,7 +1399,7 @@ def verify_document(context, path):
                     ('br','cr','tab','fldChar','fldSimple','instrText','drawing','pict','object','sym','numPr')}
                 require(not any(node.tag in forbidden_caption_tags or node.tag in {qn('m:oMath'),qn('m:oMathPara')}
                                 for node in caption.iter()), 'figure caption must be one plain number-only line')
-                for prop, value in {'keepNext':'0', 'keepLines':'1', 'pageBreakBefore':'0', 'widowControl':'0'}.items():
+                for prop, value in {'keepNext':'0', 'keepLines':'0', 'pageBreakBefore':'0', 'widowControl':'0'}.items():
                     require(attributes(caption.find('w:pPr/w:' + prop, NS)).get('val') == value,
                             'figure caption pagination changed')
                 row.update(caption_locator=f'word/document.xml body/w:p[{caption_index}]', caption_text=word_text(caption),
