@@ -30,11 +30,9 @@ python scripts/parallel_batch.py init --input 输入目录 --work-root 工作目
 
 ## 滚动补位
 
-版本35新批次采用stage_scheduling=separate_stage_pools_v35、review_mode=review_only，顶层stage_pools指定draft=6、review=3、revise=3；总目标12，最多24案在制。各池独立上限，初检和重验共享review池，空池不能借成其他池超限；有待办且未满的池按占用比例补位。--capacity/--workers必须填写本批实际可用总worker容量，包含已占槽，不计总控或无关任务；可低于12，不能把目标当容量证据。CLI和本批collaboration共用计数，1槽顺序执行。旧overlapped_pipeline_v29按原两区借槽规则，未标记旧策略按原min_draft_slots，不改旧快照。完整边界见[三池执行](three-stage-pools.md)。
+按[三池执行](three-stage-pools.md)配置容量及补位：初稿→独立只读复查→必要修改后新会话复查，通过即交付。CLI与collaboration共享本批实际容量，同案最多一个活跃attempt；长I/O不占主清单长锁。旧批次按自身冻结标记运行。
 
-版本36新批次由stage_pool_runner维持三个独立准备/收稿通道及独立单写交付通道。初稿完成即排review，fix_required即排revise，修订后回review新会话重验；通过稿即排桌面交付，有空闲名额立即接手。长I/O在主清单锁外，单案短事务合并，accepted不阻塞reserve；准备中占槽，完整证据门禁不变。旧v29/v35无pool_execution标记时保留单件收取、交付后补位及故障drain。具体规则见[三池执行](three-stage-pools.md)。
-
-每案内部最多一个活跃attempt。版本35为draft→review→revise(需要时)→review；旧冻结review_fix_then_recheck策略允许review内一次有依据的修正返回revised，再由新Sol/xhigh review独立重验，仍可在需要时使用独立revise路径。不同案可以同时处于不同阶段。各案按实际验收完成时间直接交付到同一文件夹根目录，交付台账保留原队列ID；规则版本18起正式名称须唯一且与文内主标题一致，冲突先解决，不自动加案号；旧快照保持旧命名。并行不能取代最终验收，不承诺绝对零错误或未经实测的加速倍数。
+各案按实际验收顺序交付，队列ID保留在台账；名称唯一性及桌面布局统一见[桌面交付](#桌面交付)。配置不代表实际产能，不承诺未经实测的加速倍数或绝对零错误。
 
 ## 占槽和真实派发
 
@@ -74,7 +72,7 @@ python scripts/parallel_batch.py record --manifest 批次清单 --case 项目ID 
 
 ## 取消、恢复与待处理
 
-成功连接重试被旧CLI判定误拒的draft批次，使用[CLI恢复入口](cli-workers.md)中的`recover_cli_batch.py`保留旧批次并另建批次继承完整核验的初稿。此操作不重写旧回执、不新增虚构模型调用、不继承通过状态；按原冻结策略由新派发的复查模型独立验收。
+成功连接重试被旧CLI判定误拒的draft批次，使用[重连误拒收恢复入口](tool-fault-recovery.md#重连误拒收初稿的受控恢复)中的`recover_cli_batch.py`保留旧批次并另建批次继承完整核验的初稿。此操作不重写旧回执、不新增虚构模型调用、不继承通过状态；按原冻结策略由新派发的复查模型独立验收。
 
 collaboration未bind的预留可因派发失败cancel；CLI已有启动意图即须确认原进程退出，不能因尚未bind直接取消。已bind先停止对应worker并确认实际停止，再保存停止证据并cancel。仅发出中断请求不等于停止确认。不得因超时直接启动同案第二个worker，活动worker不能直接defer。
 
@@ -90,9 +88,7 @@ stop-evidence含tool=collaboration.interrupt_agent、原context、arguments.targ
 
 默认使用[提效流程](efficiency.md)中的缓存、简短回执和按需检查。正常直接reserve，避免plan→reserve重复读取；总控在worker工作时可提前用本地工具提取下一案来源。--compact只缩短返回内容，不删证据。
 
-环境预检每批一次，依赖改变后重新检查和实测。来源快照按源SHA和提取器哈希复用提取结果，同名异内容不能命中；复查复用数据结构并独立核对待审范围所需的原材料及完整OMML。一个evidence.json可以汇总来源/术语/公式/附图，避免重复台账。独立只读检查批量执行。
-
-Word字节未变且render_docx_checked.py --verify通过时，直接复用同案已生成PDF/全部PNG，不重复转换。任何修订改变DOCX后重新渲染。verified_scope_v1复查按差异与依赖完成六项覆盖；当前渲染中与已审通过页一致的页可验证继承，仅对其他页实际查看。旧冻结策略仍按原范围执行。
+环境与来源缓存、同稿渲染、变化范围重验统一按[快速执行](fast-execution.md)对应步骤处理。一个evidence.json可汇总来源、术语、公式和附图，独立只读检查可批量执行；不再另建相同台账。
 
 ## 桌面交付
 

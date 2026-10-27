@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import stat
 import uuid
+import xml.etree.ElementTree as ET
 
 
 MODEL_EFFORTS = frozenset({('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh'),
@@ -99,6 +100,46 @@ def _jsonl(data):
     # JSON strings may legally contain U+0085/U+2028/U+2029. Only LF delimits
     # JSONL records; splitlines() corrupts otherwise valid execution evidence.
     return [_json(line) for line in data.decode('utf-8-sig').split('\n') if line.strip()]
+
+
+def _session_final_json(text):
+    """Allow only the structured memory metadata omitted by native CLI output.
+
+    The receipt itself, CLI events, output file, seals and execution identity
+    stay strict. Raw session bytes are never rewritten or resealed.
+    """
+    stripped = text.lstrip()
+    _, end = json.JSONDecoder().raw_decode(stripped)
+    trailer = stripped[end:].strip()
+    if not trailer:
+        return _json(stripped)
+    _require(trailer.startswith('<oai-mem-citation>')
+             and trailer.endswith('</oai-mem-citation>')
+             and '<!' not in trailer and '<?' not in trailer,
+             'Unexpected text after actual session receipt')
+    try:
+        node = ET.fromstring(trailer)
+    except ET.ParseError as exc:
+        raise ValueError('Malformed actual session memory citation') from exc
+    _require(node.tag == 'oai-mem-citation' and not node.attrib
+             and (node.text is None or not node.text.strip())
+             and [child.tag for child in node] == ['citation_entries', 'rollout_ids'],
+             'Unexpected actual session memory citation structure')
+    for child in node:
+        _require(not child.attrib and len(child) == 0
+                 and (child.tail is None or not child.tail.strip()),
+                 'Unexpected actual session memory citation content')
+    entries = [line.strip() for line in (node[0].text or '').split('\n') if line.strip()]
+    _require(bool(entries) and all(re.fullmatch(
+        r'[^|\r\n<>]+:[1-9][0-9]*-[1-9][0-9]*\|note=\[[^\[\]\r\n<>]+\]', line)
+        for line in entries), 'Malformed actual session memory citation entries')
+    ids = [line.strip() for line in (node[1].text or '').split('\n') if line.strip()]
+    try:
+        _require(len(ids) == len(set(ids)) and all(str(uuid.UUID(value)) == value for value in ids),
+                 'Malformed actual session memory rollout IDs')
+    except (ValueError, AttributeError) as exc:
+        raise ValueError('Malformed actual session memory rollout IDs') from exc
+    return _json(stripped[:end])
 
 
 def _identity(value):
@@ -344,7 +385,7 @@ def _verify_completion_full(attempt, dispatch, *, capture_identity=False):
                      and x.get('type') == 'output_text' and isinstance(x.get('text'), str) for x in content),
                      'Actual CLI final message content required')
             final_messages.append(''.join(x['text'] for x in content))
-    _require(bool(final_messages) and _json(final_messages[-1]) == receipt,
+    _require(bool(final_messages) and _session_final_json(final_messages[-1]) == receipt,
              'Actual session final answer differs from the receipt')
     metas = [row.get('payload') for row in rows if row.get('type') == 'session_meta']
     _require(len(metas) == 1 and isinstance(metas[0], dict), 'One actual session_meta required')

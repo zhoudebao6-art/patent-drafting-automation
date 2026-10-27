@@ -1,18 +1,18 @@
-# 在另一台电脑安装 v6.57
+# 在另一台电脑安装 v6.58
 
-本版是 patent-drafting-automation v6.57，规则84，共65条。完整技能包含规则、运行脚本、测试和既有格式参考；不包含Python、Office、Poppler等外部程序，也不包含原电脑正在处理的案件。
+本版是 patent-drafting-automation v6.58，规则84，共65条。完整技能包含规则、运行脚本、测试和既有格式参考；不包含Python、Office、Poppler等外部程序，也不包含原电脑正在处理的案件。
 
 ## 推荐：交给新电脑上的Codex安装
 
 复制下面整段到新电脑的Codex：
 
 ```text
-请从 https://github.com/zhoudebao6-art/patent-drafting-automation/releases/tag/v6.57 下载并安装完整的 patent-drafting-automation v6.57 技能，核对发布页的 SHA256SUMS.txt。已有同名技能时先完整备份到技能目录之外，不修改任何在途项目的冻结副本。按技能 references/runtime.md 检测并配置本机文档运行环境，核验实际程序、路径与字体，完成环境预检和首次样稿页面检查；缺少的依赖明确报告，不套用其他电脑路径，不把预检成功当作视觉验收。本次只安装与验证，不开始撰写案件。
+请从 https://github.com/zhoudebao6-art/patent-drafting-automation/releases/tag/v6.58 下载并安装完整的 patent-drafting-automation v6.58 技能，核对发布页的 SHA256SUMS.txt。已有同名技能时先完整备份到技能目录之外，不修改任何在途项目的冻结副本。按技能 references/runtime.md 检测并配置本机文档运行环境，核验实际程序、路径与字体，完成环境预检和首次样稿页面检查；缺少的依赖明确报告，不套用其他电脑路径，不把预检成功当作视觉验收。本次只安装与验证，不开始撰写案件。
 ```
 
 ## 手动放置技能文件
 
-1. 打开[本版发布页](https://github.com/zhoudebao6-art/patent-drafting-automation/releases/tag/v6.57)，下载 `patent-drafting-automation-v6.57.zip` 和 `SHA256SUMS.txt`。
+1. 打开[本版发布页](https://github.com/zhoudebao6-art/patent-drafting-automation/releases/tag/v6.58)，下载 `patent-drafting-automation-v6.58.zip` 和 `SHA256SUMS.txt`。
 2. 解压后，将其中整个 `patent-drafting-automation` 文件夹放入 `%USERPROFILE%\.codex\skills`。设置过自定义CODEX_HOME时，放到该目录下的 `skills` 文件夹。不要多嵌套一层同名目录。
 3. 如果已有旧版，先备份到skills目录之外，再放入新版；保留旧项目及其skill-snapshot。
 4. 重新打开Codex会话，让Codex依据[运行环境说明](references/runtime.md)检测当前电脑并填写 `references/runtime.json`，完成预检及首次样稿页面检查。公开包的配置为空模板，未配置前不能视为可直接转换Word。

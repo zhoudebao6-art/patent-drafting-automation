@@ -89,6 +89,65 @@ class CliEvidenceTests(unittest.TestCase):
             self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
                              {'session_id': self.session_id, 'receipt': self.receipt})
 
+    def _replace_actual_final(self, text, reseal=True):
+        path = self.root / 'session.jsonl'
+        rows = [json.loads(line) for line in path.read_text(encoding='utf-8').split('\n')]
+        rows[-1]['payload']['content'][0]['text'] = text
+        path.write_text('\n'.join(json.dumps(row, ensure_ascii=False) for row in rows), encoding='utf-8')
+        if reseal:
+            path = self.root / 'cli-completion.json'
+            seal = json.loads(path.read_text(encoding='utf-8'))
+            seal['files']['session.jsonl'] = self.sha('session.jsonl')
+            path.write_text(json.dumps(seal), encoding='utf-8')
+
+    def test_session_memory_trailer_preserves_receipt_and_all_execution_checks(self):
+        trailer = ('\n<oai-mem-citation>\n<citation_entries>\n'
+                   'MEMORY.md:191-191|note=[draft acceptance boundary]\n'
+                   '</citation_entries>\n<rollout_ids>\n</rollout_ids>\n</oai-mem-citation>')
+        self.seal()
+        self._replace_actual_final(json.dumps(self.receipt) + trailer)
+        with patch.object(ce, 'process_identity', return_value=None):
+            self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
+                             {'session_id': self.session_id, 'receipt': self.receipt})
+        for change in ('receipt', 'seal', 'live_process', 'model'):
+            with self.subTest(change=change):
+                self.seal()
+                actual = dict(self.receipt, verdict='pass') if change == 'receipt' else self.receipt
+                self._replace_actual_final(json.dumps(actual) + trailer, reseal=change != 'seal')
+                if change == 'model':
+                    self.session[1]['payload']['effort'] = 'low'
+                    self.seal()
+                    self._replace_actual_final(json.dumps(self.receipt) + trailer)
+                live = self.identity if change == 'live_process' else None
+                with patch.object(ce, 'process_identity', return_value=live), self.assertRaises(ValueError):
+                    ce.verify_completion(self.attempt, self.dispatch)
+
+    def test_session_memory_trailer_rejects_other_text_and_malformed_metadata(self):
+        valid = ('\n<oai-mem-citation><citation_entries>'
+                 'MEMORY.md:191-191|note=[boundary]'
+                 '</citation_entries><rollout_ids></rollout_ids></oai-mem-citation>')
+        bad = ('\nextra commentary', '\n{}', valid + valid,
+               valid + '\n{}', valid.replace('citation_entries', 'unknown'),
+               valid.replace('<rollout_ids>', '<rollout_ids bad="1">'),
+               valid.replace('</rollout_ids>', 'not-a-uuid</rollout_ids>'),
+               valid.replace('MEMORY.md:191-191|note=[boundary]', ''),
+               valid.replace('</citation_entries>', '<nested/></citation_entries>'),
+               '\n<!DOCTYPE x>' + valid,
+               valid.replace('</oai-mem-citation>', ''),
+               valid.replace('MEMORY.md:191-191|note=[boundary]', '<![CDATA[invalid]]>'))
+        for trailer in bad:
+            with self.subTest(trailer=trailer):
+                self.seal()
+                self._replace_actual_final(json.dumps(self.receipt) + trailer)
+                with patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                    ce.verify_completion(self.attempt, self.dispatch)
+        for receipt in ('{}{}', '{"verdict":"complete","verdict":"pass"}'):
+            with self.subTest(receipt=receipt):
+                self.seal()
+                self._replace_actual_final(receipt + valid)
+                with patch.object(ce, 'process_identity', return_value=None), self.assertRaises(ValueError):
+                    ce.verify_completion(self.attempt, self.dispatch)
+
     def test_collection_scope_shares_parsing_but_not_mutable_results(self):
         self.seal()
         with patch.object(ce, 'process_identity', return_value=None), \

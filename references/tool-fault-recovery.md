@@ -15,3 +15,17 @@
 独立准备先封存pending预留，再准备handoff并生成ready job，原reservation不回写。assemble仅在原reservation SHA一致、当前attempt的prepared/handoff.json为独立常规文件、固定路径/封存SHA/context都相同时，回映preparation_state并扣除新增prepared_handoff后严格比较完整字典；任何其他身份、来源或未知字段变化均拒绝。该判断只证明正常准备转换，不能代替prepare/bind/record的来源和真实执行验证，也不证明专利内容通过。
 
 本页规定总控处理方式，不声称运行池能够自动诊断任意异常，也不让worker自行修改共享工具。技能更新只改变以后冻结的工具；已运行故障由所属总控按上述证据边界接续，不能把安装成功当作旧批次已恢复。
+
+## 重连误拒收初稿的受控恢复
+
+仅在日志或恢复状态与下列情形完全匹配时使用，正常任务不加载本节。
+
+2026-10-14用户批准修复成功重连被误拒收的问题。执行核验仅允许严格匹配`Reconnecting... n/m (stream disconnected before completion: ...)`，或新版CLI完整固定文本`Reconnecting... waiting for network (Connection failed: error sending request)`的中间连接通知：必须在唯一turn.started之后，且后续有新的最终agent_message及唯一turn.completed；所有原始日志保持原字节。未知error、turn.failed、非零退出、真实会话失败及模型/强度/prompt/封存哈希不一致仍拒绝。连接恢复不代表专利验收，原六项内容和页面门禁不变。
+
+对旧程序仅因该判定而终结的成功draft，确认整池已退出后运行`python scripts/recover_cli_batch.py --manifest 旧manifest --work-root 工作根目录 --controller 新控制器标识`。工具重新核验原始完整执行证据、冻结Sol/high、来源和稿件哈希，保留旧manifest、attempt与拒收记录；另建批次复制验证成功的初稿，只设为drafted，沿用原冻结来源/内容规则/模型策略。恢复批次必须按原冻结策略派发新的独立review，不能继承pass或用原Sol会话复查。恢复证据与新稿哈希绑定；幂等指针不能指向无关批次。该入口仅支持上述draft误拒收，不泛化恢复未知失败、修改稿或旧通过结论。
+
+恢复初稿放在本案`stages/recovered-draft`导入目录，不能假造一次模型attempt。若旧版恢复布局导致全部案件在派发前被`Foreign or changed current artifact`拦截，可显式加`--new-generation`：工具只允许无活动/历史attempt、无启动意图/派发记录且原因完全匹配的布局准备失败，保留旧manifest和恢复指针历史后重建。未知失败不得借此重启。该路径须测试真实`reserve --prepare`及交接证据核验。
+
+## 日志格式判定
+
+2026-10-20已授权批处理中定位到CLI输出的JSON字符串可包含未转义的U+0085、U+2028、U+2029。JSONL仅按LF切分记录，保留这些字符串字符及原始日志字节；真实LF破坏字符串、重复键、未知错误、失败turn及身份/哈希矛盾仍拒绝。监督器封存与完整执行核验使用相同记录边界。工具修复不继承专利通过，最终仍须独立六项与全部当前页验收。
