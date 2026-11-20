@@ -82,6 +82,131 @@ class CliPoolTests(unittest.TestCase):
         self.assertEqual(r['case_id'], '001')
         self.assertEqual(verify.call_count, 1)
 
+    def capacity_fixture(self, reserved, *, bind=True):
+        _, dispatch, _ = self.fixture_cli(reserved, bind=bind)
+        root = Path(reserved['attempt']['directory'])
+        rows = [json.loads(line) for line in (root/'events.jsonl').read_text().split('\n')]
+        rows = rows[:2] + [{'type': 'error', 'message': ce.MODEL_CAPACITY},
+                          {'type': 'turn.failed', 'error': {'message': ce.MODEL_CAPACITY}}]
+        (root/'events.jsonl').write_text('\n'.join(json.dumps(row) for row in rows), encoding='utf-8')
+        exited = b.read(root/'cli-exit.json'); exited['returncode'] = 1
+        b.atomic(root/'cli-exit.json', exited)
+        (root/'worker-final.json').unlink(); (root/'cli-completion.json').unlink()
+        return root, dispatch
+
+    def test_capacity_exit_preserves_previous_stage_and_drains_valid_peers(self):
+        self.enable_cli()
+        for bound in (False, True):
+            with self.subTest(bound=bound):
+                bad = p.reserve(self.manifest, 4, transport='codex_cli')
+                good = p.reserve(self.manifest, 4, transport='codex_cli')
+                before = p.case_by_id(b.read(self.manifest), bad['case_id'])
+                root, _ = self.capacity_fixture(bad, bind=bound)
+                self.fixture_cli(good)
+                raw = (root/'events.jsonl').read_bytes()
+                with patch.object(ce, 'process_identity', return_value=None), patch.object(pool, 'emit'):
+                    result = pool.collect(self.manifest, 'controller', drain=True)
+                self.assertEqual(result, (True, True)); self.assertTrue(result.capacity_only)
+                current = p.case_by_id(p.load_manifest(self.manifest), bad['case_id'])
+                self.assertEqual(current['status'], before['status'])
+                self.assertEqual(current.get('artifact_sha256'), before.get('artifact_sha256'))
+                self.assertEqual(current['receipts'], before['receipts'])
+                self.assertIsNone(current['active_attempt'])
+                self.assertEqual(current['attempts'][-1]['state'], 'cancelled')
+                self.assertEqual((root/'events.jsonl').read_bytes(), raw)
+                self.assertEqual(b.read(root/'cli-rejection.json')['code'], 'model_capacity')
+                peer = p.case_by_id(b.read(self.manifest), good['case_id'])
+                self.assertIn(peer['status'], {'drafted', 'accepted'})
+
+    def test_capacity_classifier_rejects_unknown_or_contradictory_evidence(self):
+        self.enable_cli()
+        modes = ('valid', 'nested_only', 'mixed_error', 'completed', 'missing_turn',
+                 'final_file', 'bad_exit', 'wrong_model', 'changed_prompt', 'changed_dispatch')
+        for mode in modes:
+            with self.subTest(mode=mode):
+                reserved = p.reserve(self.manifest, 4, transport='codex_cli')
+                root, dispatch = self.capacity_fixture(reserved)
+                current = p.case_by_id(b.read(self.manifest), reserved['case_id'])['attempts'][-1]
+                rows = [json.loads(line) for line in (root/'events.jsonl').read_text().split('\n')]
+                if mode == 'nested_only':
+                    rows = rows[:2]+[{'type':'item.completed','item':{'type':'agent_message','text':ce.MODEL_CAPACITY}}]
+                elif mode == 'mixed_error': rows.insert(2, {'type':'error','message':'unknown failure'})
+                elif mode == 'completed': rows.insert(2, {'type':'turn.completed'})
+                elif mode == 'missing_turn': rows.pop(1)
+                elif mode == 'final_file': b.atomic(root/'worker-final.json', {})
+                elif mode == 'bad_exit':
+                    exited = b.read(root/'cli-exit.json'); exited['pid'] += 1; b.atomic(root/'cli-exit.json',exited)
+                elif mode == 'wrong_model': dispatch['arguments']['model'] = 'other-model'
+                elif mode == 'changed_prompt': (root/'prompt.txt').write_text('changed')
+                elif mode == 'changed_dispatch': (root/'dispatch.json').write_text('{}')
+                (root/'events.jsonl').write_text('\n'.join(json.dumps(row) for row in rows))
+                model = b.read(self.manifest)['policy']['models'][current['stage']]
+                with patch.object(ce, 'process_identity', return_value=None):
+                    if mode in {'bad_exit','wrong_model','changed_prompt','changed_dispatch'}:
+                        with self.assertRaises(ValueError): ce.capacity_failure(current, dispatch, model)
+                    else:
+                        result = ce.capacity_failure(current, dispatch, model)
+                        self.assertEqual(result is not None, mode == 'valid')
+                # No production execution: isolate each synthetic case for the next scenario.
+                m = b.read(self.manifest); c = p.case_by_id(m, reserved['case_id'])
+                c['active_attempt'] = None; c['status'] = 'failed'; b.atomic(self.manifest,m)
+
+    def test_capacity_with_live_supervisor_or_changed_source_never_releases_slot(self):
+        self.enable_cli()
+        for mode in ('supervisor', 'source', 'original'):
+            with self.subTest(mode=mode):
+                reserved = p.reserve(self.manifest, 4, transport='codex_cli')
+                root, dispatch = self.capacity_fixture(reserved)
+                if mode == 'supervisor': b.atomic(root/'supervisor.json',dict(dispatch['result'],pid=456))
+                else:
+                    case = p.case_by_id(b.read(self.manifest),reserved['case_id'])
+                    source=Path(case['sources'][0]['original_path' if mode=='original' else 'snapshot_path'])
+                    source.chmod(0o600)
+                    source.write_bytes(b'changed source')
+                def identity(pid): return dict(dispatch['result'],pid=456) if mode == 'supervisor' and pid == 456 else None
+                with patch.object(ce,'process_identity',side_effect=identity),patch.object(pool,'emit'):
+                    result=pool.collect(self.manifest,'controller',case_ids={reserved['case_id']})
+                self.assertFalse(result.capacity_only)
+                self.assertIsNotNone(p.case_by_id(b.read(self.manifest),reserved['case_id'])['active_attempt'])
+
+    def test_capacity_backoff_is_bounded_serial_and_does_not_retry_unknown_faults(self):
+        for mode in ('recover','exhaust','unknown'):
+            with self.subTest(mode=mode):
+                slots=[]
+                def run_once(workers):
+                    slots.append(workers)
+                    limited = mode == 'exhaust' or mode == 'recover' and len(slots)==1
+                    return {'halted':limited or mode=='unknown','capacity_limited':limited}
+                with patch.object(pool.time,'sleep') as sleep,patch.object(pool,'event'):
+                    result=pool.capacity_recovery(self.manifest,run_once,16)
+                self.assertEqual(slots, {'recover':[16,1],'exhaust':[16,1,1],'unknown':[16]}[mode])
+                self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), {'recover':60,'exhaust':180,'unknown':0}[mode])
+                self.assertEqual(result.get('automatic_retry_exhausted',False),mode=='exhaust')
+
+    def test_capacity_pipeline_retries_only_after_drain_and_delivers_existing_work(self):
+        from test_nonblocking_pools import NonblockingBehaviorTests
+        fixture=NonblockingBehaviorTests(); fixture.setUp(); self.addCleanup(fixture.doCleanups)
+        failed_once=[]; launches=[]
+        def prepare(reserved, executable):
+            launches.append((reserved['case_id'],reserved['attempt']['stage']))
+            if not failed_once:
+                failed_once.append(reserved['attempt']['id'])
+                self.capacity_fixture.__func__(fixture,reserved,bind=False)
+            else:
+                fixture.fixture_cli(reserved,bind=False,verdict='pass' if reserved['attempt']['stage']=='review' else 'complete')
+            return Path(reserved['attempt']['directory'])/'synthetic-job.json'
+        normal_sleep=pool.time.sleep
+        def wait(seconds):
+            if seconds != 30:
+                return normal_sleep(seconds)  # Keep unrelated filesystem retry timing real.
+            self.assertFalse(any(c['active_attempt'] for c in b.read(fixture.manifest)['projects']))
+            self.assertEqual(seconds,30)
+        with patch.object(pool.time,'sleep',side_effect=wait):
+            result,count=fixture.run_fake_pipeline(workers=1,prepare=prepare)
+        self.assertFalse(result['halted'],result)
+        self.assertEqual(count,17)  # Eight draft/review pairs plus one refused attempt.
+        self.assertTrue(all(c['status']=='delivered' for c in b.read(fixture.manifest)['projects']))
+
     def test_reserve_skips_bad_source_then_checks_one_good_case(self):
         fixtures.docx(self.src/'1.docx', 'changed')
         with patch.object(p, 'verify_case', wraps=p.verify_case) as verify:

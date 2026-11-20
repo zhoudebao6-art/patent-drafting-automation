@@ -5,7 +5,29 @@ import json
 from pathlib import Path
 
 
-def query(path, section='summary', ids=None, part='word/document.xml', start=None, end=None, offset=0, limit=30):
+def field_catalog(report):
+    """List array paths/counts without echoing document text or mathematical trees."""
+    fields = {}
+    def visit(node, prefix=''):
+        for key, value in node.items():
+            if not isinstance(key, str) or '.' in key:
+                continue
+            name = prefix + key
+            if isinstance(value, list):
+                fields[name] = len(value)
+            elif isinstance(value, dict):
+                visit(value, name+'.')
+    visit(report)
+    return fields
+
+
+def _page(rows, offset, limit):
+    end = offset + limit
+    return {'total': len(rows), 'offset': offset, 'data': rows[offset:end],
+            'next_offset': end if end < len(rows) else None}
+
+
+def query(path, section='summary', ids=None, part='word/document.xml', start=None, end=None, offset=0, limit=30, field=None):
     path = Path(path)
     if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
         raise ValueError('Independent inspection JSON required')
@@ -15,10 +37,13 @@ def query(path, section='summary', ids=None, part='word/document.xml', start=Non
     result = {'inspection': str(path.resolve()), 'inspection_sha256': hashlib.sha256(raw).hexdigest(),
               'input': report['input'], 'source_sha256': report['sha256'],
               'status': 'navigation_only_not_semantic_approval', 'section': section}
+    if field is not None and section != 'field':
+        raise ValueError('Field path requires section=field')
     if section == 'summary':
         result['data'] = {k: report.get(k) for k in ('formula_count_status', 'claims_detected', 'required_semantic_reviews', 'review_status')}
         result['counts'] = {'formulas': len(report.get('formulas', [])), 'issues': len(report.get('issues', [])),
                             'parts': len(report.get('parts', [])), 'media': len(report.get('media', []))}
+        result['available_fields'] = field_catalog(report)
         return result
     if section == 'formulas':
         rows = report.get('formulas', [])
@@ -35,17 +60,35 @@ def query(path, section='summary', ids=None, part='word/document.xml', start=Non
         result['part'] = part
     elif section == 'issues':
         rows = report.get('issues', [])
+    elif section == 'field':
+        names = field if isinstance(field, (list, tuple)) else [field]
+        catalog = field_catalog(report)
+        if not names or any(not isinstance(name, str) or name not in catalog for name in names):
+            raise ValueError('Unknown array field; inspect available_fields first')
+        if len(set(names)) != len(names):
+            raise ValueError('Duplicated array field')
+        pages = {}
+        for name in names:
+            rows = report
+            for key in name.split('.'):
+                rows = rows[key]
+            pages[name] = _page(rows, offset, limit)
+        if len(names) == 1:
+            result.update(field=names[0], **pages[names[0]])
+        else:
+            result['fields'] = pages
+        return result
     else:
         raise ValueError('Unknown inspection section')
-    result.update(total=len(rows), offset=offset, data=rows[offset:offset+limit],
-                  next_offset=offset+limit if offset+limit < len(rows) else None)
+    result.update(_page(rows, offset, limit))
     return result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('inspection', type=Path)
-    parser.add_argument('--section', choices=['summary','formulas','paragraphs','issues'], default='summary')
+    parser.add_argument('--section', choices=['summary','formulas','paragraphs','issues','field'], default='summary')
+    parser.add_argument('--field', action='append', help='Exact array path; repeat for several fields from the same inspection, with separate page totals and cursors')
     parser.add_argument('--ids', nargs='+')
     parser.add_argument('--part', default='word/document.xml')
     parser.add_argument('--start', type=int); parser.add_argument('--end', type=int)
@@ -53,7 +96,7 @@ def main():
     args = parser.parse_args()
     try:
         print(json.dumps(query(args.inspection, args.section, args.ids, args.part, args.start, args.end,
-                               args.offset, args.limit), ensure_ascii=False))
+                               args.offset, args.limit, args.field), ensure_ascii=False))
     except (ValueError, OSError, KeyError, TypeError) as exc:
         parser.exit(2, 'Evidence query refused: '+str(exc)+'\n')
 

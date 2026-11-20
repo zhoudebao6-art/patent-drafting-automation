@@ -1,71 +1,44 @@
 # 专利撰写自动化
 
-v6.58：主控手册按职责合并重复说明，三池调度、证据复用和低频恢复各有一个详细维护位置；普通任务不再顺读旧版故障说明或历史探针记录。运行代码、规则v84的65条规则、指定模型、独立复查、进程收尾及在途快照保持原样。此次为阅读与维护架构精简，不代表实测产能已经提高。
-
-本次公开发布还整合此前已安装并验证的CLI会话记忆引用兼容修复：只允许真实会话末尾的严格结构化记忆元数据，回执正文、来源、执行身份和封存哈希仍须一致。原始会话日志不改写，业务验收不放宽。
-
-## 架构与阅读入口
-
-|职责|入口|何时读取|
-|---|---|---|
-|识别办案或技能维护，分配阶段职责|[SKILL.md](SKILL.md)|开始任务时|
-|规则与写作要求|[规则库](references/rules.json)及SKILL内的规范索引|worker读取本批冻结阶段包，细节按需查|
-|入库、队列命令和逐案交付|[批处理流程](references/batch-workflow.md)|主控执行当前步骤时|
-|CLI启动、真实证据和进程收尾|[CLI池](references/cli-workers.md)|使用CLI通道时|
-|调度容量与证据复用细节|[三池执行](references/three-stage-pools.md)、[快速执行](references/fast-execution.md)|需要对应契约细节时，不作为重复必读项|
-|内部工具故障及特定旧版恢复|[故障接续](references/tool-fault-recovery.md)|匹配相应故障时|
-|提取、生成、渲染和回执|[提效执行索引](references/efficiency.md)|按当前阶段调用既有工具|
-|版本历史与旧验证记录|[CHANGELOG.md](CHANGELOG.md)|追溯版本时，普通办案不必读|
-
-运行主线为来源准备→初稿→独立复查→必要修改后独立重验→逐案交付。当前来源、稿件与最终页面仍须完整覆盖六项验收；已验证且未受修改影响的范围按原证据继承。通过即交付，完成即结束本案专属进程；各案独立，其他在途任务继续。
-
-## 安装与更新
-
-新电脑按[安装说明](INSTALL.md)操作，下载本发布的完整ZIP；无需复制原电脑的项目或配置。
-
-从本仓库[最新发布](https://github.com/zhoudebao6-art/patent-drafting-automation/releases/latest)下载该发布页中的`patent-drafting-automation-v版本号.zip`，解压后将整个`patent-drafting-automation`文件夹放入`%USERPROFILE%\.codex\skills`；设置了自定义CODEX_HOME时使用其`skills`目录。更新时先把旧技能目录移到skills目录之外备份，再放入新版，避免同时发现两份同名技能；工作批次及其skill-snapshot不要移动或覆盖。
-
-新电脑或软件升级后，先让Codex按[运行环境](references/runtime.md)探测本机Python、文档工具、WPS/LibreOffice、Poppler和字体，更新本机runtime.json并完成预检及首次样稿页面验证。公开安装包内runtime.json是待配置模板，不含原机器路径或已验证结论，必须在新电脑检测后填写；安装包不含这些外部程序。已有正确环境无需重复安装依赖。
-
-重新打开Codex会话后可使用下方指令。新版用于以后新建批次，已运行批次继续自己的冻结版本。GitHub发布更新不会自动更新其他电脑的本地技能，需要在对应电脑安装新版。发布ZIP保留运行脚本、测试、完整现行规则/规范、必要来源证据与历史模板，历史规则备份目录留在Git中，不加入运行包。
+v6.73 / 规则90。新批次按轻量路径运行，阶段包只复制 worker 必需的参考文件。初稿、复查、修改共用完整规则前缀和冻结分块，复查可一次读取同一报告中多个字段。旧批次继续使用自己的冻结版本。
 
 ## 使用
 
+新对话中复制下面指令，将路径换成实际案件文件夹：
+
 ```text
-请使用 $patent-drafting-automation，并行处理“D:\待撰写项目”中的技术项目优化书，按可用名额持续补位，每案独立复查和修改，每案Word复查通过后立即直接放到桌面同一批次文件夹根目录，不按项目建子文件夹，不等全部项目完成。
+使用 $patent-drafting-automation 本机最新版，处理“D:\待撰写案件\待撰写项目”。递归识别技术项目优化书，滚动完成初稿、独立复查和必要修改，每案验收通过后立即交付到桌面同一个“原文件夹名称_终稿_批次标识”文件夹。复用有效证据，完成每案即释放其池名额和专属进程，整批结束确认控制器、线程池及锁释放。
 ```
 
-每完成并验收通过一案，总控立即交付并提供文件链接；后续成稿直接追加到同一目录根部。最终目录内直接排列“项目甲.docx”“项目乙.docx”等成稿。审阅台账、中间稿及待处理说明留在工作目录。不同项目可以同时处于撰写、复查、修正阶段，不再等待前一项目全部验收。每案内部保持有序且只允许一个活跃阶段；独立case/attempt目录和哈希绑定防止错案、错稿、旧回执混用。
+实际办案时也可只发文件夹完整路径。用法讨论、示例路径或通用维护不启动案件；已有批次在原对话继续，避免重复派发和消耗。
 
-默认目标为6个初稿、3个只读复查、3个独立修改worker，最多24案在制。控制器显式填写实际可用--workers；三池共用总容量、各池不超限。初检及修改后独立重验共用3个review名额，修改单独revise；一案通过立即交付。实际容量受账户及机器限制，没有CLI时按实际子代理名额执行，只有1个名额如实顺序。旧冻结批次继续原调度，具体见[三池执行](references/three-stage-pools.md)。
+## 架构和阅读入口
 
-## 文件与维护
+一套总控管理三个模型池。新批次只按[轻量运行架构](references/architecture-lite.md)读取主路径，完整流程、故障和旧批次兼容规则按需进入原手册。
 
-- [SKILL.md](SKILL.md)：技能入口。
-- [本轮提速机制](references/fast-execution.md)、[公共Word生成器](references/authoring-toolkit.md)：单份执行清单、原式和图片导入、一次结构检查及工具冻结。
-- [多CLI执行与恢复](references/cli-workers.md)：实际启动、会话证据、失败隔离和恢复。
-- [并行流程](references/batch-workflow.md)、[策略](references/batch-policy.json)：占槽、派发、补位、取消、验收及交付。
-- [规则库](references/rules.json)、[规则维护](references/rule-maintenance.md)：话术、范围、来源和版本记录。
-- [写作标准](references/writing-standard.md)、[技术校核](references/technical-review.md)、[所述与公式规范](references/terminology-and-formula.md)：完整名词的前置、源公式数量、完整符号、无空白及图文要求。
-- [历史格式证据](references/terminology-formula-evidence.md)：三组定稿的Cambria Math/14磅/正体、主公式映射和不再继承的个别缺陷。
-- [正确稿净稿与图序](references/reference-style-standard.md)：不加红字解释，术语回指依章节句法核对，图片与图下号同页。
-- [人工定稿格式与分范围用词](references/manual-format-and-wording.md)：权项分段、合法所述与来源优先边界、页眉页脚参数、孤立变量及名称保护；新增案例正文不随公开技能发布。
-- [公式结构与版式](references/formula-layout-standard.md)：显示续行与合法条件数组的区别、空基底/空限制、角色样式、逐式显示验收与实际反例。
-- [运行环境](references/runtime.md)：Windows Word页面转换及哈希验证。
-- [案例资料](references/corpus)、[来源清单](references/source-manifest.json)：三组历史参考项目。
+|需要做什么|入口|
+|---|---|
+|识别本次任务及阶段|[SKILL.md](SKILL.md)|
+|看架构图、池分工与代码职责|[轻量运行架构](references/architecture-lite.md)|
+|建立案件批次|[批处理流程](references/batch-workflow.md)|
+|启动、接续或结束CLI池|[CLI池](references/cli-workers.md)|
+|使用证据、生成、渲染和回执工具|[提效索引](references/efficiency.md)，按当前问题读取|
+|修改技能或追溯版本|[规则维护](references/rule-maintenance.md)、[变更记录](CHANGELOG.md)|
 
-已有serial_per_project批次使用旧batch_tool.py及其冻结规则恢复，不被升级自动迁移。新批次使用parallel_batch.py。直接说“更新技能”即按长期通用规则保存，后续项目默认使用，无需再强调“长期”；仅本项目的例外请明确说明。
+默认初稿16、复查8、修改8，总预算32，最多64案在制。复查和修改后重验共用复查池；仅有初稿待办时最多16个初稿。draft使用gpt-6.1-sol/high，review/revise使用gpt-6.1-sol/xhigh。配置不证明账号实际容量；新三池CLI省略--workers读取冻结目标，降低预算须用--capacity-reason说明真实限制。没有CLI时使用实际可用子代理名额。
 
-效率优化包括事件完成即补位、reserve直接交接缓存实际路径、公共生成器替代每案临时排版程序、一次结构预检供独立复查使用、原文规则清单替代多份重复阅读、复用有效同稿页面。reserve已包含调度，不再每次先plan；按等待时间推进复查并限制草稿积压。新批次命令自动使用本批冻结脚本，恢复保留原版本。最终六项复查模型审查及全部页面验收保留，不承诺绝对零错误或未经测量的加速比例。
+同案最多一个活动阶段，各案工作目录独立。最终恰好十项权利要求，六项独立检查和全部当前页覆盖通过、身份与SHA一致才交付。有效且未受影响的审阅范围可继承，修改者不能自验；不额外增加格式复查模型。每案完成核专属进程退出及占槽释放，整批还须确认控制器、线程池和锁释放，保留共享程序与其他项目。
 
-## 验证与环境
+## 安装与更新
 
-runtime.json为本机已验证工具路径；当前文档插件26.1013.11914。换电脑或升级后需重新探测和实际渲染，ZIP不包含Python、LibreOffice或Poppler程序。三组历史参考文件未被宣称为全页视觉验收通过。
+从本仓库[发布页](https://github.com/zhoudebao6-art/patent-drafting-automation/releases/latest)下载该页实际版本的`patent-drafting-automation-v版本号.zip`，将完整技能文件夹放入`%USERPROFILE%\.codex\skills`；自定义CODEX_HOME时使用其skills目录。先将旧技能移至skills目录之外备份，避免同名重复发现，不移动或覆盖案件及其skill-snapshot。
 
-当前维护验证见对应版本记录；历史测试数量不代表本版或新案件已通过。每小时十件合格终稿是目标，须用真实完整60分钟窗口统计，不以局部工具优化代替产能实测。
+新电脑或软件升级后按[运行环境](references/runtime.md)探测Python、文档工具、WPS/LibreOffice、Poppler及字体，更新本机runtime.json并完成预检和首次样稿页面验证。包内路径与SHA是原机器配置，不能当作新电脑已验证；包不包含这些外部程序。环境有效时不重复安装。
 
-## 只提供文件夹地址
+重新打开Codex会话后使用。新版仅影响新建批次；运行批次继续冻结版本，serial_per_project旧批沿用batch_tool.py，不自动迁移。GitHub更新不会自动同步其他电脑，须在目标电脑安装；未发布的本地版本不能宣称可从GitHub下载。
 
-实际办案时，直接发送案件文件夹完整路径即可；技能递归查找技术项目优化书，逐案撰写、独立复查及修改，合格终稿陆续放到桌面同一个批次文件夹。
+## 规则、证据和验证
 
-如果消息是在规定“以后按这种地址办理”、举例或要求通用修复，则本轮只维护技能，不拿示例目录开工。确需同时写该批时，在同条明确“现在开始处理这个目录”即可，不增加确认步骤。
+完整要求由[规则库](references/rules.json)及SKILL规范索引维护，worker使用本批冻结阶段包；历史模板和备份仅供维护溯源，不与现行模板混用。原有来源清单、参考语料和兼容工具保持，按实际需要查询，不作为普通阶段重复必读内容。公开包保留运行资源、测试及必要授权证据；历史规则备份留Git，不加入运行包，新增案件正文不随技能发布。
+
+正常办案不运行维护回归、检查GitHub或通读版本历史。维护按实际改动选测，同用例只跑一次；历史测试数不代表新版本或新案件通过。每小时十件合格终稿是目标，须按[统计口径](references/fast-execution.md#速度统计)测量真实完整60分钟窗口。文字减少和局部检查不能证明额度降低、固定加速或绝对零错误。

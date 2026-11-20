@@ -118,6 +118,62 @@ class BundleTests(unittest.TestCase):
         (self.skill/'references/manual-format-and-wording.md').write_text('changed live rules', encoding='utf-8')
         self.assertEqual((s.verify(self.m)/'worker-draft.md').read_bytes(), before)
 
+    def test_shared_frozen_parts_reconstruct_each_stage_and_refuse_shared_tamper(self):
+        for name in ('worker-standard.md', 'worker-standard-coverage.json'):
+            shutil.copyfile(self.actual/'references'/name, self.skill/'references'/name)
+        target = self.root/'shared-files'
+        target.mkdir()
+        policy = dict(self.policy, execution_optimization=s.LEAN)
+        frozen = s.freeze(self.skill, target, self.rules_bytes, policy)
+        manifest = dict(self.m, batch_dir=str(target), policy=policy, skill_snapshot=frozen)
+        root = s.verify(manifest)
+        paths = [s.worker_paths(manifest, stage) for stage in s.STAGES]
+        common_files = set.intersection(*[{part['path'] for part in p['stage_read_parts']} for p in paths])
+        self.assertTrue(common_files)
+        for p in paths:
+            self.assertEqual(cli_pool.inline_stage_packet(p).encode(), Path(p['stage_guide']).read_bytes())
+        Path(next(iter(common_files))).write_bytes(b'corrupted')
+        for p in paths:
+            with self.assertRaisesRegex(ValueError, 'part changed'):
+                cli_pool.inline_stage_packet(p)
+        with self.assertRaisesRegex(ValueError, 'file changed'):
+            s.verify(manifest)
+
+    def test_rule_lookup_keeps_history_out_of_current_execution(self):
+        for name in ('worker-standard.md', 'worker-standard-coverage.json'):
+            shutil.copyfile(self.actual/'references'/name, self.skill/'references'/name)
+        rules = copy.deepcopy(self.rules)
+        retired = dict(copy.deepcopy(rules['rules'][0]), id='RETIRED-TEST', status='retired',
+                       instruction='RETIRED_RULE_MUST_NOT_EXECUTE')
+        rules['rules'].append(retired)
+        rules['history'] = [{'instruction': 'HISTORICAL_RULE_MUST_NOT_EXECUTE'}]
+        raw = json.dumps(rules, ensure_ascii=False).encode('utf-8')
+        active = [r for r in rules['rules'] if r['status'] == 'active']
+        for lean in (False, True):
+            with self.subTest(lean=lean):
+                policy = copy.deepcopy(self.policy)
+                if lean: policy['execution_optimization'] = s.LEAN
+                target = self.root/('lookup-lean' if lean else 'lookup-full'); target.mkdir()
+                record = s.freeze(self.skill, target, raw, policy)
+                manifest = dict(self.m, batch_dir=str(target), policy=policy, skill_snapshot=record,
+                                rules_sha256=__import__('hashlib').sha256(raw).hexdigest())
+                root = s.verify(manifest)
+                self.assertEqual((root/'references/rules.json').read_bytes(), raw)
+                lookup = 'rules.active.json' if lean else 'references/rules.json'
+                if lean:
+                    current = b.read(root/lookup)
+                    self.assertEqual(current['rules'], active)  # Includes complete current evidence/exception fields.
+                    self.assertEqual(current['rule_version'], rules['version'])
+                    self.assertNotIn('history', current)
+                for stage in s.STAGES:
+                    packet = (root/f'worker-{stage}.md').read_text(encoding='utf-8')
+                    note = packet.split('## 规则来源与完整字段\n\n', 1)[1].split('\n\n', 1)[0]
+                    self.assertIn('本快照'+lookup, note)
+                    self.assertIn('不与当前规则合并执行', note)
+                    if lean: self.assertNotIn('references/rules.json', note)
+                    self.assertNotIn(retired['instruction'], packet)
+                    self.assertNotIn(rules['history'][0]['instruction'], packet)
+
     def test_incremental_policy_routes_review_without_changing_legacy_or_writer_roles(self):
         root = s.verify(self.m)
         for enabled in (False, True):

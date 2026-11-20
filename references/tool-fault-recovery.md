@@ -10,6 +10,10 @@
 
 每个补丁对同一未解决故障只尝试一次恢复；复现原故障后保留状态，依据新证据修正或报告具体阻断，不盲重跑收费模型。只有继续工作确实需要用户提供材料、选择技术范围或授予现有授权之外的权限时才询问，明确缺什么；不能只因快照只读而要求再次批准普通工具修复。
 
+## 模型服务容量故障
+
+先区分服务容量拒绝与内部程序损坏。当前容量识别、有限冷却和单路接续见[模型容量不足](cli-workers.md#模型容量不足)。旧版已误标failed的案件不能通过手改status抹除失败记录；保留原attempt及候选稿，由原控制器继续使用已验证恢复入口。正在运行的其他项目不得由维护任务另启第二个控制器。修复仅保存本任务必要诊断和程序回归记录，不归集技术材料为模型训练、蒸馏或模型评测数据，不自动上传或发布。
+
 ## v6.19回执误判的窄修复
 
 独立准备先封存pending预留，再准备handoff并生成ready job，原reservation不回写。assemble仅在原reservation SHA一致、当前attempt的prepared/handoff.json为独立常规文件、固定路径/封存SHA/context都相同时，回映preparation_state并扣除新增prepared_handoff后严格比较完整字典；任何其他身份、来源或未知字段变化均拒绝。该判断只证明正常准备转换，不能代替prepare/bind/record的来源和真实执行验证，也不证明专利内容通过。
@@ -20,7 +24,9 @@
 
 仅在日志或恢复状态与下列情形完全匹配时使用，正常任务不加载本节。
 
-2026-10-14用户批准修复成功重连被误拒收的问题。执行核验仅允许严格匹配`Reconnecting... n/m (stream disconnected before completion: ...)`，或新版CLI完整固定文本`Reconnecting... waiting for network (Connection failed: error sending request)`的中间连接通知：必须在唯一turn.started之后，且后续有新的最终agent_message及唯一turn.completed；所有原始日志保持原字节。未知error、turn.failed、非零退出、真实会话失败及模型/强度/prompt/封存哈希不一致仍拒绝。连接恢复不代表专利验收，原六项内容和页面门禁不变。
+2026-10-14用户批准修复成功重连被误拒收的问题。执行核验仅允许严格匹配`Reconnecting... n/m (stream disconnected before completion: ...)`、`Reconnecting... n/m (workspace routing discovery timed out)`、`Reconnecting... n/m (request timed out)`，或新版CLI完整固定文本`Reconnecting... waiting for network (Connection failed: error sending request)`的中间连接通知：n、m为正整数且n不大于m，必须在唯一turn.started之后，且后续有新的最终agent_message及唯一turn.completed；所有原始日志保持原字节。未知error、turn.failed、非零退出、真实会话失败及模型/强度/prompt/封存哈希不一致仍拒绝。连接恢复不代表专利验收，原六项内容和页面门禁不变。
+
+若混合批次仅有个别draft因上述严格校验中的新重连文本被拒收，可在全部原worker及控制器退出后，用经验证的兼容工具执行`recover_cli_batch.py --manifest 原清单 --case 案号 --controller 原控制器标识`。仅适用于原拒收原因精确为unknown、terminal或unrecovered error且最终真实回执为complete的draft，重新核全部退出、封存、来源、模型、稿件及回执预检。原failed/cancelled attempt、拒收与原日志不改；原manifest字节另存为恢复证据，仅追加候选导入记录，保留其他案与原唯一交付目录，进入新独立review，不继承任何通过。幂等重入重验原封存和导入稿件；未知错误、来源/稿件变化、仍有在途任务及其他控制器均拒绝。最终回执本身为needs_input的案件不能用此入口伪装为complete。
 
 对旧程序仅因该判定而终结的成功draft，确认整池已退出后运行`python scripts/recover_cli_batch.py --manifest 旧manifest --work-root 工作根目录 --controller 新控制器标识`。工具重新核验原始完整执行证据、冻结Sol/high、来源和稿件哈希，保留旧manifest、attempt与拒收记录；另建批次复制验证成功的初稿，只设为drafted，沿用原冻结来源/内容规则/模型策略。恢复批次必须按原冻结策略派发新的独立review，不能继承pass或用原Sol会话复查。恢复证据与新稿哈希绑定；幂等指针不能指向无关批次。该入口仅支持上述draft误拒收，不泛化恢复未知失败、修改稿或旧通过结论。
 

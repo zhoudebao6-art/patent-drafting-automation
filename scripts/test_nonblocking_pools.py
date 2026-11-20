@@ -137,18 +137,18 @@ class NonblockingPolicyTests(unittest.TestCase):
         manifest = three.synthetic_manifest(['accepted', 'pending', 'drafted', 'fix_required'])
         manifest['policy'] = policy()
         with patch.object(queue, 'verify_case'):
-            planned = queue.plan_manifest(manifest, 12)
+            planned = queue.plan_manifest(manifest, 32)
         self.assertEqual(planned['action'], 'reserve')
         self.assertEqual({row['stage'] for row in planned['ready']}, {'draft', 'review', 'revise'})
         manifest['policy'].pop('pool_execution')
         with patch.object(queue, 'verify_case'):
-            old = queue.plan_manifest(manifest, 12)
+            old = queue.plan_manifest(manifest, 32)
         self.assertEqual(old['action'], 'deliver')
 
     def test_reservations_in_all_states_obey_actual_capacity_and_pool_limits(self):
-        for actual in (1, 3, 12):
+        for actual in (1, 3, 32):
             with self.subTest(simulated_actual_capacity=actual):
-                manifest = three.synthetic_manifest(['pending'] * 12 + ['drafted'] * 8 + ['fix_required'] * 8)
+                manifest = three.synthetic_manifest(['pending'] * 32 + ['drafted'] * 16 + ['fix_required'] * 16)
                 manifest['policy'] = policy()
                 with patch.object(queue, 'verify_case'):
                     for index in range(actual):
@@ -165,7 +165,7 @@ class NonblockingPolicyTests(unittest.TestCase):
                     result = queue.plan_manifest(manifest, actual)
                 self.assertEqual(result['action'], 'wait')
                 self.assertEqual(result['active_workers'], actual)
-                if actual == 12:
+                if actual == 32:
                     self.assertEqual(counts, three.LIMITS)
 
 
@@ -223,7 +223,7 @@ class NonblockingBehaviorTests(unittest.TestCase):
              patch.object(cli, 'start_supervisor') as launch, \
              patch.object(cli, 'event', side_effect=event), \
              patch.object(evidence, 'process_identity', return_value=None):
-            result = cli.run(self.manifest, 'controller', workers)
+            result = cli.run(self.manifest, 'controller', workers, capacity_reason='Synthetic concurrency fixture')
         if result.get('halted'):
             retained = ANALYSIS/'failure-evidence'
             retained.mkdir(exist_ok=True)
@@ -292,7 +292,7 @@ class NonblockingBehaviorTests(unittest.TestCase):
         reserved = self.reserve(1)
         with patch.object(cli, 'preflight', return_value=str(self.root/'synthetic-cli.exe')), \
              patch.object(cli, 'start_supervisor') as launch, patch.object(cli, 'event'):
-            result = cli.run(self.manifest, 'controller', 1)
+            result = cli.run(self.manifest, 'controller', 1, capacity_reason='Synthetic single-slot fixture')
         self.assertFalse(result['halted'], result)
         row = next(c for c in result['cases'] if c['case_id'] == reserved['case_id'])
         self.assertEqual(row['next_action'], 'wait_external_worker')
@@ -511,7 +511,7 @@ class NonblockingBehaviorTests(unittest.TestCase):
              patch.object(cli, 'prepare_job', side_effect=AssertionError('duplicate paid launch')), \
              patch.object(cli, 'start_supervisor', side_effect=AssertionError('duplicate paid launch')), \
              patch.object(cli, 'event'):
-            recovered = cli.run(self.manifest, 'controller', 1)
+            recovered = cli.run(self.manifest, 'controller', 1, capacity_reason='Synthetic single-slot fixture')
         self.assertTrue(recovered['halted'])
         self.assertEqual(self.case('001')['active_attempt'], reserved['attempt']['id'])
         self.assertEqual(len(self.case('001')['attempts']), 1)
@@ -563,7 +563,7 @@ class NonblockingBehaviorTests(unittest.TestCase):
              patch.object(cli, 'preflight', return_value='synthetic-cli'), \
              patch.object(cli, 'start_supervisor', side_effect=AssertionError('terminal batch launched model')), \
              patch.object(cli, 'event'):
-            result = cli.run(self.manifest, 'controller', 1)
+            result = cli.run(self.manifest, 'controller', 1, capacity_reason='Synthetic single-slot fixture')
         self.assertTrue(closed.is_set())
         self.assertFalse(result['halted'], result)
         self.assertEqual(result['blocking_reasons'], [])

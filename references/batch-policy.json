@@ -33,18 +33,20 @@
     "Dispatch logs are controller-captured records; field validation cannot independently attest that a model executed.",
     "Controller defer events may record failures or missing input, but must never claim a successful model dispatch or review.",
     "New batches use parallel_batch.py. Existing serial batches retain their frozen policy and batch_tool.py.",
-    "Capacity is verified for the selected CLI or collaboration transport and account/resource limits, excluding unrelated workers; never infer it from target_workers or equate app slots with CLI capacity.",
-    "Separate project and attempt directories; one active stage per project. Hard pool limits are 6 draft, 3 review and 3 revise; no cross-pool borrowing beyond those limits. Initial review and independent re-review share the review limit. Actual total capacity must be supplied explicitly and may be lower than 12.",
+    "For new three-pool CLI runs, use the frozen target as the default launch budget, not as proof of account capacity. A lower explicit --workers requires --capacity-reason describing a real resource constraint or user instruction. Chat subagent slots and old four-worker probes are not CLI limits.",
+    "Separate project and attempt directories; one active stage per project. Hard limits remain 16 draft, 8 review and 8 revise, sharing total launch budget 32 by default; no cross-pool borrowing beyond limits. Review and re-review share the review limit. Actual account/resource limits and bounded capacity recovery still apply.",
     "Deliver each accepted case immediately to the same desktop batch folder while other workers continue. Name it from the complete original manifest.input folder basename plus _终稿_ and the frozen batch_id; preserve spelling and reuse on resume. Partial delivery must not close the batch; preserve prior outputs and update the delivery ledger.",
     "Accepted DOCX files are published directly in one desktop batch folder; no accepted/per-case delivery subdirectories. Keep case workspaces isolated and detailed receipts/pending notes in the work batch directory; freeze collision-safe filenames.",
     "New batches follow efficiency.md: verified case-local inspection cache, same-artifact render reuse, compact CLI replies, content review before final rendering, and tests scoped to the actual skill change. Acceptance and model policies remain mandatory.",
     "New batches prefer cli_pool.py: bounded actual CLI workers, durable launch intent, independent process/session evidence, completion-first recovery and immediate refill. Old frozen batches do not gain CLI authorization automatically. Never relax sandbox, global configuration, model/effort or acceptance requirements.",
     "Independent stage-local preparation/collection lanes and a single publication lane keep slow I/O outside the shared queue lock. Accepted work never blocks other stage reservations; validate exact case context and merge only its changes. Publish new accepted files before terminal history audit; close only after that audit succeeds.",
-    "Use controller-bound review_coverage to retain genuine passed, unaffected scopes. Independently inspect changed, dependent, new, failed or unreviewed content; reuse only previously reviewed identical current-render pages. Keep all six checks, current-document evidence and separate revision/review sessions. Frozen old batches are unchanged."
+    "Use controller-bound review_coverage to retain genuine passed, unaffected scopes. Independently inspect changed, dependent, new, failed or unreviewed content; reuse only previously reviewed identical current-render pages. Keep all six checks, current-document evidence and separate revision/review sessions. Frozen old batches are unchanged.",
+    "Verified ordinary completions ramp a capacity fallback back toward the approved launch budget. Two automatic cooldowns are cumulative across restarts; no paid probes or model changes.",
+    "Bound, finite controller-side render I/O uses short atomic handoffs, canonical byte validation and existing artifact reuse. It never grants visual or semantic acceptance."
   ],
   "concurrency": {
-    "target_workers": 12,
-    "max_in_flight_cases": 24,
+    "target_workers": 32,
+    "max_in_flight_cases": 64,
     "min_draft_slots": 1
   },
   "review_mode": "review_only",
@@ -61,12 +63,14 @@
   "invention_contract": "claims_mirror_v27",
   "stage_scheduling": "separate_stage_pools_v35",
   "stage_pools": {
-    "draft": 6,
-    "review": 3,
-    "revise": 3
+    "draft": 16,
+    "review": 8,
+    "revise": 8
   },
   "figure_description_contract": "named_figures_v32",
   "pool_execution": "nonblocking_handoff_v36",
   "figure_caption_contract": "number_only_v38",
-  "review_reuse": "verified_scope_v1"
+  "review_reuse": "verified_scope_v1",
+  "capacity_recovery": "verified_ramp_v1",
+  "controller_render": "bound_requests_v1"
 }

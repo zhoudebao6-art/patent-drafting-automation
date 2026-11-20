@@ -248,7 +248,11 @@ def main():
         else:
             if not args.input or not args.output_dir:
                 raise RenderError('Input and --output-dir are required')
-            result = verify_render(args.output_dir, args.input) if args.verify else render(args.input, args.output_dir, read(args.config), args.timeout, reuse=args.reuse)
+            import controller_render_bridge as bridge
+            if not args.verify and bridge.enabled():
+                result = bridge.request_render(args, Path(__file__).resolve())
+            else:
+                result = verify_render(args.output_dir, args.input) if args.verify else render(args.input, args.output_dir, read(args.config), args.timeout, reuse=args.reuse)
             if args.compact:
                 result = compact_result(result, args.output_dir)
         print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -15,7 +15,7 @@ import test_parallel_batch as fixtures
 
 
 MARKER = 'separate_stage_pools_v35'
-LIMITS = {'draft': 6, 'review': 3, 'revise': 3}
+LIMITS = {'draft': 16, 'review': 8, 'revise': 8}
 
 
 def three_pool_policy():
@@ -23,7 +23,7 @@ def three_pool_policy():
     policy.update(stage_scheduling=MARKER, stage_pools=copy.deepcopy(LIMITS),
                   review_mode='review_only', model_policy='sol_review_xhigh_v20',
                   dispatch_transports=['collaboration', 'codex_cli'])
-    policy['concurrency'] = {'target_workers': 12, 'max_in_flight_cases': 24,
+    policy['concurrency'] = {'target_workers': 32, 'max_in_flight_cases': 64,
                              'min_draft_slots': 1}
     policy['models'] = {stage: {'model': 'gpt-6.1-sol',
                        'reasoning_effort': 'high' if stage == 'draft' else 'xhigh'}
@@ -57,7 +57,7 @@ def synthetic_manifest(statuses=(), active=(), sequence=100):
 
 
 class ThreePoolPlanTests(unittest.TestCase):
-    def plan(self, manifest, capacity=12, **kwargs):
+    def plan(self, manifest, capacity=32, **kwargs):
         with patch.object(queue, 'verify_case'):
             return queue.plan_manifest(manifest, capacity, **kwargs)
 
@@ -77,11 +77,11 @@ class ThreePoolPlanTests(unittest.TestCase):
                 self.assertEqual(result['ready'], [])
                 self.assertEqual(result['pool_status'][stage], {'active': limit, 'limit': limit})
 
-    def test_total_capacity_is_respected_for_one_through_twelve_slots(self):
-        for capacity in (1, 2, 3, 6, 11, 12):
+    def test_total_capacity_is_respected_for_one_through_thirty_two_slots(self):
+        for capacity in (1, 2, 3, 8, 31, 32):
             with self.subTest(capacity=capacity):
-                manifest = synthetic_manifest(['pending'] * 20 + ['drafted'] * 6 +
-                                              ['fix_required'] * 6)
+                manifest = synthetic_manifest(['pending'] * 20 + ['drafted'] * 8 +
+                                              ['fix_required'] * 8)
                 selected = []
                 for index in range(capacity):
                     result = self.plan(manifest, capacity, first_only=True)
@@ -99,7 +99,7 @@ class ThreePoolPlanTests(unittest.TestCase):
                 self.assertEqual(result['action'], 'wait')
                 self.assertEqual(result['active_workers'], capacity)
                 self.assertEqual(sum(row['active'] for row in result['pool_status'].values()), capacity)
-                if capacity == 12:
+                if capacity == 32:
                     self.assertEqual(dict(Counter(selected)), LIMITS)
 
     def test_ratio_prefers_the_least_occupied_eligible_pool(self):
@@ -120,34 +120,36 @@ class ThreePoolPlanTests(unittest.TestCase):
         manifest = synthetic_manifest(['drafted', 'revised'])
         self.assertEqual(self.plan(manifest, first_only=True)['ready'][0]['case_id'], '002')
         manifest['projects'][0]['ready_sequence'] = 1
+        manifest['sequence'] = 2 * manifest['policy']['concurrency']['max_in_flight_cases'] + 1
         self.assertEqual(self.plan(manifest, first_only=True)['ready'][0]['case_id'], '001')
 
     def test_max_in_flight_only_blocks_new_drafts(self):
-        manifest = synthetic_manifest(['drafted'] * 12 + ['fix_required'] * 6 +
-                                      ['revised'] * 6 + ['pending'] * 5)
+        manifest = synthetic_manifest(['drafted'] * 32 + ['fix_required'] * 16 +
+                                      ['revised'] * 16 + ['pending'] * 5)
         result = self.plan(manifest)
-        self.assertEqual(result['in_flight_cases'], 24)
+        self.assertEqual(result['in_flight_cases'], 64)
         self.assertEqual({row['stage'] for row in result['ready']}, {'review', 'revise'})
-        self.assertTrue(all(row['case_id'] not in {'025', '026', '027', '028', '029'}
+        self.assertTrue(all(row['case_id'] not in {'065', '066', '067', '068', '069'}
                             for row in result['ready']))
 
     def test_bad_source_in_one_pool_does_not_block_other_pools(self):
         manifest = synthetic_manifest(['drafted', 'fix_required', 'pending'])
         manifest['projects'][0]['ready_sequence'] = 1
+        manifest['sequence'] = 2 * manifest['policy']['concurrency']['max_in_flight_cases'] + 1
         def verify(state, case, original=False):
             if case['id'] == '001':
                 raise b.BatchError('synthetic changed source')
         with patch.object(queue, 'verify_case', side_effect=verify):
-            result = queue.plan_manifest(manifest, 12, first_only=True)
+            result = queue.plan_manifest(manifest, 32, first_only=True)
         self.assertEqual(result['ready'][0]['stage'], 'revise')
         self.assertEqual(result['blocked'][0]['case_id'], '001')
 
     def test_accepted_case_is_delivered_even_with_total_capacity_occupied(self):
-        manifest = synthetic_manifest(['accepted'], ['draft'] * 6 + ['review'] * 3 + ['revise'] * 3)
+        manifest = synthetic_manifest(['accepted'], ['draft'] * 16 + ['review'] * 8 + ['revise'] * 8)
         result = self.plan(manifest)
         self.assertEqual(result['action'], 'deliver')
         self.assertEqual(result['accepted_case_ids'], ['001'])
-        self.assertEqual(result['active_workers'], 12)
+        self.assertEqual(result['active_workers'], 32)
         self.assertEqual({stage: row['active'] for stage, row in result['pool_status'].items()}, LIMITS)
 
     def test_legacy_double_lane_still_borrows_and_has_no_new_pool_limits(self):
@@ -164,7 +166,7 @@ class ThreePoolPlanTests(unittest.TestCase):
         self.assertEqual(self.plan(manifest, 4)['action'], 'wait')
 
     def test_invalid_actual_capacity_never_uses_config_as_evidence(self):
-        for capacity in (None, 0, -1, 13, True, 12.0):
+        for capacity in (None, 0, -1, 33, True, 32.0):
             with self.subTest(capacity=capacity), self.assertRaises(b.BatchError):
                 self.plan(synthetic_manifest(['pending']), capacity)
 
@@ -186,7 +188,7 @@ class ThreePoolPolicyTests(unittest.TestCase):
         for pools in (None, [], {}, {'draft': 6, 'review': 3},
                       dict(LIMITS, recheck=1), dict(LIMITS, review=0),
                       dict(LIMITS, revise=-1), dict(LIMITS, review=True),
-                      dict(LIMITS, draft=6.0), dict(LIMITS, draft='6')):
+                      dict(LIMITS, draft=16.0), dict(LIMITS, draft='16')):
             policy = three_pool_policy()
             policy['stage_pools'] = pools
             with self.subTest(pools=pools), self.assertRaises(b.BatchError):
@@ -195,8 +197,8 @@ class ThreePoolPolicyTests(unittest.TestCase):
     def test_pool_sum_review_mode_and_delivery_must_match_marker(self):
         changes = ({'review_mode': 'review_fix_then_recheck'},
                    {'stage_scheduling': 'unknown'},
-                   {'concurrency': {'target_workers': 11, 'max_in_flight_cases': 24, 'min_draft_slots': 1}},
-                   {'concurrency': {'target_workers': 12, 'max_in_flight_cases': 8, 'min_draft_slots': 1}},
+                   {'concurrency': {'target_workers': 31, 'max_in_flight_cases': 64, 'min_draft_slots': 1}},
+                   {'concurrency': {'target_workers': 32, 'max_in_flight_cases': 8, 'min_draft_slots': 1}},
                    {'delivery': copy.deepcopy(fixtures.POLICY['delivery'])})
         for change in changes:
             with self.subTest(change=change), self.assertRaises(b.BatchError):
@@ -258,13 +260,13 @@ class ThreePoolIntegrationTests(unittest.TestCase):
         return result
 
     def test_real_reservations_count_unbound_and_bound_slots_together(self):
-        rows = [queue.reserve(self.manifest, 12) for _ in range(3)]
-        rows += [self.reserve(12) for _ in range(3)]
-        result = queue.plan(self.manifest, 12)
+        rows = [queue.reserve(self.manifest, 32) for _ in range(8)]
+        rows += [self.reserve(32) for _ in range(8)]
+        result = queue.plan(self.manifest, 32)
         self.assertEqual(result['action'], 'wait')
-        self.assertEqual(result['pool_status']['draft'], {'active': 6, 'limit': 6})
-        self.assertEqual(result['active_workers'], 6)
-        self.assertEqual({row['case_id'] for row in rows}, {f'{index:03}' for index in range(1, 7)})
+        self.assertEqual(result['pool_status']['draft'], {'active': 16, 'limit': 16})
+        self.assertEqual(result['active_workers'], 16)
+        self.assertEqual({row['case_id'] for row in rows}, {f'{index:03}' for index in range(1, 17)})
 
     def test_real_bad_source_skips_to_the_next_draft_without_occupying_a_slot(self):
         fixtures.docx(self.src/'1.docx', 'source changed after freeze')
@@ -320,10 +322,11 @@ class ThreePoolIntegrationTests(unittest.TestCase):
         with self.assertRaises(b.BatchError):
             queue.record(self.manifest, revision['case_id'], revision['attempt']['id'], bad)
 
-    def test_cli_requires_explicit_actual_capacity_before_any_probe_or_launch(self):
+    def test_cli_reduced_capacity_requires_reason_before_any_probe_or_launch(self):
         with patch.object(pool, 'preflight') as preflight, patch.object(pool, 'start_supervisor') as launch:
-            with self.assertRaises(b.BatchError):
-                pool.run(self.manifest, 'controller')
+            for workers in (1, 4, 16):
+                with self.subTest(workers=workers), self.assertRaisesRegex(b.BatchError, 'capacity-reason'):
+                    pool.run(self.manifest, 'controller', workers)
         preflight.assert_not_called()
         launch.assert_not_called()
 
@@ -350,16 +353,58 @@ class ThreePoolIntegrationTests(unittest.TestCase):
         for case in state['projects']:
             case['status'] = 'failed'
         b.atomic(self.manifest, state)
-        for actual in (3, 12):
+        for actual in (3, 32):
             with self.subTest(actual=actual), \
                  patch.object(pool, 'preflight', return_value='synthetic-cli'), \
                  patch.object(queue, 'capacity_value', wraps=queue.capacity_value) as capacity, \
                  patch.object(pool, 'start_supervisor') as launch, patch.object(pool, 'emit'):
-                result = pool.run(self.manifest, 'controller', actual)
+                result = pool.run(self.manifest, 'controller', actual, capacity_reason='Synthetic reduced capacity fixture')
             self.assertFalse(result['halted'])
             self.assertTrue(capacity.called)
             self.assertTrue(all(call.args[1] == actual for call in capacity.call_args_list))
             launch.assert_not_called()
+
+    def test_cli_default_target_reaches_sixteen_initial_drafts_for_nineteen_cases(self):
+        state = b.read(self.manifest)
+        state['policy']['pool_execution'] = 'nonblocking_handoff_v36'
+        with patch.object(queue, 'load_manifest', return_value=state), \
+             patch.object(pool, 'preflight', return_value='synthetic-cli'), \
+             patch.object(pool, 'event') as event, \
+             patch('stage_pool_runner.run_pipeline', return_value={'halted':False}) as pipeline:
+            pool.run(self.manifest, 'controller')
+        self.assertEqual(pipeline.call_args.args[2], 32)
+        started = next(c.kwargs for c in event.call_args_list if c.args[1]=='pool_started')
+        self.assertEqual(started['capacity_source'], 'frozen_target')
+        self.assertEqual(started['stage_limits'], LIMITS)
+        self.assertFalse(started['account_capacity_verified'])
+        manifest = synthetic_manifest(['pending']*19)
+        with patch.object(queue, 'verify_case'):
+            for index in range(16):
+                plan = queue.plan_manifest(manifest, started['workers'], first_only=True)
+                row = plan['ready'][0]; self.assertEqual(row['stage'],'draft')
+                case = queue.case_by_id(manifest,row['case_id'])
+                attempt = {'id':f'draft-{index}','stage':'draft','state':'reserved'}
+                case['active_attempt']=attempt['id']; case['attempts'].append(attempt)
+            full = queue.plan_manifest(manifest, started['workers'])
+        self.assertEqual(full['action'],'wait')
+        self.assertEqual(full['pool_status']['draft'],{'active':16,'limit':16})
+        self.assertEqual(full['active_workers'],16)
+
+    def test_capacity_selection_respects_frozen_target_and_explained_override(self):
+        manifest=synthetic_manifest()
+        manifest['policy']['concurrency']['target_workers']=12
+        manifest['policy']['stage_pools']={'draft':6,'review':3,'revise':3}
+        self.assertEqual(pool.capacity_selection(manifest)['workers'],12)
+        for workers in (0,13,True,4.0):
+            with self.subTest(workers=workers), self.assertRaises(b.BatchError):
+                pool.capacity_selection(manifest,workers,'fixture constraint')
+        for reason in ('', '  ', 123):
+            with self.subTest(reason=reason), self.assertRaises(b.BatchError):
+                pool.capacity_selection(manifest,4,reason)
+        selected=pool.capacity_selection(manifest,4,'  fixture user limit  ')
+        self.assertEqual(selected['workers'],4)
+        self.assertEqual(selected['capacity_reason'],'fixture user limit')
+        self.assertEqual(selected['capacity_source'],'explicit_override')
 
     def test_prompt_modes_route_fixes_to_the_independent_revision_stage(self):
         self.record(self.reserve(1))

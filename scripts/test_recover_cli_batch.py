@@ -202,6 +202,69 @@ class RecoveryTests(unittest.TestCase):
             recovery.recover(self.manifest, self.root/'recoveries', 'recovery-controller', new_generation=True)
         self.assertEqual((self.manifest.parent/'cli-recovery.json').read_bytes(), pointer_bytes)
 
+    def routing_rejection(self):
+        self.enable_cli()
+        reserved = q.reserve(self.manifest, 4, transport='codex_cli')
+        receipt, dispatch, _ = self.fixture_cli(reserved)
+        folder = Path(reserved['attempt']['directory'])
+        events = [json.loads(line) for line in (folder/'events.jsonl').read_text().split('\n') if line]
+        events.insert(2, {'type':'error', 'message':'Reconnecting... 2/5 (workspace routing discovery timed out)'})
+        (folder/'events.jsonl').write_text('\n'.join(json.dumps(e) for e in events), encoding='utf-8')
+        seal = b.read(folder/'cli-completion.json'); seal['files']['events.jsonl'] = b.sha(folder/'events.jsonl')
+        b.atomic(folder/'cli-completion.json', seal)
+        m = q.load_manifest(self.manifest); c=m['projects'][0]; a=c['attempts'][-1]
+        with patch.object(ce, 'process_identity', return_value=None):
+            cli_pool.release_failed(self.manifest,c,a,recovery.RECOVERED_NOTICE_REASON,'controller')
+        b.atomic(folder/'cli-rejection.json', {'reason':recovery.RECOVERED_NOTICE_REASON})
+        return reserved, receipt
+
+    def test_same_batch_recovery_preserves_rejection_peers_and_prepares_new_review(self):
+        reserved, receipt = self.routing_rejection()
+        before = b.read(self.manifest); original = self.manifest.read_bytes()
+        with patch.object(ce, 'process_identity', return_value=None):
+            artifact = recovery.recover_case(self.manifest,'001','controller')
+            after = q.load_manifest(self.manifest)
+            self.assertEqual(recovery.recover_case(self.manifest,'001','controller'),artifact)
+        c=after['projects'][0]
+        self.assertEqual(c['status'],'drafted')
+        self.assertEqual(c['attempts'],before['projects'][0]['attempts'])
+        self.assertEqual(c['receipts'][:-1],before['projects'][0]['receipts'])
+        self.assertEqual(after['projects'][1:],before['projects'][1:])
+        self.assertEqual(Path(c['receipts'][-1]['source_manifest_snapshot']).read_bytes(),original)
+        self.assertIs(c['receipts'][-1]['acceptance_inherited'],False)
+        self.assertEqual(b.sha(artifact),receipt['artifact_sha256'])
+        self.assertNotIn('passed_review_sha256',c)
+        following=q.reserve(self.manifest,4,controller='controller',prepare=True,transport='codex_cli')
+        self.assertEqual(following['attempt']['stage'],'review')
+        prepare_handoff.verify_prepared(q.load_manifest(self.manifest),q.load_manifest(self.manifest)['projects'][0],q.load_manifest(self.manifest)['projects'][0]['attempts'][-1])
+
+    def test_same_batch_recovery_rejects_live_peer_wrong_controller_and_changed_docx(self):
+        _, receipt = self.routing_rejection()
+        with self.assertRaisesRegex(q.BatchError,'controller'):
+            recovery.recover_case(self.manifest,'001','other')
+        peer=q.reserve(self.manifest,4,transport='codex_cli')
+        with self.assertRaisesRegex(q.BatchError,'worker'):
+            recovery.recover_case(self.manifest,'001','controller')
+        q.cancel(self.manifest,peer['case_id'],peer['attempt']['id'],'not launched',controller='controller')
+        Path(receipt['artifact']).write_bytes(b'changed')
+        with patch.object(ce,'process_identity',return_value=None), self.assertRaises((ValueError,q.BatchError)):
+            recovery.recover_case(self.manifest,'001','controller')
+
+    def test_same_batch_recovery_rejects_unknown_error_or_modified_provenance(self):
+        reserved,_=self.routing_rejection();folder=Path(reserved['attempt']['directory'])
+        p=folder/'events.jsonl';original=p.read_bytes()
+        p.write_bytes(original+b'\n'+json.dumps({'type':'error','message':'unknown'}).encode())
+        seal=b.read(folder/'cli-completion.json');seal['files']['events.jsonl']=b.sha(p);b.atomic(folder/'cli-completion.json',seal)
+        with patch.object(ce,'process_identity',return_value=None),self.assertRaises(ValueError):
+            recovery.recover_case(self.manifest,'001','controller')
+        p.write_bytes(original);seal['files']['events.jsonl']=b.sha(p);b.atomic(folder/'cli-completion.json',seal)
+        with patch.object(ce,'process_identity',return_value=None):
+            recovery.recover_case(self.manifest,'001','controller')
+        c=q.load_manifest(self.manifest)['projects'][0]
+        Path(c['recovery_evidence']).write_text('{}')
+        with self.assertRaisesRegex(q.BatchError,'recovery evidence'):
+            recovery.recover_case(self.manifest,'001','controller')
+
 
 if __name__ == '__main__':
     unittest.main()

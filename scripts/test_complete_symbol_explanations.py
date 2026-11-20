@@ -14,11 +14,44 @@ CALL=math(run('y=')+run('f')+'<m:d><m:e>'+sub('x','i')+'</m:e></m:d>')
 FUNC=math('<m:func><m:fName>'+run('f')+'</m:fName><m:e><m:d><m:e>'+sub('x','i')+'</m:e></m:d></m:e></m:func>')
 
 
+def mathematical_structure(node):
+    """Ignore only explicitly approved upright/14pt display properties.
+
+    Preserve all operands, indices, operator values, bold/script identity and
+    unknown formatting. This is not the producer's normalization function.
+    """
+    node=deepcopy(node)
+    allowed={(toolkit.qn('w:i'),'0'),(toolkit.qn('w:iCs'),'0'),
+             (toolkit.qn('w:sz'),'28'),(toolkit.qn('w:szCs'),'28')}
+    for props in list(node.findall('.//w:rPr',toolkit.NS)):
+        for item in list(props):
+            if (item.tag,item.get(toolkit.qn('w:val'))) in allowed:props.remove(item)
+        if not len(props):props.getparent().remove(props)
+    for props in list(node.findall('.//m:rPr',toolkit.NS)):
+        for item in list(props):
+            if item.tag==toolkit.qn('m:sty') and item.get(toolkit.qn('m:val'))=='p':props.remove(item)
+        if not len(props):props.getparent().remove(props)
+    return toolkit.tree_signature(node)
+
+
 class CompleteSymbols(unittest.TestCase):
     setUp=fixtures.FormulaProseTests.setUp
     source=fixtures.FormulaProseTests.source
     create=fixtures.FormulaProseTests.create
     mutate=fixtures.FormulaProseTests.mutate
+
+    def test_display_projection_still_rejects_index_bold_and_unapproved_style_changes(self):
+        original=ET.fromstring(CALL)
+        for kind in ('index','bold','wrong_size'):
+            changed=deepcopy(original)
+            if kind=='index':changed.find('.//m:sub/m:r/m:t',toolkit.NS).text='j'
+            elif kind=='bold':
+                props=ET.SubElement(changed[1],toolkit.qn('m:rPr'))
+                ET.SubElement(props,toolkit.qn('m:sty')).set(toolkit.qn('m:val'),'b')
+            else:
+                props=ET.SubElement(changed[1],toolkit.qn('w:rPr'))
+                ET.SubElement(props,toolkit.qn('w:sz')).set(toolkit.qn('w:val'),'22')
+            with self.subTest(kind=kind):self.assertNotEqual(mathematical_structure(changed),mathematical_structure(original))
 
     def test_function_head_and_real_arguments_copy_and_readback(self):
         fid=self.source([CALL],['main_formula'])[0]
@@ -32,13 +65,8 @@ class CompleteSymbols(unittest.TestCase):
         # The body reference now has an explicit 14pt display base; every
         # non-size source node, real argument and source equation stays intact.
         self.assertEqual({n.get(toolkit.qn('w:val')) for n in ref.findall('.//w:sz',toolkit.NS)}, {'28'})
-        structural=deepcopy(ref)
-        for props in list(structural.findall('.//w:rPr',toolkit.NS)):
-            for size in list(props):
-                if size.tag in {toolkit.qn('w:sz'),toolkit.qn('w:szCs')}:props.remove(size)
-            if not len(props):props.getparent().remove(props)
-        self.assertEqual([toolkit.tree_signature(n) for n in structural],[toolkit.tree_signature(n) for n in list(original)[1:]])
-        self.assertEqual(toolkit.tree_signature(doc.findall('.//m:oMath',toolkit.NS)[0]),toolkit.tree_signature(original))
+        self.assertEqual([mathematical_structure(n) for n in ref],[mathematical_structure(n) for n in list(original)[1:]])
+        self.assertEqual(mathematical_structure(doc.findall('.//m:oMath',toolkit.NS)[0]),mathematical_structure(original))
         self.assertEqual(result['counts']['main_formula_occurrences'],1)
         self.assertEqual(before,toolkit.sha(self.root/'source.docx'));self.assertEqual(spec,self.spec)
         def truncate(root):
@@ -99,9 +127,14 @@ class CompleteSymbols(unittest.TestCase):
             fid=self.source([math(run(letter))],['symbol_reference'])[0]
             self.spec['sections'][3]['blocks']=base+[dict(id='ref',type='paragraph',role='body',runs=[
                 dict(type='formula',formula_id=fid),dict(type='text',text='为源中已定义索引；'),
-                dict(type='symbol_reference',text=letter,formula_id=fid),dict(type='text',text='表示独立索引。'),
+                (dict(type='symbol_reference',text=letter,formula_id=fid) if letter=='i' else
+                 dict(type='source_symbol',formula_id=fid,node_path='./m:r[1]')),dict(type='text',text='表示独立索引。'),
                 dict(type='symbol_reference',text='k'),dict(type='text',text='表示另一索引。')])]
             toolkit.validate(self.root,self.spec)
+            if letter!='i':
+                self.spec['sections'][3]['blocks'][-1]['runs'][2]=dict(type='symbol_reference',text=letter,formula_id=fid)
+                with self.assertRaisesRegex(toolkit.AuthoringError,'ordinary ASCII letter'):
+                    toolkit.validate(self.root,self.spec)
 
     def test_index_and_time_variants_do_not_collapse_into_same_quantity(self):
         fragments_seen=[]

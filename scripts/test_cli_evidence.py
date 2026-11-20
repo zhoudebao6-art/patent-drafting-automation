@@ -256,6 +256,29 @@ class CliEvidenceTests(unittest.TestCase):
             self.assertEqual(ce.verify_completion(self.attempt, self.dispatch),
                              {'session_id': self.session_id, 'receipt': self.receipt})
 
+    def test_routing_and_request_timeouts_require_completed_recovery(self):
+        base = copy.deepcopy(self.events)
+        for detail in ('workspace routing discovery timed out', 'request timed out'):
+            notice = self.retry_event('Reconnecting... 2/5 (' + detail + ')')
+            self.events = base[:2] + [notice] + base[2:]
+            self.seal()
+            with self.subTest(detail=detail), patch.object(ce, 'process_identity', return_value=None):
+                self.assertEqual(ce.verify_completion(self.attempt, self.dispatch)['receipt'], self.receipt)
+            invalid = [base[:index] + [notice] + base[index:] for index in (0, 1, 3, 4)]
+            invalid += [base[:2] + [self.retry_event(text)] + base[2:] for text in (
+                notice['message'] + ' trailing', notice['message'] + '\nturn.failed',
+                notice['message'].replace('2/5', '0/5'), notice['message'].replace('2/5', '6/5'),
+                notice['message'].replace(detail, detail + ' unknown'))]
+            invalid += [base[:2] + [dict(notice, fatal=True)] + base[2:],
+                        base[:2] + [notice] + base[2:] + [{'type': 'turn.failed'}],
+                        base[:2] + [notice] + base[2:-1]]
+            for index, rows in enumerate(invalid):
+                self.events = rows
+                self.seal()
+                with self.subTest(detail=detail, invalid=index), patch.object(ce, 'process_identity', return_value=None):
+                    with self.assertRaises(ValueError):
+                        ce.verify_completion(self.attempt, self.dispatch)
+
     def test_network_wait_retains_failure_order_and_message_guards(self):
         base = copy.deepcopy(self.events)
         notice = self.retry_event(ce.NETWORK_WAIT)

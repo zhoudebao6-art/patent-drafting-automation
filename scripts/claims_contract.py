@@ -10,6 +10,7 @@ from xml.etree import ElementTree as ET
 
 VERSION = 76
 MEDIUM_VERSION = 79
+TITLE_VERSION = 89
 BANDS = ((100, 150), (150, 200), (200, 250), (250, 300))
 VAGUE = re.compile(r'该(?:系统|模块|单元|算法)|二者|三者')
 RELATION = re.compile(r'[A-Za-z0-9α-ωΑ-Ω)\]）][ \t]*[=＝≤≥<>≠][ \t]*[A-Za-z0-9α-ωΑ-Ω(（+\-−]')
@@ -75,8 +76,16 @@ def standard_storage_medium(claim, claims):
     return all(heads[n].endswith('方法') for n in range(first, last + 1))
 
 
+def first_theme_title(title):
+    # Preserve the established primary category of the two composite templates.
+    for ending in ('方法及系统', '系统及方法'):
+        if title.endswith(ending):
+            return title[:-3]
+    return title
+
+
 def evaluate(claims, title, body=(), artifact_sha256=None, formulas=(), rule_version=VERSION):
-    contract_version = MEDIUM_VERSION if rule_version >= MEDIUM_VERSION else VERSION
+    contract_version = TITLE_VERSION if rule_version >= TITLE_VERSION else MEDIUM_VERSION if rule_version >= MEDIUM_VERSION else VERSION
     out = dict(schema_version=1, rule_version=contract_version, artifact_sha256=artifact_sha256,
                title=title, inventory_sha256=inventory_digest(claims),
                counting='Remove claim ordinal and whitespace; count remaining visible characters including punctuation.',
@@ -100,7 +109,11 @@ def evaluate(claims, title, body=(), artifact_sha256=None, formulas=(), rule_ver
         if not dependent:
             independents.append((number, head))
             category = 'method' if head.endswith('方法') else 'system' if head.endswith('系统') else 'other'
-            if not re.fullmatch(r'一种(?!一种).+', head):
+            if number == 1 and rule_version >= TITLE_VERSION:
+                wanted = first_theme_title(title)
+                if head != wanted:
+                    issue('claim_one_title_mismatch', number, expected=wanted, actual=head)
+            elif not re.fullmatch(r'一种(?!一种).+', head):
                 issue('independent_theme_prefix', number)
         low, high = dependent_band(title, number) if dependent else (150, 300)
         standard_medium = rule_version >= MEDIUM_VERSION and standard_storage_medium(claim, claims)
@@ -167,12 +180,12 @@ def evaluate(claims, title, body=(), artifact_sha256=None, formulas=(), rule_ver
 def require_valid(report, expected_title, rule_version=None):
     ev = report.get('claim_template_evidence')
     claims = report.get('claims_detected')
-    expected_version = ((MEDIUM_VERSION if rule_version >= MEDIUM_VERSION else VERSION)
+    expected_version = ((TITLE_VERSION if rule_version >= TITLE_VERSION else MEDIUM_VERSION if rule_version >= MEDIUM_VERSION else VERSION)
                         if type(rule_version) is int else ev.get('rule_version') if isinstance(ev, dict) else None)
     if (not isinstance(claims, list) or
             [c.get('number') if isinstance(c,dict) else None for c in claims] != list(range(1,11)) or
             not isinstance(ev, dict) or
-            ev.get('schema_version') != 1 or expected_version not in (VERSION, MEDIUM_VERSION) or
+            ev.get('schema_version') != 1 or expected_version not in (VERSION, MEDIUM_VERSION, TITLE_VERSION) or
             ev.get('rule_version') != expected_version or
             ev.get('artifact_sha256') != report.get('sha256') or
             not re.fullmatch('[0-9a-f]{64}', str(report.get('sha256', ''))) or

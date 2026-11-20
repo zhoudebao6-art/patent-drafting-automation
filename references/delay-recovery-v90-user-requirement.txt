@@ -1,0 +1,2 @@
+2026-11-04 用户要求长期通用修复本机patent-drafting-automation：
+把这次导致延迟的问题修复到本机 patent-drafting-automation，重点处理容量回退后恢复并发、页面预览误判和长路径交接，减少重复读取和检查，保留修改后的独立复查。

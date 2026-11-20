@@ -414,11 +414,15 @@ class LeanPoolIsolationTests(unittest.TestCase):
     def test_lean_prompt_prefers_nonoverlapping_parts_and_real_receipt_helper(self):
         self.enable_cli(); reserved = queue.reserve(self.manifest, 4, transport='codex_cli')
         pipeline = reserved['worker_context']['prepared']['pipeline']
-        pipeline['stage_read_parts'] = [{'path': 'part-one', 'sha256': 'fixture', 'characters': 1}]
+        packet = Path(pipeline['stage_guide']).read_text(encoding='utf-8')
         prompt = pool.worker_prompt(reserved)
-        self.assertIn('不重叠规则块一次', prompt)
+        self.assertEqual(prompt.count(packet), 1)
+        self.assertIn('不再发工具重复读取', prompt)
         self.assertIn('worker_receipt.py', prompt)
         self.assertNotIn('先完整读取一次本批冻结阶段清单', prompt)
+        pipeline['stage_read_parts'] = [{'path': 'part-one', 'sha256': 'fixture', 'characters': 1}]
+        with self.assertRaisesRegex(ValueError, 'escapes'):
+            pool.worker_prompt(reserved)
 
 
 if __name__ == '__main__': unittest.main()

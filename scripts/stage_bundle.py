@@ -19,6 +19,28 @@ CORE = ('writing-standard.md', 'claim-families-and-benefits.md', 'terminology-an
 MATH = ('technical-review.md', 'formula-layout-standard.md', 'formula-detail-standard.md')
 STAGES = ('draft', 'review', 'revise')
 LEAN = 'lean_execution_v24'
+LEAN_REFERENCE_FILES = frozenset({
+    'authoring-math.md',
+    'authoring-toolkit.md',
+    'batch-policy.json',
+    'claim-families-and-benefits.md',
+    'data-contracts.md',
+    'formula-detail-standard.md',
+    'formula-layout-standard.md',
+    'invention-content-standard.md',
+    'manual-format-and-wording.md',
+    'reference-style-standard.md',
+    'runtime.json',
+    'runtime.md',
+    'rules.json',
+    'source-manifest.json',
+    'technical-review.md',
+    'terminology-and-formula.md',
+    'worker-receipt.md',
+    'worker-standard-coverage.json',
+    'worker-standard.md',
+    'writing-standard.md',
+})
 # Explicit controller routes only. Unknown/new/project rules stay with workers.
 CONTROLLER_RULES = frozenset({'UPDATE-01', 'UPDATE-02', 'BATCH-01', 'BATCH-02',
                               'BATCH-07', 'BATCH-09', 'BATCH-11', 'BATCH-12'})
@@ -47,8 +69,13 @@ def local(path, root):
     return actual
 
 
-def selected_files(skill):
-    """One copy per batch; exclude historic rule backups and test-only files."""
+def selected_files(skill, *, lean=False):
+    """Select one frozen runtime copy per batch.
+
+    Legacy snapshots retain the broad reference set for compatibility. New lean
+    snapshots keep only worker-required references and still preserve the full
+    active rule payload, source manifest, rendering configuration and tools.
+    """
     skill = Path(skill).resolve(strict=True)
     selected = [skill/'SKILL.md']
     selected += [p for p in (skill/'scripts').glob('*.py') if not p.name.startswith('test_')]
@@ -57,7 +84,10 @@ def selected_files(skill):
     if wps_helper.is_file():
         selected.append(wps_helper)
     for p in (skill/'references').rglob('*'):
-        if p.is_file() and 'rule-backups' not in p.relative_to(skill).parts:
+        if not p.is_file() or 'rule-backups' in p.relative_to(skill).parts:
+            continue
+        relative = p.relative_to(skill/'references').as_posix()
+        if not lean or relative in LEAN_REFERENCE_FILES:
             selected.append(p)
     if (skill/'assets').exists():
         selected += [p for p in (skill/'assets').rglob('*') if p.is_file()]
@@ -137,12 +167,15 @@ def _build_packets(snapshot, rules, stages):
     if lean:
         sections[0] = ('本清单保留全部适用worker规则的原文、检查与例外。控制器专用规则原文见worker-controller.md；'
                        '只写本attempt，来源/其他案/规则只读，派发/状态/交付由总控执行。'
-                       '按prepared.pipeline.stage_read_parts顺序完整读取各块一次，不先整读再重读分块。'
+                       '启动提示已完整内嵌本清单时直接使用；否则按prepared.pipeline.stage_read_parts顺序完整读取各块一次，不先整读再重读分块。'
                        '原文规范仍在冻结references中，worker-standard末表指定复杂情形必须读取的原节；不能跳过宿主技能或来源。')
     for r in included:
         sections.append(rule_block(r))
+    rule_source = 'rules.active.json' if lean else 'references/rules.json'
     sections += ['## 规则来源与完整字段',
-                 '来源证据与完整规则见references/rules.json；本清单不改变任何规则优先级。规则更新由总控处理，worker不得修改批次或规则。']
+                 f'仅需核某条完整字段或evidence时查本快照{rule_source}中的同一active规则ID，不整读规则库。'
+                 '历史版本、退役规则和来源模板只供维护溯源，不与当前规则合并执行；'
+                 '规则内的历史版本号标记来源沿革，不是切换入口。规则更新由总控处理，worker不得修改批次或规则。']
     spans = []
     if lean:
         guard = json.loads((snapshot/'references/worker-standard-coverage.json').read_text(encoding='utf-8'))
@@ -176,8 +209,14 @@ def _build_packets(snapshot, rules, stages):
                         reference_coverage=guard,
                         reading_mode='nonoverlapping_parts',
                         scope='Applicable rule text is verbatim; detailed standards remain frozen and conditionally required')
-    return {stage: (_stage_header(policy, rules['version'], stage)+'\n\n'+output,
-                    {'stage': stage, **coverage}) for stage in stages}
+    packets = {}
+    for stage in stages:
+        role = _stage_header(policy, rules['version'], stage)
+        # Compile once in final reading order. All CLI workers receive the
+        # same rule prefix, and the guide still matches its sealed parts.
+        text = output+'\n'+role+'\n' if lean else role+'\n\n'+output
+        packets[stage] = (text, {'stage': stage, **coverage})
+    return packets
 
 
 def build_packet(snapshot, rules, stage):
@@ -185,7 +224,7 @@ def build_packet(snapshot, rules, stage):
     return _build_packets(snapshot, rules, (stage,))[stage]
 
 
-def write_parts(root, stage, text, limit=7000):
+def write_parts(root, stage, text, limit=7000, *, shared=None):
     """Lossless bounded reads: concatenation reproduces the whole packet exactly."""
     directory = root/'worker-parts'; directory.mkdir(exist_ok=True)
     chunks, current = [], ''
@@ -199,9 +238,19 @@ def write_parts(root, stage, text, limit=7000):
     if current: chunks.append(current)
     result = []
     for n, chunk in enumerate(chunks, 1):
-        path = directory/f'{stage}-{n:02}.md'
+        # Scoped to one freeze. Position distinguishes equal chunks within a
+        # single guide; only identical chunks at the same position can share.
+        key = (n, chunk)
+        if shared is not None and key in shared:
+            result.append(shared[key])
+            continue
+        name = f'part-{len(shared)+1:02}.md' if shared is not None else f'{stage}-{n:02}.md'
+        path = directory/name
         path.write_text(chunk, encoding='utf-8', newline='')
-        result.append({'file': path.relative_to(root).as_posix(), 'sha256': sha(path), 'characters': len(chunk)})
+        record = {'file': path.relative_to(root).as_posix(), 'sha256': sha(path), 'characters': len(chunk)}
+        if shared is not None:
+            shared[key] = record
+        result.append(record)
     return result
 
 
@@ -210,7 +259,8 @@ def freeze(skill, batch, rules_bytes, policy):
     root = batch/'skill-snapshot'
     root.mkdir(exist_ok=False)
     original = {}
-    for src in selected_files(skill):
+    lean = policy.get('execution_optimization') == LEAN
+    for src in selected_files(skill, lean=lean):
         src = local(src, skill)
         relative = src.relative_to(skill)
         target = root/relative
@@ -226,11 +276,12 @@ def freeze(skill, batch, rules_bytes, policy):
     rules = json.loads(rules_bytes.decode('utf-8-sig'))
     coverage = {}
     packets = _build_packets(root, rules, STAGES)
+    shared_parts = {}
     for stage in STAGES:
         text, coverage[stage] = packets[stage]
         (root/f'worker-{stage}.md').write_text(text, encoding='utf-8', newline='')
         if policy.get('execution_optimization') == LEAN:
-            coverage[stage]['read_parts'] = write_parts(root, stage, text)
+            coverage[stage]['read_parts'] = write_parts(root, stage, text, shared=shared_parts)
     if policy.get('execution_optimization') == LEAN:
         routed = [r for r in rules['rules'] if r['status']=='active' and r['id'] in CONTROLLER_RULES
                   and r['scope']=='global' and r['section'] in {'batch', 'delivery', 'update'}]
@@ -311,6 +362,10 @@ def worker_paths(m, stage):
                       runtime_config=str(root/'references/runtime.json'),
                       evidence_query=str(root/'scripts/evidence_query.py'),
                       receipt_tool=str(root/'scripts/worker_receipt.py'))
+    if m['policy'].get('controller_render') == 'bound_requests_v1':
+        result['controller_render'] = 'bound_requests_v1'
+    if (root/'scripts/page_probe.py').is_file():
+        result['page_probe'] = str(root/'scripts/page_probe.py')
     return result
 
 

@@ -23,8 +23,9 @@ MODEL_EFFORTS = frozenset({('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh'),
 COMPLETION_FILES = ('events.jsonl', 'worker-final.json', 'session.jsonl', 'prompt.txt', 'cli-exit.json')
 CONNECTION_RETRY = re.compile(
     r'Reconnecting\.\.\. ([1-9][0-9]*)/([1-9][0-9]*) '
-    r'\(stream disconnected before completion: [^\r\n]+\)')
+    r'\((?:stream disconnected before completion: [^\r\n]+|workspace routing discovery timed out|request timed out)\)')
 NETWORK_WAIT = 'Reconnecting... waiting for network (Connection failed: error sending request)'
+MODEL_CAPACITY = 'Selected model is at capacity. Please try a different model.'
 _COMPLETION_SCOPE = ContextVar('cli_completion_scope', default=None)
 
 
@@ -259,6 +260,42 @@ def _require_stopped(identity):
     live = process_identity(identity['pid'])
     _require(live is None or live.get('created') != identity['created'],
              'Original CLI process is still live; keep its worker slot')
+
+
+def capacity_failure(attempt, dispatch, model):
+    """Recognize a stopped capacity failure, never a completed/accepted result."""
+    root, identity = _dispatch_record(dispatch, attempt, model)
+    if attempt.get('state') == 'bound':
+        _require(dispatch == attempt.get('dispatch_record')
+                 and _sha(_file(root, 'dispatch.json').read_bytes()) == attempt.get('dispatch_sha256'),
+                 'Bound CLI dispatch changed')
+    exited_bytes = _file(root, 'cli-exit.json').read_bytes()
+    exited = _json(exited_bytes)
+    _require(type(exited.get('returncode')) is int
+             and exited.get('pid') == identity['pid'] and exited.get('created') == identity['created'],
+             'CLI failure exit identity mismatch')
+    _require_stopped(identity)
+    if exited['returncode'] == 0:
+        return None
+    raw = _file(root, 'events.jsonl').read_bytes()
+    rows = _jsonl(raw)
+    starts = [i for i, r in enumerate(rows) if r.get('type') == 'thread.started']
+    turns = [i for i, r in enumerate(rows) if r.get('type') == 'turn.started']
+    failures = [i for i, r in enumerate(rows) if r.get('type') == 'turn.failed']
+    errors = [r for r in rows if r.get('type') == 'error']
+    if (len(starts) != 1 or len(turns) != 1 or failures != [len(rows)-1]
+            or not starts[0] < turns[0] < failures[0]
+            or any(r.get('type') == 'turn.completed' for r in rows)
+            or rows[-1] != {'type': 'turn.failed', 'error': {'message': MODEL_CAPACITY}}
+            or not errors or any(r != {'type': 'error', 'message': MODEL_CAPACITY} for r in errors)
+            or any(r.get('type') == 'error' for r in rows[:turns[0]])
+            or (root/'worker-final.json').exists() or (root/'cli-completion.json').exists()):
+        return None
+    session_id = rows[starts[0]].get('thread_id')
+    _require(isinstance(session_id, str) and str(uuid.UUID(session_id)) == session_id,
+             'Canonical failed CLI session UUID required')
+    return {'code': 'model_capacity', 'message': MODEL_CAPACITY, 'session_id': session_id,
+            'events_sha256': _sha(raw), 'exit_sha256': _sha(exited_bytes)}
 
 
 def _proof_file(root, name):

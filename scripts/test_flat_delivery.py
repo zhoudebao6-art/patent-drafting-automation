@@ -53,7 +53,7 @@ class SerialFlatTests(unittest.TestCase):
 
     def test_full_input_name_preserved_independent_of_titles_and_internal_sources(self):
         m = b.read(self.manifest)
-        original = '1014周丽2-20261014 SPN项目 ' + '完整名称' * 25
+        original = '示例批次-20261014 网络调度项目 ' + '完整名称' * 25
         m['input'] = str(self.root / original)
         expected = original + '_终稿_' + m['batch_id']
         self.assertEqual(flat.folder_name(m), expected)
@@ -96,7 +96,7 @@ class SerialFlatTests(unittest.TestCase):
                 self.assertFalse(work.exists())
 
     def test_new_init_freezes_original_named_root_without_extra_manifest_field(self):
-        source = self.root / '1014周丽2-20261014 SPN项目'; source.mkdir()
+        source = self.root / '示例批次-20261014 网络调度项目'; source.mkdir()
         nested = source / '解压材料'; nested.mkdir(); serial.docx(nested / 'a.docx', 'fixture')
         selection = {'projects': [{'title': '另一个案件标题', 'source_files': ['解压材料/a.docx'], 'primary_source': '解压材料/a.docx'}]}
         for module, base in ((b, serial.POLICY), (p, parallel.POLICY)):

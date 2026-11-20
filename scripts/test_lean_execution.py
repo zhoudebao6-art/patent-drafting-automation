@@ -17,6 +17,72 @@ import test_parallel_batch as fixtures
 
 
 class LeanTests(unittest.TestCase):
+    def test_inline_packet_is_exact_once_and_context_preserves_all_decisions(self):
+        r = self.reserve(1)
+        previous = {'verdict':'fix_required','findings':[{'location':'P3','reason':'完整符号−不是截断字母'}],
+                    'checks':{'formulas':'failed'},'review_coverage':{'unchanged':'still requires proof'},
+                    'review_notes':['不可遗漏的关联范围'],'future_field':{'keep':'unknown semantics'},
+                    'context':{'prior':'controller metadata'},'render_validation':{'hash':'controller metadata'}}
+        r['worker_context']['latest_review'] = previous
+        original = copy.deepcopy(r)
+        guide = Path(r['worker_context']['prepared']['pipeline']['stage_guide']).read_text(encoding='utf-8')
+        prompt = pool.worker_prompt(r)
+        self.assertEqual(prompt.count(guide),1)
+        self.assertTrue(prompt.startswith('以下为已校验的完整冻结阶段清单'))
+        compact = pool.prompt_context(r)
+        for key in ('verdict','findings','checks','review_coverage','review_notes','future_field'):
+            self.assertEqual(compact['latest_review'][key],previous[key])
+        self.assertNotIn('stage_read_parts',compact['prepared']['pipeline'])
+        self.assertEqual(r,original)
+        self.assertLess(len(json.dumps(compact)),len(json.dumps(r['worker_context'])))
+        second = self.reserve(2)
+        other = pool.worker_prompt(second)
+        self.assertEqual(prompt.split('--- 本案运行入口 ---')[0],other.split('--- 本案运行入口 ---')[0])
+        self.assertNotIn(second['worker_context']['primary_snapshot'],prompt)
+
+    def test_inline_packet_refuses_changed_missing_reordered_and_duplicated_parts(self):
+        r = self.reserve(1); pipeline=r['worker_context']['prepared']['pipeline']
+        guide=Path(pipeline['stage_guide']);first=Path(pipeline['stage_read_parts'][0]['path'])
+        for mode in ('guide','part','missing','reordered','duplicated','length'):
+            with self.subTest(mode=mode):
+                current=copy.deepcopy(pipeline);saved={guide:guide.read_bytes(),first:first.read_bytes()}
+                try:
+                    if mode=='guide':guide.write_bytes(saved[guide]+b'changed')
+                    elif mode=='part':first.write_bytes(saved[first]+b'changed')
+                    elif mode=='missing':current['stage_read_parts']=current['stage_read_parts'][1:]
+                    elif mode=='reordered':current['stage_read_parts'].reverse()
+                    elif mode=='duplicated':current['stage_read_parts'].append(current['stage_read_parts'][0])
+                    else:current['stage_read_parts'][0]['characters']+=1
+                    with self.assertRaises(ValueError):pool.inline_stage_packet(current)
+                finally:
+                    for path,raw in saved.items():path.write_bytes(raw)
+
+    def test_actual_worker_prompts_share_all_rules_but_only_their_own_role(self):
+        reserved = self.reserve(1)
+        manifest = q.load_manifest(self.manifest)
+        root = s.verify(manifest)
+        seen_prefixes = []
+        rules = b.read(root/'references/rules.json')
+        active = {rule['id']: rule for rule in rules['rules'] if rule['status'] == 'active'}
+        for stage in s.STAGES:
+            job = copy.deepcopy(reserved)
+            pipeline = s.worker_paths(manifest, stage)
+            job['attempt']['stage'] = stage
+            job['spawn_arguments'].update(manifest['policy']['models'][stage])
+            job['worker_context']['prepared']['pipeline'] = pipeline
+            prompt = pool.worker_prompt(job)
+            packet = pool.inline_stage_packet(pipeline)
+            role = s._stage_header(manifest['policy'], rules['version'], stage)
+            self.assertTrue(packet.endswith(role+'\n'))
+            self.assertEqual(prompt.count(packet), 1)
+            common = packet.removesuffix(role+'\n')
+            for ident in b.read(root/'packet-coverage.json')[stage]['included_rule_ids']:
+                self.assertIn(s.rule_block(active[ident]), common)
+            for other in set(s.STAGES) - {stage}:
+                self.assertNotIn(s._stage_header(manifest['policy'], rules['version'], other), prompt)
+            seen_prefixes.append(prompt.split(role, 1)[0])
+        self.assertEqual(len(set(seen_prefixes)), 1)
+
     reserve = fixtures.ParallelTests.reserve
     receipt = fixtures.ParallelTests.receipt
     record = fixtures.ParallelTests.record

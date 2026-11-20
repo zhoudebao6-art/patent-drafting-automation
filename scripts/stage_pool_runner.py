@@ -9,7 +9,7 @@ import parallel_batch as queue
 
 
 def run_pipeline(manifest, controller, workers, executable, *, halted=False,
-                 blocking_reasons=None, history_audit_failed=False):
+                 blocking_reasons=None, history_audit_failed=False, capacity=None):
     import cli_pool as cli
     wake = threading.Event()
     stop_launching = threading.Event()
@@ -21,7 +21,13 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
     blocked_attempts = set()
     publication = None
     publication_failed = history_audit_failed
+    capacity_seen = False
+    capacity_only = not halted
     policy = queue.load_manifest(manifest)['policy']
+    import controller_render_bridge as render_bridge
+    import render_docx_checked as renderer
+    render_jobs = {}
+    render_seen = set()
 
     def prepare_and_launch(reserved):
         ident = reserved['case_id']; attempt = reserved['attempt']['id']
@@ -44,15 +50,22 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
             stop_launching.set()
         return result
 
+    def render_one(request):
+        # A queued slow-I/O job validates current ownership when it starts.
+        return render_bridge.fulfill(queue.load_manifest(manifest), request, renderer)
+
     def submit(executor, kind, c, a, function, *args):
         future = executor.submit(function, *args)
         jobs[a['id']] = {'future': future, 'kind': kind, 'case_id': c['id'], 'attempt': a['id']}
         future.add_done_callback(lambda _: wake.set())
 
     with ExitStack() as stack:
-        lanes = {stage: stack.enter_context(ThreadPoolExecutor(max_workers=min(limit, workers),
+        ceiling = capacity.ceiling if capacity is not None else workers
+        lanes = {stage: stack.enter_context(ThreadPoolExecutor(max_workers=min(limit, ceiling),
                         thread_name_prefix='patent-'+stage)) for stage, limit in policy['stage_pools'].items()}
         publisher = stack.enter_context(ThreadPoolExecutor(max_workers=1, thread_name_prefix='patent-publish'))
+        render_lane = (stack.enter_context(ThreadPoolExecutor(max_workers=1, thread_name_prefix='patent-render'))
+                       if policy.get('controller_render') == render_bridge.MODE else None)
         while True:
             wake.clear()
             changed = False
@@ -65,6 +78,14 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
                     outcome = job['future'].result()
                     if job['kind'] == 'collect' and outcome[1]:
                         stop_launching.set(); blocked_attempts.add(ident)
+                        if getattr(outcome, 'capacity_only', False):
+                            capacity_seen = True
+                        else:
+                            capacity_only = False
+                    elif (job['kind'] == 'collect' and getattr(outcome, 'completed', 0)
+                          and capacity is not None and not stop_launching.is_set()):
+                        capacity.completed(lambda kind, **values: cli.event(manifest, kind, **values),
+                                           case_id=job['case_id'], attempt=ident)
                 except queue.PreparationError as exc:
                     # Preparation performed only local I/O and never launched.
                     queue.cancel(manifest, job['case_id'], ident, str(exc), controller=controller)
@@ -72,6 +93,7 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
                     cli.event(manifest, 'preparation_failed', case_id=job['case_id'], reason=str(exc))
                 except Exception as exc:
                     stop_launching.set(); blocked_attempts.add(ident)
+                    capacity_only = False
                     blocking_reasons.append({'case_id': job['case_id'], 'reason': str(exc)})
                     cli.event(manifest, 'worker_needs_attention', case_id=job['case_id'], reason=str(exc))
             if publication is not None and publication.done():
@@ -85,15 +107,39 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
                     # An unavailable destination pauses publication only. Keep
                     # the accepted bytes and let independent stage pools work.
                     publication_failed = True
+                    capacity_only = False
                     blocking_reasons.append({'reason': 'Publication I/O unavailable: '+str(exc)})
                     cli.event(manifest, 'publication_failed', reason=str(exc), scope='delivery')
                 except Exception as exc:
                     publication_failed = True; stop_launching.set()
+                    capacity_only = False
                     blocking_reasons.append({'reason': 'Publication failed: '+str(exc)})
                     cli.event(manifest, 'publication_failed', reason=str(exc))
                 publication = None
 
+            for request, future in list(render_jobs.items()):
+                if not future.done():
+                    continue
+                del render_jobs[request]
+                changed = True
+                try:
+                    result = future.result()
+                    cli.event(manifest, 'controller_render_completed', request=str(request), **result)
+                except Exception as exc:
+                    stop_launching.set(); capacity_only = False
+                    blocking_reasons.append({'reason': 'Render handoff failed: '+str(exc)})
+                    cli.event(manifest, 'controller_render_failed', request=str(request), reason=str(exc))
+
             m = queue.load_manifest(manifest)
+            for request in render_bridge.pending(m):
+                if request in render_seen:
+                    continue
+                render_seen.add(request)
+                future = render_lane.submit(render_one, request)
+                render_jobs[request] = future
+                future.add_done_callback(lambda _: wake.set())
+                cli.event(manifest, 'controller_render_started', request=str(request))
+                changed = True
             # Local I/O futures already own their attempts until completion;
             # only unowned, unblocked attempts can produce an action this round.
             observable = {c['id'] for c in m['projects'] if c['active_attempt']
@@ -122,6 +168,7 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
                     candidates.append((stamp, c['id'], c, a))
                 elif action == 'inspect_interrupted_launch':
                     stop_launching.set(); blocked_attempts.add(a['id'])
+                    capacity_only = False
                     reason = 'Interrupted preparation/launch; retain slot and inspect before retry'
                     blocking_reasons.append({'case_id': c['id'], 'reason': reason})
                     cli.event(manifest, 'worker_needs_attention', case_id=c['id'], reason=reason)
@@ -137,9 +184,10 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
                 changed = True
 
             active = sum(bool(c['active_attempt']) for c in m['projects'])
-            if not stop_launching.is_set() and active < workers and not m.get('delivery_closed'):
+            launch_workers = capacity.workers if capacity is not None else workers
+            if not stop_launching.is_set() and active < launch_workers and not m.get('delivery_closed'):
                 try:
-                    reserved = queue.reserve(manifest, workers, controller=controller, prepare=True,
+                    reserved = cli.reserve(manifest, launch_workers, controller=controller, prepare=True,
                                              transport='codex_cli', defer_preparation=True)
                 except queue.NoReadyWork as exc:
                     queue_blocked = exc.plan['blocked']
@@ -152,6 +200,7 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
                                 c['status'] in b.TERMINAL and not c.get('active_attempt') for c in current['projects']):
                             continue
                     stop_launching.set()
+                    capacity_only = False
                     blocking_reasons.append({'reason': str(exc)})
                     cli.event(manifest, 'queue_failed', reason=str(exc))
                 else:
@@ -163,10 +212,14 @@ def run_pipeline(manifest, controller, workers, executable, *, halted=False,
             waiting = any(r['next_action'] == 'wait_cli' and
                           r.get('attempt') not in blocked_attempts for r in snapshot['cases'])
             external = any(r['next_action'] == 'wait_external_worker' for r in snapshot['cases'])
-            if not jobs and publication is None and (not active or (stop_launching.is_set() and not waiting)
+            if not jobs and not render_jobs and publication is None and (not active or (stop_launching.is_set() and not waiting)
                                                      or (external and not waiting)):
                 result = cli.status(manifest)
                 result.update(halted=stop_launching.is_set(), blocking_reasons=blocking_reasons+queue_blocked)
+                result['capacity_limited'] = capacity_seen and capacity_only and not active
+                if capacity_seen:
+                    result['blocking_reasons'].append({'code': 'model_capacity',
+                        'reason': cli.evidence.MODEL_CAPACITY, 'retry_workers': 1})
                 cli.event(manifest, 'pool_stopped', halted=result['halted'])
                 return result
             if not changed:

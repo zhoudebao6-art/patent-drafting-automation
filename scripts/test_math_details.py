@@ -7,6 +7,7 @@ import math_fragments as fragments
 import inspect_docx
 import test_authoring_formula_prose as prose
 from test_authoring_formula_prose import flat
+from test_complete_symbol_explanations import mathematical_structure
 
 
 def sub(letter,index):
@@ -45,8 +46,8 @@ class MathDetailsTests(unittest.TestCase):
         display,symbol=doc.findall('.//m:oMath',t.NS)
         rows=display.findall('m:eqArr/m:e',t.NS)
         self.assertEqual(len(rows),2)
-        self.assertEqual([t.tree_signature(n) for row in rows for n in row][:-1],
-                         [t.tree_signature(n) for n in ET.fromstring(PAIRED)])
+        self.assertEqual([mathematical_structure(n) for row in rows for n in row][:-1],
+                         [mathematical_structure(n) for n in ET.fromstring(PAIRED)])
         self.assertEqual(''.join(rows[-1][-1].xpath('.//m:t/text()',namespaces=t.NS)),'；')
         self.assertEqual(''.join(symbol.xpath('.//m:t/text()',namespaces=t.NS)),'pi,k+ℓ+1')
         self.assertEqual(symbol.find('.//m:sty',t.NS).get(t.qn('m:val')),'b')

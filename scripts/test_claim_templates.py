@@ -400,5 +400,60 @@ class ClaimTemplatesTests(unittest.TestCase):
         self.assertFalse(cc.is_feature_hit(report,dict(hits[0],offset_projection='unknown')))
 
 
+
+class ClaimOneTitleV89Tests(unittest.TestCase):
+    def rows(self, title=TITLE, family='method'):
+        rows=claims_for(family,title)
+        tail=rows[0]['text'].split('，其特征在于，',1)[1]
+        rows[0]['text']='1.'+cc.first_theme_title(title)+'，其特征在于，'+tail
+        if family=='three_independent':
+            rows[9]['text']='10.一种计算机可读存储介质，其上存储有计算机程序，其特征在于，所述计算机程序被处理器执行时实现权利要求1至7任一项所述的方法。'
+        return rows
+
+    def test_exact_first_title_and_all_existing_families(self):
+        for title,family in [(TITLE,'method'),('记录处理系统','system'),
+                             ('记录处理方法及系统','method_system'),('记录处理系统及方法','system_method'),
+                             (TITLE,'three_independent'),('一种'+TITLE,'method')]:
+            with self.subTest(title=title,family=family):
+                rows=self.rows(title,family);before=deepcopy(rows)
+                ev=cc.evaluate(rows,title,artifact_sha256='a'*64,rule_version=89)
+                self.assertEqual(ev['issues'],[]);self.assertEqual(ev['rule_version'],89)
+                self.assertEqual(rows,before)
+                cc.require_valid({'sha256':'a'*64,'claims_detected':rows,'claim_template_evidence':ev},title,89)
+
+    def test_unwanted_missing_duplicate_and_different_name_rejected(self):
+        cases=[(TITLE,'一种'+TITLE),('一种'+TITLE,TITLE),(TITLE,'一种一种'+TITLE),(TITLE,'记录分析方法')]
+        for title,wrong in cases:
+            with self.subTest(title=title,wrong=wrong):
+                rows=self.rows(title)
+                rows[0]['text']='1.'+wrong+'，其特征在于，'+rows[0]['text'].split('，其特征在于，',1)[1]
+                self.assertTrue(any(i['code']=='claim_one_title_mismatch' for i in cc.evaluate(rows,title,rule_version=89)['issues']))
+
+    def test_other_independent_prefix_and_ordinary_feature_word_unchanged(self):
+        rows=self.rows('记录处理方法及系统','method_system');other=rows[9]['text']
+        rows[0]['text']=rows[0]['text'][:-1]+'采用一种候选方式。'
+        self.assertEqual(cc.evaluate(rows,'记录处理方法及系统',rule_version=89)['issues'],[])
+        self.assertEqual(rows[9]['text'],other);self.assertIn('一种候选方式',rows[0]['text'])
+        rows[9]['text']=rows[9]['text'].replace('10.一种','10.',1)
+        self.assertTrue(any(i['code']=='independent_theme_prefix' and i['claim']==10 for i in cc.evaluate(rows,'记录处理方法及系统',rule_version=89)['issues']))
+
+    def test_old_frozen_version_keeps_original_prefix_contract(self):
+        self.assertEqual(cc.evaluate(claims_for(),TITLE,rule_version=88)['issues'],[])
+
+    def test_authoring_checks_only_first_name_and_preserves_technical_text(self):
+        rows=self.rows();claims=[dict(id='c'+str(x['number']),type='paragraph',role='body',text=x['text']) for x in rows]
+        spec={'project_title':TITLE,'invention_from_claims':True,'sections':[{'kind':'claims','blocks':claims},
+              {'kind':'description','blocks':[dict(id='h',type='paragraph',role='heading',text='发明内容'),
+              dict(id='b',type='paragraph',role='body',text=inv.BENEFITS)]}]}
+        before=deepcopy(spec['sections'][0]);inv.expand(spec,89);self.assertEqual(spec['sections'][0],before)
+        bad=deepcopy(spec);bad['invention_from_claims']=True
+        bad['sections'][2:] = []
+        bad['sections'][1]['blocks']=[dict(id='h',type='paragraph',role='heading',text='发明内容'),dict(id='b',type='paragraph',role='body',text=inv.BENEFITS)]
+        bad['sections'][0]['blocks'][0]['text']=bad['sections'][0]['blocks'][0]['text'].replace('1.','1.一种',1)
+        with self.assertRaisesRegex(ValueError,'NAME-01'):
+            inv.expand(bad,89)
+
+
+
 if __name__=='__main__':
     unittest.main()

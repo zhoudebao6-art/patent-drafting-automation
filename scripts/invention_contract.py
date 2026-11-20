@@ -97,7 +97,7 @@ def expand(spec, rule_version=0):
     for block in claims:
         if block.get('role')!='body':raise ValueError('Claim prose must use body role')
         text=block_text(block)
-        category_slot=rule_version>=76 and bool(re.match(r'^[1-9][0-9]*[.．、]',text))
+        category_slot=rule_version>=76 and bool(re.match(r'^[1-9][0-9]*[.．、]',text)) and not (rule_version>=89 and re.match(r'^1[.．、]',text))
         if name_prefix_issue(text,spec['project_title'],category_slot=category_slot):
             raise ValueError('NAME-01 title_reference_prefix: use the official name unchanged in claim '+block['id'])
         if re.match(r'^[1-9][0-9]*[.．、]',text):
@@ -180,13 +180,13 @@ def evidence(report,body,claims,title,rule_version=0):
             if '权利要求' in text or '特征在于' in text:unsupported[len(expected)-1]='technical_claim_reference'
     if not numbers or numbers!=list(range(1,len(numbers)+1)) or len(numbers)!=len(claims):issue('claim_inventory_unresolved')
     plan=actual[2:]
-    category_slots={c['paragraphs'][0] for c in claims if c.get('paragraphs')} if rule_version>=76 else set()
+    category_slots={c['paragraphs'][0] for c in claims if c.get('paragraphs') and not (rule_version>=89 and c.get('number')==1)} if rule_version>=76 else set()
     if rule_version>=76:
         # Only the exact independent-claim projection in the solution region.
         for target,wanted,source in zip(plan,expected,source_rows):
-            try:_,kind,_=claim_head(source['text'])
+            try:claim_number,kind,_=claim_head(source['text'])
             except ValueError:continue
-            if kind=='independent' and target['text']==wanted:category_slots.add(target['p'])
+            if kind=='independent' and target['text']==wanted and not (rule_version>=89 and claim_number==1):category_slots.add(target['p'])
     for p in body:
         mismatch=name_prefix_issue(p['text'],title['text'],p['p'] in category_slots)
         if mismatch:issue(mismatch.pop('code'),p['p'],**mismatch)

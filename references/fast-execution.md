@@ -1,14 +1,16 @@
 # 通用精简执行
 
-主线为来源准备→初稿→独立复查→必要修改后独立重验→逐案交付。当前采用6初稿、3复查、3修改池，draft为Sol/high，review/revise为Sol/xhigh，实际容量显式提供；配置不代表已测吞吐。本页集中维护机械执行契约，写作规则见冻结阶段包，历史演进见CHANGELOG。
+主线为来源准备→初稿→独立复查→必要修改后独立重验→逐案交付。当前采用16初稿、8复查、8修改池，draft为Sol/high，review/revise为Sol/xhigh，CLI默认读冻结总目标作为启动预算，显式降载须说明依据；配置不代表已测吞吐。本页集中维护机械执行契约，写作规则见冻结阶段包，历史演进见CHANGELOG。
 
 ## 新批次一次准备
 
 `worker_preparation=frozen_stage_packet_v1`由parallel_batch.py init一次冻结规则、规范、运行脚本及必要资产，保存SHA和规则/策略身份；历史规则备份和测试脚本不随批复制。来源正文仍按案隔离。freeze只编译一次公共内容，再组合各阶段模型/职责，不跨调用缓存验证结果。
 
-`execution_optimization=lean_execution_v24`保留worker规则的instruction/check/exceptions/scope/section/level/origin原文；仅已知纯主控global规则放worker-controller.md，未知或project规则仍进worker清单。完整active集合只冻结一份rules.active.json，evidence保留在rules.json，覆盖记录绑定全部ID及路由。worker-standard及五份完整原规范由覆盖文件绑定SHA，变更先独立审语义再刷新，过期覆盖不能编译；项目证据契约完整提供。
+`execution_optimization=lean_execution_v24`保留worker规则的instruction/check/exceptions/scope/section/level/origin原文；仅已知纯主控global规则放worker-controller.md，未知或project规则仍进worker清单。完整active集合及其evidence只供worker从本快照rules.active.json按ID查询，覆盖记录绑定全部ID及路由。references/rules.json保留历史供维护追溯，不作为worker第二套执行规则。worker-standard及五份完整原规范由覆盖文件绑定SHA，变更先独立审语义再刷新，过期覆盖不能编译；项目证据契约完整提供。
 
-worker按prepared.pipeline.stage_read_parts顺序读各不超过7000字符的块一次，其拼接须等于stage_guide；截断只补未读范围，不再整读相同JSON或规范。math_guide按公式/附图场景路由：仅有图不加载公式资料，公式图片仍属公式，不能据零OMML判断无公式。条件索引触发时读取完整原节，宿主及documents技能要求保留。非lean旧批次继续使用原全文包。
+新CLI在派发前校验stage_guide及各分块SHA、字符数和完整拼接，把共用规则正文放在三个阶段启动提示的相同前缀，随后是本阶段专属职责和本案路径。相同位置的相同分块在本批快照只保存一份，各阶段按自己的有序清单校验后完整拼回。模型不再为这些已提供规则调用工具逐块读取。未内嵌清单的协作/旧通道仍按prepared.pipeline.stage_read_parts顺序读各不超过7000字符的块一次，拼接等于stage_guide；截断只补未读范围，不重读同内容。规则没有摘要替换或丢弃，条件引用仍按需要读取。公共前缀相同仅提供复用条件，不承诺服务端缓存命中或账号节省比例。
+
+CLI启动上下文仅省重复的主控身份/缓存指纹和已内嵌块的元数据；当前稿SHA、具体findings、checks、review_coverage、review_notes、未知扩展字段和来源路径保留。完整reservation与prepared/handoff仍在原路径供工具核验，原始字节、门禁和回执不变；普通worker不因缩略视图重新整读这两份原始JSON。math_guide按公式/附图场景路由：仅有图不加载公式资料，公式图片仍属公式，不能据零OMML判断无公式。条件索引触发时读取完整原节，宿主及documents技能要求保留。非lean旧批次继续使用原全文包。
 
 来源inspection和mapper SHA共同绑定本案source-navigation，由manifest封存后各阶段只读复用，不写回提取cache。来源提取缓存以源SHA和提取器哈希为身份，同名异内容不能复用；复查仍据待审范围核原材料及完整OMML。完整对象、段落和定位用evidence_query按ID或不重叠页读取；技术推算仍由模型据源完成。队列/CLI自动使用本批冻结脚本，绑定与收稿核快照完整性，安装新版本不改在途快照。
 

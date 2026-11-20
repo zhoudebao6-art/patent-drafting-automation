@@ -202,7 +202,7 @@ class ModelPolicyTests(unittest.TestCase):
         w.record(draft)
         review = w.reserve(1)
         self.assertEqual({k: review['spawn_arguments'][k] for k in NEW_MODELS['review']}, NEW_MODELS['review'])
-        self.assertEqual(m['policy']['stage_pools'], {'draft': 6, 'review': 3, 'revise': 3})
+        self.assertEqual(m['policy']['stage_pools'], {'draft': 16, 'review': 8, 'revise': 8})
         self.assertEqual(m['policy']['review_mode'], 'review_only')
         with self.assertRaises(b.BatchError):
             w.submit(review, w.revised_receipt(review))
@@ -304,7 +304,11 @@ class ModelPolicyTests(unittest.TestCase):
         frozen = Path(review['worker_context']['prepared']['pipeline']['root'])
         for stage in ('draft', 'review', 'revise'):
             packet, _ = stage_bundle.build_packet(frozen, {'version': 20, 'rules': []}, stage)
-            self.assertIn(b.model_label(b.read(w.manifest)['policy'], stage).lower(), packet.splitlines()[2].lower())
+            marker = f'# 本批{stage}执行清单（规则v20）\n\n'
+            self.assertEqual(packet.count(marker), 1)
+            frozen_model = b.read(w.manifest)['policy']['models'][stage]
+            role = packet.partition(marker)[2]
+            self.assertTrue(role.startswith(f"本阶段模型/强度：{frozen_model['model']}/{frozen_model['reasoning_effort']}。"), role)
         for pipeline in (True, False):
             reserved = copy.deepcopy(review)
             if not pipeline:

@@ -144,6 +144,12 @@ def validate_policy(p):
                                 or p['delivery'].get('layout') != 'flat_final_files'
                                 or p.get('worker_preparation') != 'frozen_stage_packet_v1'):
         raise BatchError('Nonblocking pools require prepared three-stage flat delivery')
+    if p.get('capacity_recovery') not in (None, 'verified_ramp_v1'):
+        raise BatchError('Invalid capacity recovery policy')
+    if p.get('controller_render') not in (None, 'bound_requests_v1'):
+        raise BatchError('Invalid controller render policy')
+    if (p.get('capacity_recovery') or p.get('controller_render')) and not nonblocking_pools(p):
+        raise BatchError('Adaptive capacity and controller render require nonblocking stage pools')
 
 @contextmanager
 def locked(path, timeout=10):

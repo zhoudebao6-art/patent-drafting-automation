@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewed_for": "lean_execution_v24",
-  "description": "v6.56规则84独立语义复核：TXT-10/STYLE-05统一通常含义熟知运算符不另释，特殊运算、完整量及独有条件据源保留；worker及原规范正确路由，覆盖清单不为通用算子造释义。原公式正确性/格式、六项复查和此前全部例外保持，无新工具、字段、扫描或模型阶段。",
+  "description": "v6.70语义覆盖核对：五份原始写作规范字节保持；worker原接口完整保留，追加QA-09原始单页确认路由。规则90只补容量恢复及预览核实，原模型、六项、全当前页和修改后新会话独立复查不变。",
   "files": {
-    "writing-standard.md": "7d16377617c3ef5c3b478ada2cb570d49336301040705f00ba4d4a9feae73116",
-    "claim-families-and-benefits.md": "7af5782c391f1cc27f7dd0f345cb6fb302b784737a136993e5346b11b8e7edf7",
-    "terminology-and-formula.md": "11420b54b728105643953a512589a80adfec9ffbbc697fc1d54e78f11ec0132a",
-    "reference-style-standard.md": "67b90d46f407ca1f438f66526ce9d1d99eec0c336daacb9c040bfad265cbf460",
-    "manual-format-and-wording.md": "1b5bc9c09550362f37e3e82a0a5d84f2f6b5aff2250bfd15f9dd016f46f2af03",
-    "worker-standard.md": "12aa6de71107065251741ef641b295bbc2b06cc830665f8a6ef919e8c7792fec"
+    "writing-standard.md": "d4dc366f2e4ebba7c0a7715ce49cdbb7f6a2fbaaf722905b25a61d1bde28555d",
+    "claim-families-and-benefits.md": "4471cb5efa9745d6fcc63a0a59f27eaf762c59ab34f79d3cdcfa542bd55acc72",
+    "terminology-and-formula.md": "2f986c15f2ae74b8be0856e6aef8d7e84b9929710bf55474b2d044ba581da240",
+    "reference-style-standard.md": "99a478133a3908adb9b1b13c99e482851983ae90e132e1ff9f6aae7cea39c2e0",
+    "manual-format-and-wording.md": "aefbe626f069857954aca2e6d45f966c40122c5bad93f10ac53f9263c6f243d1",
+    "worker-standard.md": "d04796dccc6e2cb04e16d1be1e6685f24fc03e37890c393f457ccbc93185505a"
   }
 }
